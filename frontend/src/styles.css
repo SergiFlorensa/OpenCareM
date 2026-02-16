@@ -230,6 +230,37 @@ body {
   font-size: 0.85rem;
 }
 
+.compact-controls {
+  align-items: flex-end;
+}
+
+.compact-controls label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: #9db0d3;
+}
+
+.advanced-menu {
+  border: 1px solid #314463;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: #10192b;
+  min-width: 180px;
+}
+
+.advanced-menu summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #c2d1ea;
+}
+
+.trace-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .timeline {
   overflow-y: auto;
   display: grid;

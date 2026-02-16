@@ -373,3 +373,24 @@
   - rendimiento y naturalidad dependen del modelo local/hardware.
 
 
+
+## TM-103 (chat clinico operativo avanzado)
+
+- Se mantiene contrato existente de `POST /api/v1/care-tasks/{task_id}/chat/messages` sin romper rutas.
+- Cambios backward compatible:
+  - se amplian trazas internas (`interpretability_trace`) con llaves: `matched_endpoints`, `endpoint_recommendations`, `llm_model` en escenarios sin LLM.
+  - no se elimina ningun campo existente de request/response.
+- Compatibilidad:
+  - clientes actuales siguen funcionando aunque ignoren nuevas entradas de traza.
+
+
+## TM-105 (robustez parseo Ollama, sin cambio de payload)
+
+- No se agregan endpoints ni campos nuevos en request/response de chat.
+- Cambia comportamiento interno del proveedor LLM:
+  - parseo tolerante de respuesta Ollama para formatos JSON unico, JSONL chunked y lineas prefijadas con `data:`.
+  - extraccion robusta de contenido en `message.content`, `response` o `content`.
+- Compatibilidad:
+  - contrato externo estable y backward compatible.
+- Riesgos:
+  - integraciones via proxy que alteren framing HTTP pueden requerir cabeceras adicionales en runtime.

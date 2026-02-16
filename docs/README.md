@@ -96,6 +96,7 @@ Este directorio centraliza la documentacion tecnica y operativa del proyecto.
 91. `docs/91_frontend_chat_clinico_mvp.md`
 92. `docs/92_frontend_chat_herramientas_modo_hibrido.md`
 93. `docs/93_motor_conversacional_neuronal_open_source.md`
+94. `docs/94_chat_clinico_operativo_ollama_local_runbook.md`
 
 ## Objetivo
 

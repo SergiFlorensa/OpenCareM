@@ -71,6 +71,7 @@ class LLMChatProvider:
         knowledge_sources: list[dict[str, str]],
         web_sources: list[dict[str, str]],
         recent_dialogue: list[dict[str, str]],
+        endpoint_results: list[dict[str, Any]],
     ) -> str:
         lines: list[str] = [
             f"Consulta del profesional: {query}",
@@ -96,13 +97,19 @@ class LLMChatProvider:
             lines.append("- " + ", ".join(patient_history_facts_used[:6]))
         if recent_dialogue:
             lines.append("Dialogo previo de esta sesion:")
-            for turn in recent_dialogue[-3:]:
+            for turn in recent_dialogue[-5:]:
                 user_query = (turn.get("user_query") or "").strip()
                 assistant_answer = (turn.get("assistant_answer") or "").strip()
                 if user_query:
                     lines.append(f"- Profesional: {user_query[:180]}")
                 if assistant_answer:
                     lines.append(f"- Copiloto: {assistant_answer[:220]}")
+        if endpoint_results:
+            lines.append("Resultados operativos reales de endpoints:")
+            for result in endpoint_results[:4]:
+                endpoint = str(result.get("endpoint") or "endpoint")
+                compact_json = json.dumps(result.get("recommendation"), ensure_ascii=False)[:600]
+                lines.append(f"- {endpoint}: {compact_json}")
         lines.append("Fuentes internas:")
         lines.append(LLMChatProvider._compact_sources(knowledge_sources))
         lines.append("Fuentes web:")
@@ -125,7 +132,7 @@ class LLMChatProvider:
         )
         with urlopen(request, timeout=settings.CLINICAL_CHAT_LLM_TIMEOUT_SECONDS) as response:
             raw_payload = response.read().decode("utf-8", errors="ignore")
-        return json.loads(raw_payload)
+        return LLMChatProvider._parse_ollama_payload(raw_payload)
 
     @staticmethod
     def _build_chat_messages(
@@ -160,6 +167,7 @@ class LLMChatProvider:
         knowledge_sources: list[dict[str, str]],
         web_sources: list[dict[str, str]],
         recent_dialogue: list[dict[str, str]],
+        endpoint_results: list[dict[str, Any]],
     ) -> tuple[str | None, dict[str, str]]:
         """
         Ejecuta inferencia remota local en Ollama.
@@ -167,7 +175,11 @@ class LLMChatProvider:
         Devuelve `(answer, trace_info)`; `answer=None` cuando falla.
         """
         if not settings.CLINICAL_CHAT_LLM_ENABLED:
-            return None, {"llm_enabled": "false"}
+            return None, {
+                "llm_enabled": "false",
+                "llm_used": "false",
+                "llm_model": settings.CLINICAL_CHAT_LLM_MODEL,
+            }
 
         started_at = time.perf_counter()
         system_prompt = LLMChatProvider._build_system_prompt(
@@ -186,6 +198,7 @@ class LLMChatProvider:
             knowledge_sources=knowledge_sources,
             web_sources=web_sources,
             recent_dialogue=recent_dialogue,
+            endpoint_results=endpoint_results,
         )
         prompt = f"[SYSTEM]\n{system_prompt}\n\n[USER]\n{user_prompt}\n\n[ASSISTANT]\n"
         common_options = {
@@ -212,14 +225,14 @@ class LLMChatProvider:
         }
         try:
             parsed = LLMChatProvider._request_ollama_json(endpoint="api/chat", payload=chat_payload)
-            answer = str((parsed.get("message") or {}).get("content") or "").strip()
+            answer = LLMChatProvider._extract_chat_answer(parsed)
             endpoint_used = "chat"
             if not answer:
                 parsed = LLMChatProvider._request_ollama_json(
                     endpoint="api/generate",
                     payload=generate_payload,
                 )
-                answer = str(parsed.get("response") or "").strip()
+                answer = LLMChatProvider._extract_chat_answer(parsed)
                 endpoint_used = "generate"
             if not answer:
                 return None, {"llm_error": "empty_response", "llm_endpoint": endpoint_used}
@@ -235,6 +248,58 @@ class LLMChatProvider:
             latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
             return None, {
                 "llm_used": "false",
+                "llm_model": settings.CLINICAL_CHAT_LLM_MODEL,
                 "llm_error": exc.__class__.__name__,
                 "llm_latency_ms": str(latency_ms),
             }
+    @staticmethod
+    def _parse_ollama_payload(raw_payload: str) -> dict[str, Any]:
+        """Parsea respuestas JSON y JSONL de Ollama de forma tolerante."""
+        payload = raw_payload.strip()
+        if not payload:
+            raise ValueError("empty_payload")
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            # Algunos proxies/instancias devuelven una salida tipo JSONL.
+            json_lines: list[dict[str, Any]] = []
+            for line in payload.splitlines():
+                candidate = line.strip()
+                if not candidate:
+                    continue
+                if candidate.startswith("data:"):
+                    candidate = candidate[5:].strip()
+                if candidate == "[DONE]":
+                    continue
+                try:
+                    json_lines.append(json.loads(candidate))
+                except json.JSONDecodeError:
+                    continue
+            if not json_lines:
+                raise
+            combined_message = "".join(
+                str(
+                    (item.get("message") or {}).get("content")
+                    or item.get("response")
+                    or item.get("content")
+                    or ""
+                )
+                for item in json_lines
+            ).strip()
+            merged = dict(json_lines[-1])
+            if combined_message:
+                if isinstance(merged.get("message"), dict):
+                    merged["message"]["content"] = combined_message
+                else:
+                    merged["response"] = combined_message
+            return merged
+
+    @staticmethod
+    def _extract_chat_answer(parsed_payload: dict[str, Any]) -> str:
+        """Extrae contenido textual de respuestas heterogeneas de Ollama."""
+        message = parsed_payload.get("message")
+        if isinstance(message, dict):
+            return str(message.get("content") or "").strip()
+        if isinstance(message, str):
+            return message.strip()
+        return str(parsed_payload.get("response") or parsed_payload.get("content") or "").strip()

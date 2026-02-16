@@ -277,3 +277,14 @@
   - Cuando se usen datos sensibles: desidentificacion previa.
 
 
+
+## TM-103
+
+- Sin cambios de esquema DB ni migraciones.
+- Persistencia existente de `care_task_chat_messages` se mantiene compatible.
+
+
+## TM-105
+
+- Sin cambios en modelos de datos, migraciones ni esquemas persistentes.
+- Riesgo: nulo en capa de datos (cambio confinado a integracion HTTP con Ollama).

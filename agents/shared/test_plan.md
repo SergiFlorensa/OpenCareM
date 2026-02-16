@@ -1319,3 +1319,25 @@
   - Comandos de validacion ejecutados:
     - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/core/config.py app/tests/test_care_tasks_api.py`
     - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_continuity_filters_control_facts_from_memory or chat_follow_up_query_reuses_previous_context_for_domain_matching or chat_message"` (`7 passed`)
+
+## TM-103 - Plan de validacion ejecutado
+
+- Validar expansion de follow-up en continuidad de sesion.
+- Validar preferencia de endpoint `api/chat` en proveedor Ollama.
+- Validar traza operativa en e2e de 3 turnos.
+- Validar build frontend tras simplificacion UI.
+
+
+## TM-105 - Plan de validacion ejecutado
+
+- Validar parseo tolerante de respuestas Ollama en formato JSONL chunked.
+- Validar parseo tolerante de lineas con prefijo `data:` (SSE-like).
+- Revalidar flujo e2e de continuidad con trazas de chat para evitar regresion.
+
+Resultados:
+- Nuevos tests:
+  - `test_parse_ollama_payload_supports_jsonl_chunks`
+  - `test_parse_ollama_payload_supports_sse_data_lines`
+- Comandos ejecutados:
+  - `python -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`

@@ -23,9 +23,15 @@ from app.models.care_task_chat_message import CareTaskChatMessage
 from app.models.clinical_knowledge_source import ClinicalKnowledgeSource
 from app.models.user import User
 from app.schemas.clinical_chat import CareTaskClinicalChatMessageRequest
+from app.schemas.critical_ops_protocol import CriticalOpsProtocolRequest
+from app.schemas.scasest_protocol import ScasestProtocolRequest
+from app.schemas.sepsis_protocol import SepsisProtocolRequest
 from app.services.agent_run_service import AgentRunService
+from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
 from app.services.knowledge_source_service import KnowledgeSourceService
 from app.services.llm_chat_provider import LLMChatProvider
+from app.services.scasest_protocol_service import ScasestProtocolService
+from app.services.sepsis_protocol_service import SepsisProtocolService
 
 
 class ClinicalChatService:
@@ -690,6 +696,58 @@ class ClinicalChatService:
         return unique
 
     @staticmethod
+    def _fetch_recommendations(
+        *,
+        query: str,
+        matched_endpoints: list[str],
+    ) -> list[dict[str, Any]]:
+        normalized_query = ClinicalChatService._normalize(query)
+        results: list[dict[str, Any]] = []
+        for endpoint in matched_endpoints:
+            recommendation: dict[str, Any] | None = None
+            if endpoint.endswith('/critical-ops/recommendation'):
+                recommendation = CriticalOpsProtocolService.build_recommendation(
+                    CriticalOpsProtocolRequest(
+                        suspected_septic_shock='sepsis' in normalized_query,
+                        non_traumatic_chest_pain='torac' in normalized_query,
+                        triage_level='rojo' if 'shock' in normalized_query else 'amarillo',
+                    )
+                ).model_dump()
+            elif endpoint.endswith('/sepsis/recommendation'):
+                recommendation = SepsisProtocolService.build_recommendation(
+                    SepsisProtocolRequest(
+                        suspected_infection=True,
+                        lactate_mmol_l=4.0 if 'lactato' in normalized_query else None,
+                        systolic_bp=(
+                            85
+                            if 'tas' in normalized_query or 'shock' in normalized_query
+                            else None
+                        ),
+                    )
+                ).model_dump()
+            elif endpoint.endswith('/scasest/recommendation'):
+                recommendation = ScasestProtocolService.build_recommendation(
+                    ScasestProtocolRequest(
+                        chest_pain_typical='torac' in normalized_query,
+                        troponin_positive='troponina' in normalized_query,
+                        hemodynamic_instability='shock' in normalized_query,
+                    )
+                ).model_dump()
+            if recommendation is None:
+                continue
+            results.append(
+                {
+                    'type': 'internal_recommendation',
+                    'endpoint': endpoint,
+                    'title': f"Recomendacion sintetizada {endpoint.split('/')[-2]}",
+                    'source': endpoint,
+                    'snippet': json.dumps(recommendation, ensure_ascii=False)[:300],
+                    'recommendation': recommendation,
+                }
+            )
+        return results
+
+    @staticmethod
     def _render_clinical_answer(
         *,
         care_task: CareTask,
@@ -706,6 +764,7 @@ class ClinicalChatService:
         include_protocol_catalog: bool,
         tool_mode: str,
         recent_dialogue: list[dict[str, str]],
+        endpoint_recommendations: list[dict[str, Any]],
     ) -> str:
         lines: list[str] = [
             "Plan operativo inicial (no diagnostico).",
@@ -752,24 +811,32 @@ class ClinicalChatService:
         if extracted_facts:
             lines.append("4) Hechos detectados")
             lines.append("- " + ", ".join(extracted_facts[:6]) + ".")
+        if endpoint_recommendations:
+            lines.append("5) Recomendaciones operativas internas")
+            for recommendation in endpoint_recommendations[:4]:
+                lines.append(f"- {recommendation['endpoint']}: {recommendation['snippet']}")
         if knowledge_sources:
-            lines.append("5) Evidencia usada")
+            lines.append("6) Evidencia usada")
             lines.append("- Fuentes internas indexadas:")
             for source in knowledge_sources[:4]:
                 lines.append(f"  - {source['title']} ({source['source']})")
         elif settings.CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES:
             lines.append(
-                "5) Evidencia usada\n- Sin fuentes internas validadas para esta consulta. "
+                "6) Evidencia usada\n- Sin fuentes internas validadas para esta consulta. "
                 "Escalar revision profesional antes de tomar decision."
             )
         if web_sources:
             lines.append("- Fuentes web consultadas (dominios en whitelist):")
             for source in web_sources[:3]:
                 lines.append(f"  - {source['title']}: {source['url']}")
-        lines.append("6) Cierre operativo")
+        lines.append("7) Cierre operativo")
         lines.append(
             "- Validar decisiones con protocolo local, "
             "responsable clinico y estado dinamico del paciente."
+        )
+        lines.append(
+            "- Este fallback operativo no constituye diagnostico final; "
+            "requiere verificacion clinica presencial."
         )
         return "\n".join(lines)
 
@@ -919,6 +986,12 @@ class ClinicalChatService:
             if fact not in unique_facts:
                 unique_facts.append(fact)
         extracted_facts = unique_facts[:20]
+        endpoint_recommendations = ClinicalChatService._fetch_recommendations(
+            query=effective_query,
+            matched_endpoints=matched_endpoints,
+        )
+        if tool_mode in {"medication", "treatment", "cases"}:
+            extracted_facts.append(f"tool_focus:{tool_mode}")
         knowledge_sources = ClinicalChatService._build_validated_knowledge_sources(
             db,
             query=effective_query,
@@ -942,6 +1015,18 @@ class ClinicalChatService:
             if use_web_sources
             else []
         )
+        endpoint_sources = [
+            {
+                "type": "internal_recommendation",
+                "title": str(item.get("title") or "Recomendacion interna"),
+                "source": str(item.get("source") or "internal"),
+                "snippet": str(item.get("snippet") or "")[:280],
+            }
+            for item in endpoint_recommendations
+        ]
+        knowledge_sources = [*knowledge_sources, *endpoint_sources][
+            : max(payload.max_internal_sources, 6)
+        ]
         interpretability_trace = [
             f"query_length={len(payload.query)}",
             f"effective_specialty={effective_specialty}",
@@ -953,8 +1038,10 @@ class ClinicalChatService:
             f"history_messages_used={len(recent_messages)}",
             f"patient_history_used={1 if patient_summary else 0}",
             f"matched_domains={','.join(matched_domains) if matched_domains else 'none'}",
+            f"matched_endpoints={','.join(matched_endpoints) if matched_endpoints else 'none'}",
             f"internal_sources={len(knowledge_sources)}",
             f"web_sources={len(web_sources)}",
+            f"endpoint_recommendations={len(endpoint_recommendations)}",
             f"memory_facts_used={len(memory_facts_used)}",
             f"extracted_facts={len(extracted_facts)}",
         ]
@@ -971,6 +1058,7 @@ class ClinicalChatService:
             knowledge_sources=knowledge_sources,
             web_sources=web_sources,
             recent_dialogue=recent_dialogue,
+            endpoint_results=endpoint_recommendations,
         )
         if llm_answer:
             answer = llm_answer
@@ -990,6 +1078,7 @@ class ClinicalChatService:
                 include_protocol_catalog=payload.include_protocol_catalog,
                 tool_mode=tool_mode,
                 recent_dialogue=recent_dialogue,
+                endpoint_recommendations=endpoint_recommendations,
             )
         else:
             answer = ClinicalChatService._render_general_answer(
@@ -1030,6 +1119,7 @@ class ClinicalChatService:
                 "matched_endpoints": matched_endpoints,
                 "knowledge_sources": knowledge_sources,
                 "web_sources": web_sources,
+                "endpoint_recommendations": endpoint_recommendations,
                 "memory_facts_used": memory_facts_used,
                 "patient_history_facts_used": patient_history_facts_used,
                 "extracted_facts": extracted_facts,
