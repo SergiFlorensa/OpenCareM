@@ -137,6 +137,13 @@ function inferHistoryTool(item: ChatHistoryItem): ToolMode {
   return "chat";
 }
 
+
+function getTraceValue(trace: string[], key: string): string {
+  const prefix = `${key}=`;
+  const entry = trace.find((item) => item.startsWith(prefix));
+  return entry ? entry.slice(prefix.length) : "n/a";
+}
+
 function buildNewSessionId(): string {
   const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 12);
   return `session-${stamp}`;
@@ -173,6 +180,18 @@ export default function App() {
   );
 
   const deepSearchEnabled = selectedTool === "deep_search";
+
+  const traceSummary = useMemo(() => {
+    if (!lastResponse) {
+      return null;
+    }
+    return {
+      llmUsed: getTraceValue(lastResponse.interpretability_trace, "llm_used"),
+      llmEndpoint: getTraceValue(lastResponse.interpretability_trace, "llm_endpoint"),
+      queryExpanded: getTraceValue(lastResponse.interpretability_trace, "query_expanded"),
+      matchedEndpoints: getTraceValue(lastResponse.interpretability_trace, "matched_endpoints"),
+    };
+  }, [lastResponse]);
 
   const apiRequest = useCallback(
     async <T,>(path: string, init: RequestInit = {}, tokenOverride?: string): Promise<T> => {
@@ -508,53 +527,66 @@ export default function App() {
                     : "Si no eliges caso, se crea uno automatico al enviar."}
                 </p>
               </div>
-              <div className="head-controls">
-                <select
-                  value={conversationMode}
-                  onChange={(event) => setConversationMode(event.target.value as ConversationMode)}
-                >
-                  <option value="auto">Modo auto</option>
-                  <option value="general">Solo general</option>
-                  <option value="clinical">Solo clinico</option>
-                </select>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={deepSearchEnabled ? true : useWebSources}
-                    onChange={(event) => setUseWebSources(event.target.checked)}
-                    disabled={deepSearchEnabled}
-                  />
-                  fuentes web
+              <div className="head-controls compact-controls">
+                <label>
+                  Herramienta
+                  <select
+                    value={selectedTool}
+                    onChange={(event) => setSelectedTool(event.target.value as ToolMode)}
+                  >
+                    {TOOL_ITEMS.map((tool) => (
+                      <option key={tool.key} value={tool.key}>
+                        {tool.icon} {tool.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={includeProtocolCatalog}
-                    onChange={(event) => setIncludeProtocolCatalog(event.target.checked)}
-                  />
-                  catalogo protocolos
+                <label>
+                  Modo
+                  <select
+                    value={conversationMode}
+                    onChange={(event) => setConversationMode(event.target.value as ConversationMode)}
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="general">General</option>
+                    <option value="clinical">Clinico</option>
+                  </select>
                 </label>
+                <details className="advanced-menu">
+                  <summary>Opciones avanzadas</summary>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={deepSearchEnabled ? true : useWebSources}
+                      onChange={(event) => setUseWebSources(event.target.checked)}
+                      disabled={deepSearchEnabled}
+                    />
+                    fuentes web
+                  </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={includeProtocolCatalog}
+                      onChange={(event) => setIncludeProtocolCatalog(event.target.checked)}
+                    />
+                    catalogo protocolos
+                  </label>
+                </details>
               </div>
-            </div>
-
-            <div className="tool-row">
-              {TOOL_ITEMS.map((tool) => (
-                <button
-                  key={tool.key}
-                  className={selectedTool === tool.key ? "tool active" : "tool"}
-                  onClick={() => setSelectedTool(tool.key)}
-                  type="button"
-                  title={tool.hint}
-                >
-                  <span>{tool.icon}</span>
-                  <span>{tool.label}</span>
-                </button>
-              ))}
             </div>
 
             <div className="selected-tool-hint">
               <strong>{selectedToolMeta.label}</strong> - {selectedToolMeta.hint}
             </div>
+
+            {traceSummary && (
+              <div className="trace-pills">
+                <span className="chip">llm_used: {traceSummary.llmUsed}</span>
+                <span className="chip">llm_endpoint: {traceSummary.llmEndpoint}</span>
+                <span className="chip">query_expanded: {traceSummary.queryExpanded}</span>
+                <span className="chip">matched_endpoints: {traceSummary.matchedEndpoints}</span>
+              </div>
+            )}
 
             <div className="timeline">
               {history.map((item) => {
@@ -635,6 +667,7 @@ export default function App() {
               <p><strong>Modo:</strong> {lastResponse.response_mode}</p>
               <p><strong>Herramienta:</strong> {lastResponse.tool_mode}</p>
               <p><strong>Fuentes:</strong> {lastResponse.knowledge_sources.length} internas / {lastResponse.web_sources.length} web</p>
+              <p><strong>Endpoints:</strong> {lastResponse.matched_endpoints.join(", ") || "N/A"}</p>
               <details>
                 <summary>Trazabilidad</summary>
                 <ul>

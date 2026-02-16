@@ -27,3 +27,24 @@
 - Smoke en tests: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_mcp_smoke.py`.
 
 
+
+## TM-103
+
+- Sin cambios de contrato MCP.
+- Impacto acotado a backend API y frontend chat.
+
+
+## TM-105
+
+- Sin cambios en herramientas MCP ni contratos MCP expuestos.
+- Impacto esperado: ninguno para flujos MCP.
+
+
+## TM-106
+
+- Sin impacto en contratos MCP.
+
+
+## TM-107
+
+- Sin cambios en contratos MCP.

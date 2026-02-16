@@ -373,3 +373,45 @@
   - rendimiento y naturalidad dependen del modelo local/hardware.
 
 
+
+## TM-103 (chat clinico operativo avanzado)
+
+- Se mantiene contrato existente de `POST /api/v1/care-tasks/{task_id}/chat/messages` sin romper rutas.
+- Cambios backward compatible:
+  - se amplian trazas internas (`interpretability_trace`) con llaves: `matched_endpoints`, `endpoint_recommendations`, `llm_model` en escenarios sin LLM.
+  - no se elimina ningun campo existente de request/response.
+- Compatibilidad:
+  - clientes actuales siguen funcionando aunque ignoren nuevas entradas de traza.
+
+
+## TM-105 (robustez parseo Ollama, sin cambio de payload)
+
+- No se agregan endpoints ni campos nuevos en request/response de chat.
+- Cambia comportamiento interno del proveedor LLM:
+  - parseo tolerante de respuesta Ollama para formatos JSON unico, JSONL chunked y lineas prefijadas con `data:`.
+  - extraccion robusta de contenido en `message.content`, `response` o `content`.
+- Compatibilidad:
+  - contrato externo estable y backward compatible.
+- Riesgos:
+  - integraciones via proxy que alteren framing HTTP pueden requerir cabeceras adicionales en runtime.
+
+
+## TM-106 (higiene de respuesta general, sin cambio de payload)
+
+- Sin cambios de rutas ni esquema request/response.
+- Cambios internos:
+  - en `response_mode=general` se evita imprimir snippets tecnicos crudos (JSON) en salida de fallback.
+  - recomendaciones de endpoints se incorporan al contexto solo en `response_mode=clinical`.
+- Compatibilidad:
+  - contrato externo se mantiene backward compatible.
+
+
+## TM-107 (hilos conversacionales y politica de fuentes, sin cambio de payload)
+
+- No se agregan endpoints ni campos nuevos de request/response.
+- Cambios internos:
+  - fallback/response general mas humano: muestra dominios disponibles y solicita datos minimos del caso.
+  - trazabilidad ampliada en `interpretability_trace` con:
+    - `reasoning_threads=intent>context>sources>actions`
+    - `source_policy=internal_first_web_whitelist`
+- Compatibilidad: contrato publico estable.

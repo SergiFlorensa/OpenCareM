@@ -233,3 +233,36 @@
   - opcional `qwen2.5:14b` si el equipo mantiene latencia aceptable.
 
 
+
+## TM-103 - Notas de despliegue
+
+- Configurar variables LLM en `.env` de runtime con `CLINICAL_CHAT_LLM_ENABLED=true`.
+- Verificar proceso `ollama serve` y modelo `llama3.1:8b` presente (`ollama list`).
+- Mantener whitelist web estricta activa para `deep_search`.
+
+
+## TM-105 - Notas de despliegue
+
+- No requiere migraciones DB ni cambios de endpoints.
+- Recomendacion operativa:
+  - validar `CLINICAL_CHAT_LLM_BASE_URL` contra instancia Ollama real (`/api/chat`).
+  - si existe proxy intermedio, confirmar que no rompe payload JSON y timeout.
+- Smoke sugerido post-deploy:
+  - enviar un turno de chat y verificar `interpretability_trace` con `llm_used=true` y `llm_endpoint=chat|generate`.
+
+
+## TM-106 - Notas de despliegue
+
+- No requiere migraciones ni cambios de configuracion.
+- Validacion funcional sugerida:
+  - enviar `hola, tienes informacion de algunos casos?` y confirmar respuesta conversacional sin blob JSON.
+  - enviar consulta clinica concreta y confirmar que mantiene contexto/recomendaciones clinicas.
+
+
+## TM-107 - Notas de despliegue
+
+- Sin migraciones ni flags nuevos.
+- Smoke funcional recomendado:
+  - Input: `hola, tienes informacion de algunos casos?`
+  - Esperado: respuesta humana con dominios disponibles y repregunta de caso, sin JSON crudo.
+  - Verificar traza: `reasoning_threads=intent>context>sources>actions`.

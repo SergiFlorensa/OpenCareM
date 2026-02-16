@@ -2181,3 +2181,73 @@
 - Riesgos pendientes identificados:
   - Calidad final depende del modelo local elegido y de la disponibilidad de Ollama en runtime.
   - Con 16GB RAM, modelos >14B pueden degradar latencia y experiencia de guardia.
+
+- ID: TM-103
+- Objetivo: Mejorar feedback conversacional clinico con trazabilidad LLM y UI simplificada.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `frontend/src/App.tsx`, `frontend/src/styles.css`, `.env.example`, `.env.docker`, pruebas y docs operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-100, TM-101, TM-102.
+- Entregables:
+  - Inyeccion de recomendaciones internas de endpoints en contexto LLM.
+  - Trazabilidad operativa reforzada (`llm_*`, `query_expanded`, `matched_endpoints`) en respuesta y UI.
+  - UI de chat concentrada en menus desplegables con opciones avanzadas plegables.
+  - Runbook interno de Ollama local y politicas de whitelist.
+- Evidencia:
+  - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py frontend/src/App.tsx`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+  - `cd frontend && npm run build`
+- Riesgos pendientes identificados:
+  - La sintesis de recomendaciones internas por endpoint es heuristica y no sustituye llamada clinica directa del especialista.
+  - Si Ollama local no esta disponible, el sistema cae a fallback operativo no diagnostico.
+
+
+- ID: TM-105
+- Objetivo: Corregir parseo de respuestas Ollama para evitar fallback clinico por error de decode.
+- Alcance: `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, contratos API/QA/DevOps y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-103, TM-104.
+- Entregables:
+  - Parser tolerante para respuestas Ollama JSON, JSONL y lineas `data:` (SSE-like).
+  - Extraccion robusta de texto de respuesta para `/api/chat` y fallback `/api/generate`.
+  - Tests de regresion para payload chunked y SSE.
+- Evidencia:
+  - `python -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py -k "ollama or e2e or follow_up"`
+- Riesgos pendientes identificados:
+  - Si `CLINICAL_CHAT_LLM_BASE_URL` apunta a un proxy no compatible, puede requerir ajuste adicional de autenticacion/cabeceras.
+
+
+- ID: TM-106
+- Objetivo: Evitar respuestas generales con volcado tecnico/JSON en saludos o consultas exploratorias.
+- Alcance: `app/services/clinical_chat_service.py`, `app/tests/test_clinical_chat_operational.py`, contratos de handoff y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-105.
+- Entregables:
+  - Sanitizacion de respuesta general para no exponer snippets JSON crudos en modo conversacional.
+  - Recomendaciones internas por endpoint solo en modo clinico (no en greeting general).
+  - Test de regresion para saludo con consulta de casos.
+- Evidencia:
+  - `python -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py -k "general_answer or parse_ollama or e2e"`
+- Riesgos pendientes identificados:
+  - Consultas ambiguas muy cortas pueden requerir una repregunta del usuario para activar modo clinico y detalle protocolario.
+
+
+- ID: TM-107
+- Objetivo: Reforzar calidad conversacional humana con hilos de razonamiento y politica de fuentes.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, contratos y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-106.
+- Entregables:
+  - Respuesta general guiada por hilos (intencion, contexto, fuentes, accion) con cierre de repregunta util.
+  - Enumeracion de dominios disponibles para consultas exploratorias en lugar de blobs tecnicos.
+  - Politica de fuentes (`internal first`) visible en trazas y prompt LLM.
+- Evidencia:
+  - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+- Riesgos pendientes identificados:
+  - Sin base de conocimiento clinica ampliada, el tono mejora pero la profundidad depende del catalogo interno disponible.
