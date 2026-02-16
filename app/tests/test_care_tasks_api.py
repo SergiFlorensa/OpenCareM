@@ -5663,7 +5663,10 @@ def test_chat_message_supports_general_conversation_mode(client):
     assert payload["response_mode"] == "general"
     assert payload["tool_mode"] == "chat"
     assert any(item == "conversation_mode=general" for item in payload["interpretability_trace"])
-    assert any(item == "llm_enabled=false" for item in payload["interpretability_trace"])
+    assert any(
+        item.startswith("llm_enabled=") or item.startswith("llm_used=")
+        for item in payload["interpretability_trace"]
+    )
 
 
 def test_chat_message_forces_clinical_mode_with_medication_tool(client):

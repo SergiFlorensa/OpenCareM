@@ -223,32 +223,55 @@ class LLMChatProvider:
             "stream": False,
             "options": common_options,
         }
+        chat_error: str | None = None
         try:
-            parsed = LLMChatProvider._request_ollama_json(endpoint="api/chat", payload=chat_payload)
+            parsed = LLMChatProvider._request_ollama_json(
+                endpoint="api/chat",
+                payload=chat_payload,
+            )
             answer = str((parsed.get("message") or {}).get("content") or "").strip()
-            endpoint_used = "chat"
+            if answer:
+                latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+                return answer, {
+                    "llm_used": "true",
+                    "llm_provider": settings.CLINICAL_CHAT_LLM_PROVIDER,
+                    "llm_model": settings.CLINICAL_CHAT_LLM_MODEL,
+                    "llm_endpoint": "chat",
+                    "llm_latency_ms": str(latency_ms),
+                }
+        except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError) as exc:
+            chat_error = exc.__class__.__name__
+
+        try:
+            parsed = LLMChatProvider._request_ollama_json(
+                endpoint="api/generate",
+                payload=generate_payload,
+            )
+            answer = str(parsed.get("response") or "").strip()
             if not answer:
-                parsed = LLMChatProvider._request_ollama_json(
-                    endpoint="api/generate",
-                    payload=generate_payload,
-                )
-                answer = str(parsed.get("response") or "").strip()
-                endpoint_used = "generate"
-            if not answer:
-                return None, {"llm_error": "empty_response", "llm_endpoint": endpoint_used}
+                trace = {"llm_error": "empty_response", "llm_endpoint": "generate"}
+                if chat_error:
+                    trace["llm_chat_error"] = chat_error
+                return None, trace
             latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
-            return answer, {
+            trace = {
                 "llm_used": "true",
                 "llm_provider": settings.CLINICAL_CHAT_LLM_PROVIDER,
                 "llm_model": settings.CLINICAL_CHAT_LLM_MODEL,
-                "llm_endpoint": endpoint_used,
+                "llm_endpoint": "generate",
                 "llm_latency_ms": str(latency_ms),
             }
+            if chat_error:
+                trace["llm_chat_error"] = chat_error
+            return answer, trace
         except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError) as exc:
             latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
-            return None, {
+            trace = {
                 "llm_used": "false",
                 "llm_model": settings.CLINICAL_CHAT_LLM_MODEL,
                 "llm_error": exc.__class__.__name__,
                 "llm_latency_ms": str(latency_ms),
             }
+            if chat_error:
+                trace["llm_chat_error"] = chat_error
+            return None, trace
