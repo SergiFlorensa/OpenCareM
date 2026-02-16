@@ -372,4 +372,14 @@
 - Riesgos:
   - rendimiento y naturalidad dependen del modelo local/hardware.
 
+## TM-103 Fallback robusto Ollama y limpieza de salida fallback (sin cambio de payload)
+
+- No se agregan endpoints ni campos de request/response.
+- Ajustes internos en `POST /care-tasks/{task_id}/chat/messages`:
+  - `LLMChatProvider` intenta `api/chat` y, si este falla por excepcion o vacio, intenta `api/generate`.
+  - `interpretability_trace` puede incluir `llm_chat_error=...` ademas de `llm_endpoint`.
+  - En salida fallback rule-based, los hechos de control (`modo_respuesta:*`, `herramienta:*`) no se muestran en seccion de hechos clinicos.
+- Compatibilidad:
+  - contrato HTTP estable; mejora de resiliencia y legibilidad.
+
 

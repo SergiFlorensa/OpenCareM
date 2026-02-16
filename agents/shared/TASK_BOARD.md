@@ -2181,3 +2181,20 @@
 - Riesgos pendientes identificados:
   - Calidad final depende del modelo local elegido y de la disponibilidad de Ollama en runtime.
   - Con 16GB RAM, modelos >14B pueden degradar latencia y experiencia de guardia.
+
+- ID: TM-103
+- Objetivo: Corregir fallback LLM y limpiar salida fallback de hechos de control.
+- Alcance: `app/services/llm_chat_provider.py`, `app/services/clinical_chat_service.py`, `app/tests/test_care_tasks_api.py` y handoffs.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-102.
+- Entregables:
+  - Fallback real `api/chat -> api/generate` incluso cuando `api/chat` falla por excepcion.
+  - Traza opcional `llm_chat_error` para depuracion de fallos parciales.
+  - Salida fallback clinica sin hechos de control UI (`modo_respuesta:*`, `herramienta:*`).
+  - Test de chat general robusto para entorno LLM on/off.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/tests/test_care_tasks_api.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_message_supports_general_conversation_mode or chat_continuity_filters_control_facts_from_memory"`
+- Riesgos pendientes identificados:
+  - Si Ollama no esta disponible, seguira entrando fallback rule-based (esperado por diseno).

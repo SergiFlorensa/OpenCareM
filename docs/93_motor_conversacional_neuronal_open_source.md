@@ -13,7 +13,7 @@ motor neuronal local, manteniendo seguridad clinica y trazabilidad.
    - contexto de memoria de sesion/paciente + fuentes internas + web (whitelist).
 3. **Generacion neuronal local**
    - proveedor `Ollama` via `POST /api/chat` con historial corto.
-   - fallback automatico a `POST /api/generate` si el endpoint chat falla.
+   - fallback automatico a `POST /api/generate` si el endpoint chat falla o devuelve vacio.
 4. **Fallback determinista**
    - si el LLM falla/no esta activo, responde motor rule-based.
 5. **Continuidad de follow-up**

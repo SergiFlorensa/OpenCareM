@@ -750,8 +750,14 @@ class ClinicalChatService:
                 + "."
             )
         if extracted_facts:
+            display_facts = [
+                fact for fact in extracted_facts if ClinicalChatService._filter_memory_fact(fact)
+            ]
             lines.append("4) Hechos detectados")
-            lines.append("- " + ", ".join(extracted_facts[:6]) + ".")
+            if display_facts:
+                lines.append("- " + ", ".join(display_facts[:6]) + ".")
+            else:
+                lines.append("- Sin hechos clinicos adicionales extraidos.")
         if knowledge_sources:
             lines.append("5) Evidencia usada")
             lines.append("- Fuentes internas indexadas:")
