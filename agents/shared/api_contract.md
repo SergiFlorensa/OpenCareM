@@ -394,8 +394,6 @@
   - contrato externo estable y backward compatible.
 - Riesgos:
   - integraciones via proxy que alteren framing HTTP pueden requerir cabeceras adicionales en runtime.
-<<<<<<< HEAD
-=======
 
 
 ## TM-106 (higiene de respuesta general, sin cambio de payload)
@@ -417,4 +415,26 @@
     - `reasoning_threads=intent>context>sources>actions`
     - `source_policy=internal_first_web_whitelist`
 - Compatibilidad: contrato publico estable.
->>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
+
+## TM-108 (chat local endurecido, cambio de contrato)
+
+- Endpoint afectado:
+  - `POST /care-tasks/{task_id}/chat/messages`
+- Cambio de response (backward compatible para consumidores tolerantes a campos nuevos):
+  - nuevo bloque obligatorio `quality_metrics`:
+    - `answer_relevance` (`0..1`)
+    - `context_relevance` (`0..1`)
+    - `groundedness` (`0..1`)
+    - `quality_status` (`ok | attention | degraded`)
+- Cambios internos de comportamiento:
+  - sanitizacion anti-prompt-injection sobre consulta de usuario antes de construir prompt.
+  - control de presupuesto de contexto/tokens para mensajes enviados a Ollama.
+  - nuevas trazas en `interpretability_trace`:
+    - `prompt_injection_detected`
+    - `prompt_injection_signals`
+    - `query_sanitized`
+    - `quality_status`
+    - `answer_relevance`, `context_relevance`, `groundedness`
+    - `llm_input_tokens_budget`, `llm_input_tokens_estimated`, `llm_prompt_truncated`
+- Riesgos de contrato:
+  - clientes con deserializacion estricta del schema anterior deben aceptar `quality_metrics`.

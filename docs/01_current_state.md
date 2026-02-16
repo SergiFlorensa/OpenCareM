@@ -88,6 +88,7 @@
 - Frontend MVP de chat clinico disponible en `frontend/` con interfaz moderna para simulacion profesional (`docs/91_frontend_chat_clinico_mvp.md`).
 - Frontend v2 de chat con selector de herramientas y modo hibrido general/clinico (`docs/92_frontend_chat_herramientas_modo_hibrido.md`).
 - Motor conversacional neuronal local (Ollama) opcional con continuidad contextual en follow-up y fallback determinista (`docs/93_motor_conversacional_neuronal_open_source.md`).
+- Chat local endurecido sin pago con defensa anti-inyeccion, presupuesto de contexto/tokens y metricas por turno (`docs/95_chat_open_source_hardening_prompt_injection_quality_metrics.md`).
 
 ## Estructura funcional
 
@@ -170,9 +171,9 @@
 - `app/services/pediatrics_neonatology_support_protocol_service.py`
   - Motor de soporte operativo de pediatria/neonatologia para sarampion, reanimacion neonatal, contactos de tosferina, invaginacion y secuelas tardias de sifilis congenita.
 - `app/services/clinical_chat_service.py`
-  - Motor de chat hibrido (general/clinico) con especialidad autenticada, memoria por sesion/paciente, herramientas de consulta y filtrado web por whitelist.
+  - Motor de chat hibrido (general/clinico) con especialidad autenticada, memoria por sesion/paciente, sanitizacion anti-inyeccion y metricas de calidad por turno.
 - `app/services/llm_chat_provider.py`
-  - Proveedor neuronal local (Ollama) con estrategia `api/chat -> api/generate`, historial corto por sesion y trazabilidad.
+  - Proveedor neuronal local (Ollama) con estrategia `api/chat -> api/generate`, control de presupuesto de contexto/tokens y trazabilidad de prompt.
 - `frontend/src/App.tsx`
   - Consola web v2 con UX tipo assistant, herramientas (medication/cases/treatment/deep_search/images), chat por sesion y panel de trazabilidad.
 - `app/services/knowledge_source_service.py`

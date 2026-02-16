@@ -150,6 +150,37 @@ class ClinicalChatService:
         "siguiente",
         "continuamos",
     )
+    _PROMPT_INJECTION_SIGNALS = {
+        "ignore previous instructions": "override_instructions",
+        "ignora las instrucciones": "override_instructions_es",
+        "system prompt": "system_prompt_probe",
+        "developer message": "developer_prompt_probe",
+        "act as": "role_escalation",
+        "modo desarrollador": "developer_mode_probe",
+    }
+    _ROLE_TAG_PATTERN = re.compile(
+        r"</?(?:system|assistant|developer|tool|instruction)[^>]*>",
+        flags=re.IGNORECASE,
+    )
+    _QUALITY_STOPWORDS = {
+        "para",
+        "como",
+        "esta",
+        "este",
+        "sobre",
+        "desde",
+        "entre",
+        "donde",
+        "cuando",
+        "porque",
+        "necesito",
+        "quiero",
+        "puedes",
+        "favor",
+        "caso",
+        "paciente",
+        "plan",
+    }
     _DOC_CHUNK_CACHE: dict[str, list[str]] = {}
 
     @staticmethod
@@ -160,6 +191,91 @@ class ClinicalChatService:
     @classmethod
     def _tokenize(cls, text: str) -> set[str]:
         return {token for token in cls._TOKEN_PATTERN.findall(cls._normalize(text))}
+
+    @classmethod
+    def _quality_tokens(cls, text: str) -> set[str]:
+        return {token for token in cls._tokenize(text) if token not in cls._QUALITY_STOPWORDS}
+
+    @classmethod
+    def _detect_prompt_injection_signals(cls, text: str) -> list[str]:
+        normalized = cls._normalize(text)
+        signals: list[str] = []
+        for needle, signal in cls._PROMPT_INJECTION_SIGNALS.items():
+            if needle in normalized and signal not in signals:
+                signals.append(signal)
+        if cls._ROLE_TAG_PATTERN.search(text):
+            signals.append("role_tag_markup")
+        if "[SYSTEM]" in text or "[ASSISTANT]" in text or "[DEVELOPER]" in text:
+            signals.append("role_block_markup")
+        if "```" in text:
+            signals.append("code_fence_payload")
+        return signals
+
+    @classmethod
+    def _sanitize_user_query(cls, query: str) -> tuple[str, list[str]]:
+        sanitized = query.strip()
+        signals = cls._detect_prompt_injection_signals(sanitized)
+        sanitized = cls._ROLE_TAG_PATTERN.sub(" ", sanitized)
+        sanitized = re.sub(r"\[(?:SYSTEM|ASSISTANT|DEVELOPER|TOOL)\]", "[USER_DATA]", sanitized)
+        sanitized = sanitized.replace("```", "'''")
+        sanitized = re.sub(r"\s+", " ", sanitized).strip()
+        if len(sanitized) < 3:
+            sanitized = query.strip()
+        return sanitized[:4000], signals
+
+    @classmethod
+    def _overlap_f1(cls, left_tokens: set[str], right_tokens: set[str]) -> float:
+        if not left_tokens or not right_tokens:
+            return 0.0
+        shared = len(left_tokens.intersection(right_tokens))
+        if shared == 0:
+            return 0.0
+        precision = shared / len(right_tokens)
+        recall = shared / len(left_tokens)
+        if precision + recall == 0:
+            return 0.0
+        return round((2 * precision * recall) / (precision + recall), 3)
+
+    @classmethod
+    def _build_quality_metrics(
+        cls,
+        *,
+        query: str,
+        answer: str,
+        matched_domains: list[str],
+        knowledge_sources: list[dict[str, str]],
+        web_sources: list[dict[str, str]],
+    ) -> dict[str, float | str]:
+        query_tokens = cls._quality_tokens(query)
+        answer_tokens = cls._quality_tokens(answer)
+        context_text = " ".join(
+            [
+                " ".join(matched_domains),
+                " ".join(
+                    f"{item.get('title', '')} {item.get('snippet', '')}"
+                    for item in knowledge_sources[:6]
+                ),
+                " ".join(
+                    f"{item.get('title', '')} {item.get('snippet', '')}"
+                    for item in web_sources[:4]
+                ),
+            ]
+        )
+        context_tokens = cls._quality_tokens(context_text)
+        answer_relevance = cls._overlap_f1(query_tokens, answer_tokens)
+        context_relevance = cls._overlap_f1(query_tokens, context_tokens)
+        groundedness = cls._overlap_f1(context_tokens, answer_tokens)
+        quality_status = "ok"
+        if answer_relevance < 0.25 or groundedness < 0.2:
+            quality_status = "degraded"
+        elif answer_relevance < 0.4 or context_relevance < 0.35 or groundedness < 0.35:
+            quality_status = "attention"
+        return {
+            "answer_relevance": answer_relevance,
+            "context_relevance": context_relevance,
+            "groundedness": groundedness,
+            "quality_status": quality_status,
+        }
 
     @staticmethod
     def _safe_session_id(raw_session_id: str | None) -> str:
@@ -813,7 +929,7 @@ class ClinicalChatService:
                 fact for fact in extracted_facts if ClinicalChatService._filter_memory_fact(fact)
             ]
             lines.append("4) Hechos detectados")
-            lines.append("- " + ", ".join(extracted_facts[:6]) + ".")
+            lines.append("- " + ", ".join(display_facts[:6]) + ".")
         if endpoint_recommendations:
             lines.append("5) Recomendaciones operativas internas")
             for recommendation in endpoint_recommendations[:4]:
@@ -943,21 +1059,23 @@ class ClinicalChatService:
         lines.append("Si quieres, te doy una version mas breve o una checklist accionable.")
         return "\n".join(lines)
 
-    @staticmethod
+    @classmethod
     def create_message(
+        cls,
         db: Session,
         *,
         care_task: CareTask,
         payload: CareTaskClinicalChatMessageRequest,
         authenticated_user: User | None,
-    ) -> tuple[CareTaskChatMessage, int, str, list[str], str, str]:
-        session_id = ClinicalChatService._safe_session_id(payload.session_id)
-        effective_specialty = ClinicalChatService._resolve_effective_specialty(
+    ) -> tuple[CareTaskChatMessage, int, str, list[str], str, str, dict[str, float | str]]:
+        session_id = cls._safe_session_id(payload.session_id)
+        effective_specialty = cls._resolve_effective_specialty(
             payload=payload,
             care_task=care_task,
             authenticated_user=authenticated_user,
         )
-        recent_messages = ClinicalChatService._list_recent_messages(
+        safe_query, prompt_injection_signals = cls._sanitize_user_query(payload.query)
+        recent_messages = cls._list_recent_messages(
             db,
             care_task_id=care_task.id,
             session_id=session_id,
@@ -970,8 +1088,8 @@ class ClinicalChatService:
             }
             for message in reversed(recent_messages[:8])
         ]
-        effective_query, query_expanded = ClinicalChatService._compose_effective_query(
-            query=payload.query,
+        effective_query, query_expanded = cls._compose_effective_query(
+            query=safe_query,
             recent_dialogue=recent_dialogue,
         )
         fact_counter: Counter[str] = Counter()
@@ -979,7 +1097,7 @@ class ClinicalChatService:
             filtered_facts = [
                 fact
                 for fact in (history_message.extracted_facts or [])
-                if ClinicalChatService._filter_memory_fact(fact)
+                if cls._filter_memory_fact(fact)
             ]
             fact_counter.update(filtered_facts)
         session_memory_facts = [fact for fact, _ in fact_counter.most_common(5)]
@@ -987,7 +1105,7 @@ class ClinicalChatService:
         patient_summary = None
         patient_history_facts_used: list[str] = []
         if payload.use_patient_history:
-            patient_summary = ClinicalChatService._build_patient_summary(
+            patient_summary = cls._build_patient_summary(
                 db,
                 patient_reference=care_task.patient_reference,
                 max_messages=payload.max_patient_history_messages,
@@ -996,15 +1114,15 @@ class ClinicalChatService:
                 patient_history_facts_used = [
                     fact
                     for fact in patient_summary["patient_top_extracted_facts"]
-                    if ClinicalChatService._filter_memory_fact(fact)
+                    if cls._filter_memory_fact(fact)
                 ][:5]
         memory_facts_used: list[str] = []
         for fact in session_memory_facts + patient_history_facts_used:
             if fact not in memory_facts_used:
                 memory_facts_used.append(fact)
 
-        keyword_hits = ClinicalChatService._count_domain_keyword_hits(effective_query)
-        matched_domain_records = ClinicalChatService._match_domains(
+        keyword_hits = cls._count_domain_keyword_hits(effective_query)
+        matched_domain_records = cls._match_domains(
             query=effective_query,
             effective_specialty=effective_specialty,
             max_domains=3,
@@ -1015,40 +1133,34 @@ class ClinicalChatService:
             for domain in matched_domain_records
         ]
         extracted_facts = (
-            ClinicalChatService._extract_facts(payload.query)
+            cls._extract_facts(safe_query)
             if payload.persist_extracted_facts
             else []
         )
-        response_mode = ClinicalChatService._resolve_response_mode(
+        response_mode = cls._resolve_response_mode(
             payload=payload,
-            query=payload.query,
+            query=safe_query,
             extracted_facts=extracted_facts,
             keyword_hits=keyword_hits,
         )
         tool_mode = payload.tool_mode
         extracted_facts.append(f"modo_respuesta:{response_mode}")
         extracted_facts.append(f"herramienta:{tool_mode}")
+        endpoint_recommendations: list[dict[str, Any]] = []
+        if response_mode == "clinical":
+            endpoint_recommendations = cls._fetch_recommendations(
+                query=effective_query,
+                matched_endpoints=matched_endpoints,
+            )
+        if tool_mode in {"medication", "treatment", "cases"}:
+            extracted_facts.append(f"tool_focus:{tool_mode}")
         unique_facts: list[str] = []
         for fact in extracted_facts:
             if fact not in unique_facts:
                 unique_facts.append(fact)
         extracted_facts = unique_facts[:20]
-<<<<<<< HEAD
-        endpoint_recommendations = ClinicalChatService._fetch_recommendations(
-            query=effective_query,
-            matched_endpoints=matched_endpoints,
-        )
-=======
-        endpoint_recommendations: list[dict[str, Any]] = []
-        if response_mode == "clinical":
-            endpoint_recommendations = ClinicalChatService._fetch_recommendations(
-                query=effective_query,
-                matched_endpoints=matched_endpoints,
-            )
->>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
-        if tool_mode in {"medication", "treatment", "cases"}:
-            extracted_facts.append(f"tool_focus:{tool_mode}")
-        knowledge_sources = ClinicalChatService._build_validated_knowledge_sources(
+
+        knowledge_sources = cls._build_validated_knowledge_sources(
             db,
             query=effective_query,
             effective_specialty=effective_specialty,
@@ -1056,7 +1168,7 @@ class ClinicalChatService:
             max_internal_sources=payload.max_internal_sources,
         )
         if not knowledge_sources and not settings.CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES:
-            knowledge_sources = ClinicalChatService._build_catalog_knowledge_sources(
+            knowledge_sources = cls._build_catalog_knowledge_sources(
                 query=effective_query,
                 matched_domains=matched_domain_records,
                 max_internal_sources=payload.max_internal_sources,
@@ -1067,7 +1179,7 @@ class ClinicalChatService:
             use_web_sources = True
             web_limit = max(payload.max_web_sources, 6)
         web_sources = (
-            ClinicalChatService._fetch_web_sources(effective_query, web_limit)
+            cls._fetch_web_sources(effective_query, web_limit)
             if use_web_sources
             else []
         )
@@ -1080,22 +1192,24 @@ class ClinicalChatService:
             }
             for item in endpoint_recommendations
         ]
-<<<<<<< HEAD
-        knowledge_sources = [*knowledge_sources, *endpoint_sources][
-            : max(payload.max_internal_sources, 6)
-        ]
-=======
         if response_mode == "clinical":
             knowledge_sources = [*knowledge_sources, *endpoint_sources][
                 : max(payload.max_internal_sources, 6)
             ]
->>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
         interpretability_trace = [
             f"query_length={len(payload.query)}",
             f"effective_specialty={effective_specialty}",
             f"conversation_mode={payload.conversation_mode}",
             f"response_mode={response_mode}",
             f"tool_mode={tool_mode}",
+            f"query_sanitized={1 if safe_query != payload.query.strip() else 0}",
+            f"prompt_injection_detected={1 if prompt_injection_signals else 0}",
+            "prompt_injection_signals="
+            + (
+                ",".join(prompt_injection_signals)
+                if prompt_injection_signals
+                else "none"
+            ),
             f"query_expanded={1 if query_expanded else 0}",
             f"keyword_hits={keyword_hits}",
             f"history_messages_used={len(recent_messages)}",
@@ -1105,16 +1219,13 @@ class ClinicalChatService:
             f"internal_sources={len(knowledge_sources)}",
             f"web_sources={len(web_sources)}",
             f"endpoint_recommendations={len(endpoint_recommendations)}",
-<<<<<<< HEAD
-=======
             "reasoning_threads=intent>context>sources>actions",
             "source_policy=internal_first_web_whitelist",
->>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
             f"memory_facts_used={len(memory_facts_used)}",
             f"extracted_facts={len(extracted_facts)}",
         ]
         llm_answer, llm_trace = LLMChatProvider.generate_answer(
-            query=payload.query,
+            query=safe_query,
             response_mode=response_mode,
             effective_specialty=effective_specialty,
             tool_mode=tool_mode,
@@ -1131,9 +1242,9 @@ class ClinicalChatService:
         if llm_answer:
             answer = llm_answer
         elif response_mode == "clinical":
-            answer = ClinicalChatService._render_clinical_answer(
+            answer = cls._render_clinical_answer(
                 care_task=care_task,
-                query=payload.query,
+                query=safe_query,
                 matched_domains=matched_domain_records,
                 matched_endpoints=matched_endpoints,
                 effective_specialty=effective_specialty,
@@ -1149,8 +1260,8 @@ class ClinicalChatService:
                 endpoint_recommendations=endpoint_recommendations,
             )
         else:
-            answer = ClinicalChatService._render_general_answer(
-                query=payload.query,
+            answer = cls._render_general_answer(
+                query=safe_query,
                 memory_facts_used=memory_facts_used,
                 knowledge_sources=knowledge_sources,
                 web_sources=web_sources,
@@ -1158,6 +1269,22 @@ class ClinicalChatService:
                 recent_dialogue=recent_dialogue,
                 matched_domains=matched_domain_records,
             )
+
+        quality_metrics = cls._build_quality_metrics(
+            query=safe_query,
+            answer=answer,
+            matched_domains=matched_domains,
+            knowledge_sources=knowledge_sources,
+            web_sources=web_sources,
+        )
+        interpretability_trace.extend(
+            [
+                f"answer_relevance={quality_metrics['answer_relevance']}",
+                f"context_relevance={quality_metrics['context_relevance']}",
+                f"groundedness={quality_metrics['groundedness']}",
+                f"quality_status={quality_metrics['quality_status']}",
+            ]
+        )
         if llm_trace:
             interpretability_trace.extend(
                 [f"{key}={value}" for key, value in llm_trace.items()]
@@ -1194,6 +1321,7 @@ class ClinicalChatService:
                 "extracted_facts": extracted_facts,
                 "patient_summary": patient_summary,
                 "interpretability_trace": interpretability_trace,
+                "quality_metrics": quality_metrics,
             },
         )
         message = CareTaskChatMessage(
@@ -1214,4 +1342,12 @@ class ClinicalChatService:
         db.add(message)
         db.commit()
         db.refresh(message)
-        return message, run.id, run.workflow_name, interpretability_trace, response_mode, tool_mode
+        return (
+            message,
+            run.id,
+            run.workflow_name,
+            interpretability_trace,
+            response_mode,
+            tool_mode,
+            quality_metrics,
+        )

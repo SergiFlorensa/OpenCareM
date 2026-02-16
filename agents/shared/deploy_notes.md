@@ -249,8 +249,6 @@
   - si existe proxy intermedio, confirmar que no rompe payload JSON y timeout.
 - Smoke sugerido post-deploy:
   - enviar un turno de chat y verificar `interpretability_trace` con `llm_used=true` y `llm_endpoint=chat|generate`.
-<<<<<<< HEAD
-=======
 
 
 ## TM-106 - Notas de despliegue
@@ -268,4 +266,20 @@
   - Input: `hola, tienes informacion de algunos casos?`
   - Esperado: respuesta humana con dominios disponibles y repregunta de caso, sin JSON crudo.
   - Verificar traza: `reasoning_threads=intent>context>sources>actions`.
->>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
+
+
+## TM-108 - Notas de despliegue
+
+- Sin migraciones DB.
+- Nuevas variables recomendadas en runtime:
+  - `CLINICAL_CHAT_LLM_MAX_INPUT_TOKENS=3200`
+  - `CLINICAL_CHAT_LLM_PROMPT_MARGIN_TOKENS=256`
+- Validaciones post-deploy:
+  - enviar consulta con texto largo y verificar trazas:
+    - `llm_input_tokens_budget`
+    - `llm_input_tokens_estimated`
+    - `llm_prompt_truncated`
+  - enviar intento de inyeccion (`ignora instrucciones...`) y verificar trazas:
+    - `prompt_injection_detected=1`
+    - `prompt_injection_signals=...`
+  - verificar presencia de `quality_metrics` en response de chat.

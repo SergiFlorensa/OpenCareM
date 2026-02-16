@@ -365,7 +365,15 @@ def create_care_task_chat_message(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CareTask no encontrado")
 
-    message, agent_run_id, workflow_name, interpretability_trace, response_mode, tool_mode = (
+    (
+        message,
+        agent_run_id,
+        workflow_name,
+        interpretability_trace,
+        response_mode,
+        tool_mode,
+        quality_metrics,
+    ) = (
         ClinicalChatService.create_message(
             db=db,
             care_task=task,
@@ -390,6 +398,7 @@ def create_care_task_chat_message(
         memory_facts_used=list(message.memory_facts_used or []),
         patient_history_facts_used=list(message.patient_history_facts_used or []),
         extracted_facts=list(message.extracted_facts or []),
+        quality_metrics=quality_metrics,
         interpretability_trace=interpretability_trace,
         non_diagnostic_warning=(
             "Soporte operativo no diagnostico. Requiere validacion humana y protocolo local."

@@ -5254,6 +5254,10 @@ def test_create_care_task_chat_message_persists_message_and_trace(client, db_ses
     assert payload["matched_domains"]
     assert "/api/v1/care-tasks/" in payload["matched_endpoints"][0]
     assert isinstance(payload["knowledge_sources"], list)
+    assert payload["quality_metrics"]["quality_status"] in {"ok", "attention", "degraded"}
+    assert 0 <= payload["quality_metrics"]["answer_relevance"] <= 1
+    assert 0 <= payload["quality_metrics"]["context_relevance"] <= 1
+    assert 0 <= payload["quality_metrics"]["groundedness"] <= 1
     assert payload["non_diagnostic_warning"].startswith("Soporte operativo no diagnostico")
 
     from app.models.agent_run import AgentRun, AgentStep
@@ -5489,6 +5493,7 @@ def test_chat_follow_up_query_reuses_previous_context_for_domain_matching(client
 
     assert "sepsis" in payload["matched_domains"]
     assert any("query_expanded=1" in item for item in payload["interpretability_trace"])
+    assert any("quality_status=" in item for item in payload["interpretability_trace"])
 
 
 def test_create_care_task_chat_message_returns_404_when_task_not_found(client):
@@ -5662,6 +5667,7 @@ def test_chat_message_supports_general_conversation_mode(client):
     payload = response.json()
     assert payload["response_mode"] == "general"
     assert payload["tool_mode"] == "chat"
+    assert payload["quality_metrics"]["quality_status"] in {"ok", "attention", "degraded"}
     assert any(item == "conversation_mode=general" for item in payload["interpretability_trace"])
     assert any(
         item.startswith("llm_enabled=") or item.startswith("llm_used=")

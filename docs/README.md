@@ -97,6 +97,7 @@ Este directorio centraliza la documentacion tecnica y operativa del proyecto.
 92. `docs/92_frontend_chat_herramientas_modo_hibrido.md`
 93. `docs/93_motor_conversacional_neuronal_open_source.md`
 94. `docs/94_chat_clinico_operativo_ollama_local_runbook.md`
+95. `docs/95_chat_open_source_hardening_prompt_injection_quality_metrics.md`
 
 ## Objetivo
 
@@ -113,6 +114,5 @@ Este directorio centraliza la documentacion tecnica y operativa del proyecto.
   - Como se valida.
   - Riesgos pendientes.
 - Las decisiones tecnicas se registran en `docs/decisions/`.
-
 
 

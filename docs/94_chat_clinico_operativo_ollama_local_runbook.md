@@ -8,6 +8,8 @@ CLINICAL_CHAT_LLM_PROVIDER=ollama
 CLINICAL_CHAT_LLM_BASE_URL=http://127.0.0.1:11434
 CLINICAL_CHAT_LLM_MODEL=llama3.1:8b
 CLINICAL_CHAT_LLM_NUM_CTX=4096
+CLINICAL_CHAT_LLM_MAX_INPUT_TOKENS=3200
+CLINICAL_CHAT_LLM_PROMPT_MARGIN_TOKENS=256
 CLINICAL_CHAT_LLM_TEMPERATURE=0.2
 CLINICAL_CHAT_LLM_TOP_P=0.9
 CLINICAL_CHAT_LLM_TIMEOUT_SECONDS=15
@@ -46,6 +48,11 @@ Cada respuesta debe exponer en `interpretability_trace`:
 - `llm_latency_ms`
 - `query_expanded`
 - `matched_endpoints`
+- `llm_input_tokens_budget`
+- `llm_input_tokens_estimated`
+- `llm_prompt_truncated`
+- `prompt_injection_detected`
+- `quality_status`
 
 ## Politica web/RAG y whitelist
 

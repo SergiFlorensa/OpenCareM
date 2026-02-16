@@ -2217,8 +2217,6 @@
   - `python -m pytest -q app/tests/test_clinical_chat_operational.py -k "ollama or e2e or follow_up"`
 - Riesgos pendientes identificados:
   - Si `CLINICAL_CHAT_LLM_BASE_URL` apunta a un proxy no compatible, puede requerir ajuste adicional de autenticacion/cabeceras.
-<<<<<<< HEAD
-=======
 
 
 - ID: TM-106
@@ -2253,4 +2251,23 @@
   - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
 - Riesgos pendientes identificados:
   - Sin base de conocimiento clinica ampliada, el tono mejora pero la profundidad depende del catalogo interno disponible.
->>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
+
+- ID: TM-108
+- Objetivo: Endurecer chat local open source sin pago (anti-inyeccion, presupuesto de contexto y metricas de calidad).
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/schemas/clinical_chat.py`, `app/api/care_tasks.py`, `app/core/config.py`, `.env.example`, `.env.docker`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_care_tasks_api.py`, contratos compartidos y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-107.
+- Entregables:
+  - Guardas anti-prompt-injection y delimitacion explicita de input usuario.
+  - Control de presupuesto de contexto/tokens para prompts de Ollama.
+  - Metricas automaticas locales por turno: `answer_relevance`, `context_relevance`, `groundedness`.
+  - Limpieza de conflictos de merge pendientes para recuperar estabilidad del repo.
+- Evidencia:
+  - `python -m py_compile app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/schemas/clinical_chat.py app/api/care_tasks.py app/core/config.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/schemas/clinical_chat.py app/api/care_tasks.py app/core/config.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py` (`9 passed`)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`9 passed, 126 deselected`)
+- Riesgos pendientes identificados:
+  - Las metricas iniciales son heuristicas lexicales y requieren calibracion progresiva con casos asistenciales reales.
+  - La sanitizacion reduce superficie de inyeccion, pero no sustituye auditoria clinica ni validacion humana.

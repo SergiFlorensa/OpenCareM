@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_LLM_MODEL: str = "llama3.1:8b"
     CLINICAL_CHAT_LLM_TIMEOUT_SECONDS: int = 15
     CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS: int = 700
+    CLINICAL_CHAT_LLM_MAX_INPUT_TOKENS: int = 3200
+    CLINICAL_CHAT_LLM_PROMPT_MARGIN_TOKENS: int = 256
     CLINICAL_CHAT_LLM_TEMPERATURE: float = 0.2
     CLINICAL_CHAT_LLM_NUM_CTX: int = 4096
     CLINICAL_CHAT_LLM_TOP_P: float = 0.9
@@ -90,8 +92,18 @@ class Settings(BaseSettings):
             raise ValueError("CLINICAL_CHAT_LLM_TOP_P debe estar en rango (0, 1].")
         if self.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS < 64:
             raise ValueError("CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS debe ser >= 64.")
+        if self.CLINICAL_CHAT_LLM_MAX_INPUT_TOKENS < 256:
+            raise ValueError("CLINICAL_CHAT_LLM_MAX_INPUT_TOKENS debe ser >= 256.")
+        if self.CLINICAL_CHAT_LLM_PROMPT_MARGIN_TOKENS < 32:
+            raise ValueError("CLINICAL_CHAT_LLM_PROMPT_MARGIN_TOKENS debe ser >= 32.")
         if self.CLINICAL_CHAT_LLM_NUM_CTX < 512:
             raise ValueError("CLINICAL_CHAT_LLM_NUM_CTX debe ser >= 512.")
+        if self.CLINICAL_CHAT_LLM_NUM_CTX <= (
+            self.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS + self.CLINICAL_CHAT_LLM_PROMPT_MARGIN_TOKENS
+        ):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_NUM_CTX debe superar salida maxima + margen de prompt."
+            )
         if self.ENVIRONMENT != "development":
             if self.SECRET_KEY == DEFAULT_SECRET_KEY:
                 raise ValueError("SECRET_KEY debe cambiarse fuera del entorno de desarrollo.")

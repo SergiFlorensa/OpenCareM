@@ -65,6 +65,15 @@ class CareTaskClinicalChatHistoryItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CareTaskClinicalChatQualityMetrics(BaseModel):
+    """Metricas automaticas locales para control de calidad por turno."""
+
+    answer_relevance: float = Field(..., ge=0, le=1)
+    context_relevance: float = Field(..., ge=0, le=1)
+    groundedness: float = Field(..., ge=0, le=1)
+    quality_status: Literal["ok", "attention", "degraded"]
+
+
 class CareTaskClinicalChatMessageResponse(BaseModel):
     """Respuesta de creacion de mensaje con trazabilidad de workflow."""
 
@@ -91,6 +100,7 @@ class CareTaskClinicalChatMessageResponse(BaseModel):
     memory_facts_used: list[str]
     patient_history_facts_used: list[str]
     extracted_facts: list[str]
+    quality_metrics: CareTaskClinicalChatQualityMetrics
     interpretability_trace: list[str]
     non_diagnostic_warning: str
 

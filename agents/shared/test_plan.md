@@ -1341,8 +1341,6 @@ Resultados:
 - Comandos ejecutados:
   - `python -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
   - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
-<<<<<<< HEAD
-=======
 
 
 ## TM-106 - Plan de validacion ejecutado
@@ -1371,4 +1369,23 @@ Resultados:
 - Comandos ejecutados:
   - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
   - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
->>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
+
+
+## TM-108 - Plan de validacion ejecutado
+
+- Verificar compilacion de servicios de chat tras resolver conflictos de merge.
+- Validar sanitizacion anti-prompt-injection y trazabilidad asociada.
+- Validar control de presupuesto de contexto/tokens en proveedor Ollama.
+- Validar schema response de chat con `quality_metrics`.
+
+Resultados:
+- Nuevos tests:
+  - `test_prompt_injection_detection_and_sanitization`
+  - `test_llm_provider_build_chat_messages_respects_token_budget`
+- Tests ajustados:
+  - `app/tests/test_care_tasks_api.py` (aserciones sobre `quality_metrics` y traza de calidad)
+- Comandos ejecutados:
+  - `python -m py_compile app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/schemas/clinical_chat.py app/api/care_tasks.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py`
+  - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/schemas/clinical_chat.py app/api/care_tasks.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_care_tasks_api.py -k chat`
