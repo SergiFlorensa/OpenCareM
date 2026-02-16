@@ -38,3 +38,16 @@
 
 - Sin cambios en herramientas MCP ni contratos MCP expuestos.
 - Impacto esperado: ninguno para flujos MCP.
+<<<<<<< HEAD
+=======
+
+
+## TM-106
+
+- Sin impacto en contratos MCP.
+
+
+## TM-107
+
+- Sin cambios en contratos MCP.
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb

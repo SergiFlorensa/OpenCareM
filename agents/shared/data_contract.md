@@ -288,3 +288,16 @@
 
 - Sin cambios en modelos de datos, migraciones ni esquemas persistentes.
 - Riesgo: nulo en capa de datos (cambio confinado a integracion HTTP con Ollama).
+<<<<<<< HEAD
+=======
+
+
+## TM-106
+
+- Sin cambios de persistencia, modelos ni migraciones.
+
+
+## TM-107
+
+- Sin cambios en esquema de datos ni migraciones.
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb

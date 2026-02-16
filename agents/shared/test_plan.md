@@ -1341,3 +1341,34 @@ Resultados:
 - Comandos ejecutados:
   - `python -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
   - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+<<<<<<< HEAD
+=======
+
+
+## TM-106 - Plan de validacion ejecutado
+
+- Verificar que saludo/consulta general no vuelca JSON crudo de recomendaciones internas.
+- Verificar que recomendaciones internas sigan disponibles en modo clinico.
+- Revalidar tests de parseo Ollama sin regresion.
+
+Resultados:
+- Nuevo test:
+  - `test_general_answer_does_not_dump_json_snippet_for_social_query`
+- Comandos ejecutados:
+  - `python -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+
+
+## TM-107 - Plan de validacion ejecutado
+
+- Validar respuesta exploratoria con dominios disponibles y siguiente paso util.
+- Validar no regresion en higiene de snippets para saludo general.
+- Validar no regresion de parser Ollama y e2e de continuidad.
+
+Resultados:
+- Nuevo test:
+  - `test_general_answer_suggests_domains_and_next_step_for_case_discovery`
+- Comandos ejecutados:
+  - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb

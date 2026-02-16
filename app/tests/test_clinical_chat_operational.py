@@ -120,7 +120,10 @@ def test_chat_e2e_three_turns_continuity_and_trace(client, monkeypatch):
     assert any(item == "llm_endpoint=chat" for item in payload["interpretability_trace"])
     assert any(item.startswith("matched_endpoints=") for item in payload["interpretability_trace"])
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
 
 
 def test_parse_ollama_payload_supports_jsonl_chunks():
@@ -137,4 +140,46 @@ data: [DONE]
 """
     parsed = LLMChatProvider._parse_ollama_payload(raw)
     assert LLMChatProvider._extract_chat_answer(parsed) == "Respuesta"
+<<<<<<< HEAD
 >>>>>>> origin/codex/improve-conversational-feedback-in-chat-w21r6o
+=======
+
+
+def test_general_answer_does_not_dump_json_snippet_for_social_query():
+    answer = ClinicalChatService._render_general_answer(
+        query="hola, tienes informacion de algunos casos?",
+        memory_facts_used=[],
+        knowledge_sources=[
+            {
+                "type": "internal_recommendation",
+                "title": "Recomendacion sintetizada critical-ops",
+                "source": "/api/v1/care-tasks/1/critical-ops/recommendation",
+                "snippet": '{"severity_level":"medium"}',
+            }
+        ],
+        web_sources=[],
+        tool_mode="chat",
+        recent_dialogue=[],
+        matched_domains=[{"label": "Sepsis en urgencias"}],
+    )
+    assert "severity_level" not in answer
+    assert "Fuentes internas disponibles" in answer
+
+
+def test_general_answer_suggests_domains_and_next_step_for_case_discovery():
+    answer = ClinicalChatService._render_general_answer(
+        query="hola, tienes informacion de casos?",
+        memory_facts_used=[],
+        knowledge_sources=[],
+        web_sources=[],
+        tool_mode="chat",
+        recent_dialogue=[],
+        matched_domains=[
+            {"label": "Sepsis en urgencias"},
+            {"label": "SCASEST"},
+        ],
+    )
+    assert "Sepsis en urgencias" in answer
+    assert "SCASEST" in answer
+    assert "Si me das un caso concreto" in answer
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb

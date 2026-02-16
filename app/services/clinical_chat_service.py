@@ -814,6 +814,10 @@ class ClinicalChatService:
             ]
             lines.append("4) Hechos detectados")
             lines.append("- " + ", ".join(extracted_facts[:6]) + ".")
+        if endpoint_recommendations:
+            lines.append("5) Recomendaciones operativas internas")
+            for recommendation in endpoint_recommendations[:4]:
+                lines.append(f"- {recommendation['endpoint']}: {recommendation['snippet']}")
         if knowledge_sources:
             lines.append("6) Evidencia usada")
             lines.append("- Fuentes internas indexadas:")
@@ -840,6 +844,34 @@ class ClinicalChatService:
         return "\n".join(lines)
 
     @staticmethod
+    def _is_social_or_discovery_query(query: str) -> bool:
+        normalized = ClinicalChatService._normalize(query)
+        if normalized.startswith(("hola", "buenas", "hey", "que tal")):
+            return True
+        discovery_tokens = {"caso", "casos", "informacion", "info", "resumen"}
+        return len(normalized.split()) <= 8 and any(
+            token in normalized for token in discovery_tokens
+        )
+
+    @staticmethod
+    def _safe_source_snippet(source: dict[str, str]) -> str:
+        snippet = str(source.get("snippet") or "").strip()
+        if not snippet:
+            return ""
+        if snippet.startswith("{") or snippet.startswith("["):
+            return ""
+        return snippet
+
+    @staticmethod
+    def _describe_available_domains(matched_domains: list[dict[str, object]]) -> list[str]:
+        labels: list[str] = []
+        for domain in matched_domains[:4]:
+            label = str(domain.get("label") or domain.get("key") or "ruta clinica")
+            if label not in labels:
+                labels.append(label)
+        return labels
+
+    @staticmethod
     def _render_general_answer(
         *,
         query: str,
@@ -848,42 +880,58 @@ class ClinicalChatService:
         web_sources: list[dict[str, str]],
         tool_mode: str,
         recent_dialogue: list[dict[str, str]],
+        matched_domains: list[dict[str, object]],
     ) -> str:
         lines: list[str] = [
             "Modo conversacional general activo.",
             f"Herramienta seleccionada: {tool_mode}.",
         ]
-        normalized_query = ClinicalChatService._normalize(query)
-        if normalized_query.startswith(("hola", "buenas", "hey")):
-            lines.append("Hola. Te leo, dime que necesitas y lo trabajamos por pasos.")
+        if ClinicalChatService._is_social_or_discovery_query(query):
+            lines.append(
+                "Hola. Si, puedo ayudarte con casos y rutas operativas validadas. "
+                "Antes de responder en detalle sigo hilos de contexto, evidencia y accion."
+            )
+            available_domains = ClinicalChatService._describe_available_domains(matched_domains)
+            if available_domains:
+                lines.append("Ahora mismo puedo orientarte en:")
+                for label in available_domains:
+                    lines.append(f"- {label}")
+            if knowledge_sources:
+                lines.append("Fuentes internas disponibles:")
+                for source in knowledge_sources[:3]:
+                    lines.append(f"- {source.get('title', 'Fuente interna')}")
+            lines.append(
+                "Si me das un caso concreto (edad, sintomas clave, prioridad), te devuelvo "
+                "un resumen accionable y fuentes usadas."
+            )
         else:
             lines.append("Entendido. Respondo en formato conversacional y operativo.")
-        if web_sources:
-            first_source = web_sources[0]
-            snippet = first_source.get("snippet", "").strip()
-            if snippet:
-                lines.append("Resumen inicial:")
-                lines.append(f"- {snippet}")
-            lines.append("Fuente principal:")
-            lines.append(
-                f"- {first_source.get('title', 'Referencia web')}: "
-                f"{first_source.get('url', '')}"
-            )
-        elif knowledge_sources:
-            first_source = knowledge_sources[0]
-            snippet = first_source.get("snippet", "").strip()
-            if snippet:
-                lines.append("Contexto disponible en base interna:")
-                lines.append(f"- {snippet}")
-            lines.append(
-                f"Referencia interna: {first_source.get('title', 'Fuente interna')} "
-                f"({first_source.get('source', 'catalogo')})"
-            )
-        else:
-            lines.append(
-                "No hay contexto documental adicional para esta consulta. "
-                "Si quieres, activa busqueda profunda para ampliar evidencia."
-            )
+            if web_sources:
+                first_source = web_sources[0]
+                snippet = ClinicalChatService._safe_source_snippet(first_source)
+                if snippet:
+                    lines.append("Resumen inicial:")
+                    lines.append(f"- {snippet}")
+                lines.append("Fuente principal:")
+                lines.append(
+                    f"- {first_source.get('title', 'Referencia web')}: "
+                    f"{first_source.get('url', '')}"
+                )
+            elif knowledge_sources:
+                first_source = knowledge_sources[0]
+                snippet = ClinicalChatService._safe_source_snippet(first_source)
+                if snippet:
+                    lines.append("Contexto disponible en base interna:")
+                    lines.append(f"- {snippet}")
+                lines.append(
+                    f"Referencia interna: {first_source.get('title', 'Fuente interna')} "
+                    f"({first_source.get('source', 'catalogo')})"
+                )
+            else:
+                lines.append(
+                    "No hay contexto documental adicional para esta consulta. "
+                    "Si quieres, activa busqueda profunda para ampliar evidencia."
+                )
         if memory_facts_used:
             lines.append("Contexto reutilizado: " + ", ".join(memory_facts_used[:4]) + ".")
         if recent_dialogue:
@@ -985,10 +1033,19 @@ class ClinicalChatService:
             if fact not in unique_facts:
                 unique_facts.append(fact)
         extracted_facts = unique_facts[:20]
+<<<<<<< HEAD
         endpoint_recommendations = ClinicalChatService._fetch_recommendations(
             query=effective_query,
             matched_endpoints=matched_endpoints,
         )
+=======
+        endpoint_recommendations: list[dict[str, Any]] = []
+        if response_mode == "clinical":
+            endpoint_recommendations = ClinicalChatService._fetch_recommendations(
+                query=effective_query,
+                matched_endpoints=matched_endpoints,
+            )
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
         if tool_mode in {"medication", "treatment", "cases"}:
             extracted_facts.append(f"tool_focus:{tool_mode}")
         knowledge_sources = ClinicalChatService._build_validated_knowledge_sources(
@@ -1023,9 +1080,16 @@ class ClinicalChatService:
             }
             for item in endpoint_recommendations
         ]
+<<<<<<< HEAD
         knowledge_sources = [*knowledge_sources, *endpoint_sources][
             : max(payload.max_internal_sources, 6)
         ]
+=======
+        if response_mode == "clinical":
+            knowledge_sources = [*knowledge_sources, *endpoint_sources][
+                : max(payload.max_internal_sources, 6)
+            ]
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
         interpretability_trace = [
             f"query_length={len(payload.query)}",
             f"effective_specialty={effective_specialty}",
@@ -1041,6 +1105,11 @@ class ClinicalChatService:
             f"internal_sources={len(knowledge_sources)}",
             f"web_sources={len(web_sources)}",
             f"endpoint_recommendations={len(endpoint_recommendations)}",
+<<<<<<< HEAD
+=======
+            "reasoning_threads=intent>context>sources>actions",
+            "source_policy=internal_first_web_whitelist",
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
             f"memory_facts_used={len(memory_facts_used)}",
             f"extracted_facts={len(extracted_facts)}",
         ]
@@ -1087,6 +1156,7 @@ class ClinicalChatService:
                 web_sources=web_sources,
                 tool_mode=tool_mode,
                 recent_dialogue=recent_dialogue,
+                matched_domains=matched_domain_records,
             )
         if llm_trace:
             interpretability_trace.extend(

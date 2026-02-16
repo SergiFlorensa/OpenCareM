@@ -2217,3 +2217,40 @@
   - `python -m pytest -q app/tests/test_clinical_chat_operational.py -k "ollama or e2e or follow_up"`
 - Riesgos pendientes identificados:
   - Si `CLINICAL_CHAT_LLM_BASE_URL` apunta a un proxy no compatible, puede requerir ajuste adicional de autenticacion/cabeceras.
+<<<<<<< HEAD
+=======
+
+
+- ID: TM-106
+- Objetivo: Evitar respuestas generales con volcado tecnico/JSON en saludos o consultas exploratorias.
+- Alcance: `app/services/clinical_chat_service.py`, `app/tests/test_clinical_chat_operational.py`, contratos de handoff y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-105.
+- Entregables:
+  - Sanitizacion de respuesta general para no exponer snippets JSON crudos en modo conversacional.
+  - Recomendaciones internas por endpoint solo en modo clinico (no en greeting general).
+  - Test de regresion para saludo con consulta de casos.
+- Evidencia:
+  - `python -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py -k "general_answer or parse_ollama or e2e"`
+- Riesgos pendientes identificados:
+  - Consultas ambiguas muy cortas pueden requerir una repregunta del usuario para activar modo clinico y detalle protocolario.
+
+
+- ID: TM-107
+- Objetivo: Reforzar calidad conversacional humana con hilos de razonamiento y politica de fuentes.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, contratos y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-106.
+- Entregables:
+  - Respuesta general guiada por hilos (intencion, contexto, fuentes, accion) con cierre de repregunta util.
+  - Enumeracion de dominios disponibles para consultas exploratorias en lugar de blobs tecnicos.
+  - Politica de fuentes (`internal first`) visible en trazas y prompt LLM.
+- Evidencia:
+  - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+- Riesgos pendientes identificados:
+  - Sin base de conocimiento clinica ampliada, el tono mejora pero la profundidad depende del catalogo interno disponible.
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb

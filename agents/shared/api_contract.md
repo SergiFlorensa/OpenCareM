@@ -394,3 +394,27 @@
   - contrato externo estable y backward compatible.
 - Riesgos:
   - integraciones via proxy que alteren framing HTTP pueden requerir cabeceras adicionales en runtime.
+<<<<<<< HEAD
+=======
+
+
+## TM-106 (higiene de respuesta general, sin cambio de payload)
+
+- Sin cambios de rutas ni esquema request/response.
+- Cambios internos:
+  - en `response_mode=general` se evita imprimir snippets tecnicos crudos (JSON) en salida de fallback.
+  - recomendaciones de endpoints se incorporan al contexto solo en `response_mode=clinical`.
+- Compatibilidad:
+  - contrato externo se mantiene backward compatible.
+
+
+## TM-107 (hilos conversacionales y politica de fuentes, sin cambio de payload)
+
+- No se agregan endpoints ni campos nuevos de request/response.
+- Cambios internos:
+  - fallback/response general mas humano: muestra dominios disponibles y solicita datos minimos del caso.
+  - trazabilidad ampliada en `interpretability_trace` con:
+    - `reasoning_threads=intent>context>sources>actions`
+    - `source_policy=internal_first_web_whitelist`
+- Compatibilidad: contrato publico estable.
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb

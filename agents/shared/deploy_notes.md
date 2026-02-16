@@ -249,3 +249,23 @@
   - si existe proxy intermedio, confirmar que no rompe payload JSON y timeout.
 - Smoke sugerido post-deploy:
   - enviar un turno de chat y verificar `interpretability_trace` con `llm_used=true` y `llm_endpoint=chat|generate`.
+<<<<<<< HEAD
+=======
+
+
+## TM-106 - Notas de despliegue
+
+- No requiere migraciones ni cambios de configuracion.
+- Validacion funcional sugerida:
+  - enviar `hola, tienes informacion de algunos casos?` y confirmar respuesta conversacional sin blob JSON.
+  - enviar consulta clinica concreta y confirmar que mantiene contexto/recomendaciones clinicas.
+
+
+## TM-107 - Notas de despliegue
+
+- Sin migraciones ni flags nuevos.
+- Smoke funcional recomendado:
+  - Input: `hola, tienes informacion de algunos casos?`
+  - Esperado: respuesta humana con dominios disponibles y repregunta de caso, sin JSON crudo.
+  - Verificar traza: `reasoning_threads=intent>context>sources>actions`.
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb

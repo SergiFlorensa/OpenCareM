@@ -48,13 +48,15 @@ class LLMChatProvider:
                 "No hagas diagnostico definitivo ni sustituyas juicio clinico humano. "
                 "Especialidad activa: "
                 f"{effective_specialty}. Herramienta activa: {tool_mode}. "
-                "Usa formato con secciones breves: "
-                "1) Evaluacion operativa, 2) Acciones priorizadas, "
-                "3) Riesgos/alertas, 4) Verificacion humana obligatoria."
+                "Sigue esta secuencia de hilos antes de responder: "
+                "1) objetivo clinico, 2) contexto y memoria, 3) evidencia y fuentes, "
+                "4) acciones priorizadas, 5) riesgos y verificacion humana."
             )
         return (
             "Eres un asistente conversacional profesional de baja latencia. "
             "Responde natural, directo y util, evitando relleno. "
+            "Sigue estos hilos: 1) entender intencion, 2) usar contexto interno validado, "
+            "3) responder claro, 4) cerrar con siguiente paso o pregunta de aclaracion. "
             "Si la consulta deriva a clinica, indica que puedes cambiar a modo clinico."
         )
 
@@ -110,6 +112,13 @@ class LLMChatProvider:
                 endpoint = str(result.get("endpoint") or "endpoint")
                 compact_json = json.dumps(result.get("recommendation"), ensure_ascii=False)[:600]
                 lines.append(f"- {endpoint}: {compact_json}")
+<<<<<<< HEAD
+=======
+        lines.append(
+            "Politica de fuentes: prioriza fuentes internas validadas; "
+            "usa web solo como refuerzo en dominios permitidos."
+        )
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
         lines.append("Fuentes internas:")
         lines.append(LLMChatProvider._compact_sources(knowledge_sources))
         lines.append("Fuentes web:")
@@ -226,6 +235,7 @@ class LLMChatProvider:
         chat_error: str | None = None
         try:
 <<<<<<< HEAD
+<<<<<<< HEAD
             parsed = LLMChatProvider._request_ollama_json(
                 endpoint="api/chat",
                 payload=chat_payload,
@@ -255,6 +265,8 @@ class LLMChatProvider:
                     trace["llm_chat_error"] = chat_error
                 return None, trace
 =======
+=======
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
             parsed = LLMChatProvider._request_ollama_json(endpoint="api/chat", payload=chat_payload)
             answer = LLMChatProvider._extract_chat_answer(parsed)
             endpoint_used = "chat"
@@ -288,10 +300,13 @@ class LLMChatProvider:
                 "llm_latency_ms": str(latency_ms),
             }
 <<<<<<< HEAD
+<<<<<<< HEAD
             if chat_error:
                 trace["llm_chat_error"] = chat_error
             return None, trace
 =======
+=======
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
     @staticmethod
     def _parse_ollama_payload(raw_payload: str) -> dict[str, Any]:
         """Parsea respuestas JSON y JSONL de Ollama de forma tolerante."""
@@ -343,4 +358,7 @@ class LLMChatProvider:
         if isinstance(message, str):
             return message.strip()
         return str(parsed_payload.get("response") or parsed_payload.get("content") or "").strip()
+<<<<<<< HEAD
 >>>>>>> origin/codex/improve-conversational-feedback-in-chat-w21r6o
+=======
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-wamorb
