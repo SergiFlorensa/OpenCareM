@@ -132,7 +132,7 @@ class LLMChatProvider:
         )
         with urlopen(request, timeout=settings.CLINICAL_CHAT_LLM_TIMEOUT_SECONDS) as response:
             raw_payload = response.read().decode("utf-8", errors="ignore")
-        return json.loads(raw_payload)
+        return LLMChatProvider._parse_ollama_payload(raw_payload)
 
     @staticmethod
     def _build_chat_messages(
@@ -225,6 +225,7 @@ class LLMChatProvider:
         }
         chat_error: str | None = None
         try:
+<<<<<<< HEAD
             parsed = LLMChatProvider._request_ollama_json(
                 endpoint="api/chat",
                 payload=chat_payload,
@@ -253,6 +254,20 @@ class LLMChatProvider:
                 if chat_error:
                     trace["llm_chat_error"] = chat_error
                 return None, trace
+=======
+            parsed = LLMChatProvider._request_ollama_json(endpoint="api/chat", payload=chat_payload)
+            answer = LLMChatProvider._extract_chat_answer(parsed)
+            endpoint_used = "chat"
+            if not answer:
+                parsed = LLMChatProvider._request_ollama_json(
+                    endpoint="api/generate",
+                    payload=generate_payload,
+                )
+                answer = LLMChatProvider._extract_chat_answer(parsed)
+                endpoint_used = "generate"
+            if not answer:
+                return None, {"llm_error": "empty_response", "llm_endpoint": endpoint_used}
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-w21r6o
             latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
             trace = {
                 "llm_used": "true",
@@ -272,6 +287,60 @@ class LLMChatProvider:
                 "llm_error": exc.__class__.__name__,
                 "llm_latency_ms": str(latency_ms),
             }
+<<<<<<< HEAD
             if chat_error:
                 trace["llm_chat_error"] = chat_error
             return None, trace
+=======
+    @staticmethod
+    def _parse_ollama_payload(raw_payload: str) -> dict[str, Any]:
+        """Parsea respuestas JSON y JSONL de Ollama de forma tolerante."""
+        payload = raw_payload.strip()
+        if not payload:
+            raise ValueError("empty_payload")
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            # Algunos proxies/instancias devuelven una salida tipo JSONL.
+            json_lines: list[dict[str, Any]] = []
+            for line in payload.splitlines():
+                candidate = line.strip()
+                if not candidate:
+                    continue
+                if candidate.startswith("data:"):
+                    candidate = candidate[5:].strip()
+                if candidate == "[DONE]":
+                    continue
+                try:
+                    json_lines.append(json.loads(candidate))
+                except json.JSONDecodeError:
+                    continue
+            if not json_lines:
+                raise
+            combined_message = "".join(
+                str(
+                    (item.get("message") or {}).get("content")
+                    or item.get("response")
+                    or item.get("content")
+                    or ""
+                )
+                for item in json_lines
+            ).strip()
+            merged = dict(json_lines[-1])
+            if combined_message:
+                if isinstance(merged.get("message"), dict):
+                    merged["message"]["content"] = combined_message
+                else:
+                    merged["response"] = combined_message
+            return merged
+
+    @staticmethod
+    def _extract_chat_answer(parsed_payload: dict[str, Any]) -> str:
+        """Extrae contenido textual de respuestas heterogeneas de Ollama."""
+        message = parsed_payload.get("message")
+        if isinstance(message, dict):
+            return str(message.get("content") or "").strip()
+        if isinstance(message, str):
+            return message.strip()
+        return str(parsed_payload.get("response") or parsed_payload.get("content") or "").strip()
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-w21r6o

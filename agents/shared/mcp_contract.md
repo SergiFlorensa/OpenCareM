@@ -32,3 +32,9 @@
 
 - Sin cambios de contrato MCP.
 - Impacto acotado a backend API y frontend chat.
+
+
+## TM-105
+
+- Sin cambios en herramientas MCP ni contratos MCP expuestos.
+- Impacto esperado: ninguno para flujos MCP.

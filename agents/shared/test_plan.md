@@ -1327,14 +1327,17 @@
 - Validar traza operativa en e2e de 3 turnos.
 - Validar build frontend tras simplificacion UI.
 
-- Plan TM-103:
-  - Corregir fallback de `api/chat` a `api/generate` ante excepciones.
-  - Evitar que se muestren hechos de control UI en salida fallback.
-  - Ajustar test para soportar ejecucion con LLM habilitado.
-- Resultado TM-103:
-  - `llm_chat_error` agregado en traza cuando falla endpoint `chat`.
-  - Fallback clinico no muestra `modo_respuesta:*` ni `herramienta:*` en "Hechos detectados".
-  - Test `test_chat_message_supports_general_conversation_mode` robusto para `llm_enabled/llm_used`.
-  - Comandos de validacion ejecutados:
-    - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/tests/test_care_tasks_api.py`
-    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_message_supports_general_conversation_mode or chat_continuity_filters_control_facts_from_memory"`
+
+## TM-105 - Plan de validacion ejecutado
+
+- Validar parseo tolerante de respuestas Ollama en formato JSONL chunked.
+- Validar parseo tolerante de lineas con prefijo `data:` (SSE-like).
+- Revalidar flujo e2e de continuidad con trazas de chat para evitar regresion.
+
+Resultados:
+- Nuevos tests:
+  - `test_parse_ollama_payload_supports_jsonl_chunks`
+  - `test_parse_ollama_payload_supports_sse_data_lines`
+- Comandos ejecutados:
+  - `python -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`

@@ -2183,18 +2183,37 @@
   - Con 16GB RAM, modelos >14B pueden degradar latencia y experiencia de guardia.
 
 - ID: TM-103
-- Objetivo: Corregir fallback LLM y limpiar salida fallback de hechos de control.
-- Alcance: `app/services/llm_chat_provider.py`, `app/services/clinical_chat_service.py`, `app/tests/test_care_tasks_api.py` y handoffs.
-- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Objetivo: Mejorar feedback conversacional clinico con trazabilidad LLM y UI simplificada.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `frontend/src/App.tsx`, `frontend/src/styles.css`, `.env.example`, `.env.docker`, pruebas y docs operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
 - Estado: completado
-- Dependencias: TM-102.
+- Dependencias: TM-100, TM-101, TM-102.
 - Entregables:
-  - Fallback real `api/chat -> api/generate` incluso cuando `api/chat` falla por excepcion.
-  - Traza opcional `llm_chat_error` para depuracion de fallos parciales.
-  - Salida fallback clinica sin hechos de control UI (`modo_respuesta:*`, `herramienta:*`).
-  - Test de chat general robusto para entorno LLM on/off.
+  - Inyeccion de recomendaciones internas de endpoints en contexto LLM.
+  - Trazabilidad operativa reforzada (`llm_*`, `query_expanded`, `matched_endpoints`) en respuesta y UI.
+  - UI de chat concentrada en menus desplegables con opciones avanzadas plegables.
+  - Runbook interno de Ollama local y politicas de whitelist.
 - Evidencia:
-  - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/tests/test_care_tasks_api.py`
-  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_message_supports_general_conversation_mode or chat_continuity_filters_control_facts_from_memory"`
+  - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py frontend/src/App.tsx`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+  - `cd frontend && npm run build`
 - Riesgos pendientes identificados:
-  - Si Ollama no esta disponible, seguira entrando fallback rule-based (esperado por diseno).
+  - La sintesis de recomendaciones internas por endpoint es heuristica y no sustituye llamada clinica directa del especialista.
+  - Si Ollama local no esta disponible, el sistema cae a fallback operativo no diagnostico.
+
+
+- ID: TM-105
+- Objetivo: Corregir parseo de respuestas Ollama para evitar fallback clinico por error de decode.
+- Alcance: `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, contratos API/QA/DevOps y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-103, TM-104.
+- Entregables:
+  - Parser tolerante para respuestas Ollama JSON, JSONL y lineas `data:` (SSE-like).
+  - Extraccion robusta de texto de respuesta para `/api/chat` y fallback `/api/generate`.
+  - Tests de regresion para payload chunked y SSE.
+- Evidencia:
+  - `python -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py -k "ollama or e2e or follow_up"`
+- Riesgos pendientes identificados:
+  - Si `CLINICAL_CHAT_LLM_BASE_URL` apunta a un proxy no compatible, puede requerir ajuste adicional de autenticacion/cabeceras.

@@ -119,3 +119,22 @@ def test_chat_e2e_three_turns_continuity_and_trace(client, monkeypatch):
     assert any(item == "query_expanded=1" for item in payload["interpretability_trace"])
     assert any(item == "llm_endpoint=chat" for item in payload["interpretability_trace"])
     assert any(item.startswith("matched_endpoints=") for item in payload["interpretability_trace"])
+<<<<<<< HEAD
+=======
+
+
+def test_parse_ollama_payload_supports_jsonl_chunks():
+    raw = """{"message":{"content":"Plan "}}
+{"message":{"content":"operativo"}}
+"""
+    parsed = LLMChatProvider._parse_ollama_payload(raw)
+    assert LLMChatProvider._extract_chat_answer(parsed) == "Plan operativo"
+
+
+def test_parse_ollama_payload_supports_sse_data_lines():
+    raw = """data: {"message":{"content":"Respuesta"}}
+data: [DONE]
+"""
+    parsed = LLMChatProvider._parse_ollama_payload(raw)
+    assert LLMChatProvider._extract_chat_answer(parsed) == "Respuesta"
+>>>>>>> origin/codex/improve-conversational-feedback-in-chat-w21r6o
