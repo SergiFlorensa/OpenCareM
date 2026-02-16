@@ -373,3 +373,12 @@
   - rendimiento y naturalidad dependen del modelo local/hardware.
 
 
+
+## TM-103 (chat clinico operativo avanzado)
+
+- Se mantiene contrato existente de `POST /api/v1/care-tasks/{task_id}/chat/messages` sin romper rutas.
+- Cambios backward compatible:
+  - se amplian trazas internas (`interpretability_trace`) con llaves: `matched_endpoints`, `endpoint_recommendations`, `llm_model` en escenarios sin LLM.
+  - no se elimina ningun campo existente de request/response.
+- Compatibilidad:
+  - clientes actuales siguen funcionando aunque ignoren nuevas entradas de traza.

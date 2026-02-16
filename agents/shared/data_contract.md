@@ -277,3 +277,8 @@
   - Cuando se usen datos sensibles: desidentificacion previa.
 
 
+
+## TM-103
+
+- Sin cambios de esquema DB ni migraciones.
+- Persistencia existente de `care_task_chat_messages` se mantiene compatible.

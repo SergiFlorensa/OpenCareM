@@ -1319,3 +1319,10 @@
   - Comandos de validacion ejecutados:
     - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/core/config.py app/tests/test_care_tasks_api.py`
     - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_continuity_filters_control_facts_from_memory or chat_follow_up_query_reuses_previous_context_for_domain_matching or chat_message"` (`7 passed`)
+
+## TM-103 - Plan de validacion ejecutado
+
+- Validar expansion de follow-up en continuidad de sesion.
+- Validar preferencia de endpoint `api/chat` en proveedor Ollama.
+- Validar traza operativa en e2e de 3 turnos.
+- Validar build frontend tras simplificacion UI.

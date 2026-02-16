@@ -233,3 +233,9 @@
   - opcional `qwen2.5:14b` si el equipo mantiene latencia aceptable.
 
 
+
+## TM-103 - Notas de despliegue
+
+- Configurar variables LLM en `.env` de runtime con `CLINICAL_CHAT_LLM_ENABLED=true`.
+- Verificar proceso `ollama serve` y modelo `llama3.1:8b` presente (`ollama list`).
+- Mantener whitelist web estricta activa para `deep_search`.
