@@ -1,0 +1,123 @@
+groups:
+  - name: task_manager_agent_alerts
+    rules:
+      - alert: AgentRunsFailedDetected
+        expr: sum(agent_runs_failed_total) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: agents
+        annotations:
+          summary: "Agent runs with failure detected"
+          description: "There is at least one failed agent run in persisted metrics."
+
+      - alert: AgentFallbackRateHigh
+        expr: sum(agent_fallback_rate_percent) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: agents
+        annotations:
+          summary: "Agent fallback rate is high"
+          description: "Fallback rate is above 10%, indicating degraded agent behavior."
+
+      - alert: ScasestAuditUnderRateHigh
+        expr: sum(scasest_audit_under_rate_percent) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: scasest
+        annotations:
+          summary: "SCASEST under-rate is high"
+          description: "SCASEST under-risk rate is above 10%, review triage quality and escalation criteria."
+
+      - alert: ScasestAuditOverRateHigh
+        expr: sum(scasest_audit_over_rate_percent) > 20
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: scasest
+        annotations:
+          summary: "SCASEST over-rate is high"
+          description: "SCASEST over-risk rate is above 20%, review threshold tuning and false positive load."
+
+      - alert: CardioRiskAuditUnderRateHigh
+        expr: sum(cardio_risk_audit_under_rate_percent) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: cardio-risk
+        annotations:
+          summary: "Cardio-risk under-rate is high"
+          description: "Cardio-risk under-rate is above 10%, review severity calibration and escalation criteria."
+
+      - alert: CardioRiskAuditOverRateHigh
+        expr: sum(cardio_risk_audit_over_rate_percent) > 20
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: cardio-risk
+        annotations:
+          summary: "Cardio-risk over-rate is high"
+          description: "Cardio-risk over-rate is above 20%, review thresholds to reduce false positives."
+
+      - alert: ResuscitationAuditUnderRateHigh
+        expr: sum(resuscitation_audit_under_rate_percent) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: resuscitation
+        annotations:
+          summary: "Resuscitation under-rate is high"
+          description: "Resuscitation under-rate is above 10%, review criticality calibration and escalation criteria."
+
+      - alert: ResuscitationAuditOverRateHigh
+        expr: sum(resuscitation_audit_over_rate_percent) > 20
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: resuscitation
+        annotations:
+          summary: "Resuscitation over-rate is high"
+          description: "Resuscitation over-rate is above 20%, review thresholds to reduce false positives in critical contexts."
+
+      - alert: CareTaskQualityUnderRateHigh
+        expr: sum(care_task_quality_audit_under_rate_percent) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: quality-scorecard
+        annotations:
+          summary: "Global quality under-rate is high"
+          description: "Global under-risk rate is above 10%, indicating possible under-prioritization."
+
+      - alert: CareTaskQualityOverRateHigh
+        expr: sum(care_task_quality_audit_over_rate_percent) > 20
+        for: 2m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: quality-scorecard
+        annotations:
+          summary: "Global quality over-rate is high"
+          description: "Global over-risk rate is above 20%, indicating possible over-escalation."
+
+      - alert: CareTaskQualityMatchRateLow
+        expr: sum(care_task_quality_audit_match_rate_percent) < 80 and sum(care_task_quality_audit_total) >= 10
+        for: 3m
+        labels:
+          severity: warning
+          service: task-manager-api
+          component: quality-scorecard
+        annotations:
+          summary: "Global quality match rate is low"
+          description: "Global IA-vs-human match rate is below 80% with at least 10 audits."

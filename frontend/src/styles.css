@@ -1,0 +1,425 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, #18213a 0%, #0f1526 45%, #0b111f 100%);
+  color: #e8edf8;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 300px minmax(680px, 1fr) 320px;
+  gap: 12px;
+  height: 100vh;
+  padding: 12px;
+}
+
+.sidebar,
+.main,
+.inspector {
+  min-height: 0;
+}
+
+.sidebar {
+  background: rgba(11, 17, 30, 0.92);
+  border: 1px solid #24304a;
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto auto auto auto 1fr;
+}
+
+.sidebar-title h1 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.sidebar-title p {
+  margin: 4px 0 0;
+  color: #96a7c5;
+  font-size: 0.85rem;
+}
+
+.user-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: #131d31;
+  border: 1px solid #2f4166;
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.user-main {
+  display: grid;
+  gap: 2px;
+}
+
+.user-main span {
+  color: #9bb0d2;
+  font-size: 0.82rem;
+}
+
+.card {
+  background: rgba(15, 23, 38, 0.94);
+  border: 1px solid #2a3a5c;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.card.compact input {
+  margin-top: 4px;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.stack {
+  display: grid;
+  gap: 8px;
+}
+
+.card.grow {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.case-list {
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.case-item {
+  text-align: left;
+  border: 1px solid #324468;
+  background: #121a2c;
+  border-radius: 10px;
+  color: #e8edf8;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.case-item.active {
+  border-color: #5f8af2;
+  background: #182847;
+}
+
+.case-title {
+  font-size: 0.86rem;
+}
+
+.case-sub {
+  font-size: 0.75rem;
+  color: #94a8cb;
+}
+
+.main {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  min-height: 0;
+}
+
+.topbar {
+  background: rgba(11, 17, 30, 0.92);
+  border: 1px solid #24304a;
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.status {
+  color: #b8c7e2;
+  font-size: 0.88rem;
+}
+
+.api-input {
+  width: 330px;
+}
+
+.chat-shell,
+.login-panel {
+  background: rgba(11, 17, 30, 0.92);
+  border: 1px solid #24304a;
+  border-radius: 14px;
+  padding: 10px;
+  min-height: 0;
+}
+
+.chat-shell {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 10px;
+}
+
+.chat-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.chat-head p {
+  margin: 3px 0 0;
+  color: #9cb0d4;
+  font-size: 0.84rem;
+}
+
+.head-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tool-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tool {
+  border: 1px solid #334567;
+  background: #121b2f;
+  color: #d8e1f2;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+}
+
+.tool.active {
+  border-color: #5e8cf8;
+  background: #1a2f57;
+}
+
+.selected-tool-hint {
+  color: #a6b8d8;
+  font-size: 0.85rem;
+}
+
+.timeline {
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.turn {
+  display: grid;
+  gap: 6px;
+}
+
+.bubble {
+  border: 1px solid #2d3e5f;
+  border-radius: 12px;
+  padding: 10px;
+  max-width: 88%;
+}
+
+.bubble.user {
+  margin-left: auto;
+  background: linear-gradient(135deg, #2a57c4, #244b9f);
+  border-color: #4c76d8;
+}
+
+.bubble.assistant {
+  background: #121b2d;
+}
+
+.bubble-meta {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.chip {
+  border: 1px solid #38507d;
+  background: #162542;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  color: #c0d0ea;
+}
+
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+.composer {
+  display: grid;
+  gap: 8px;
+}
+
+.composer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mode-tag {
+  color: #9db0d3;
+  font-size: 0.8rem;
+}
+
+.login-panel {
+  max-width: 460px;
+}
+
+.inspector {
+  display: grid;
+  gap: 10px;
+  grid-template-rows: 1fr 1fr;
+}
+
+.kv {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.kv dt {
+  color: #9db0d3;
+  font-size: 0.74rem;
+}
+
+.kv dd {
+  margin: 3px 0 0;
+  font-size: 0.86rem;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  background: #10192b;
+  color: #e8edf8;
+  border: 1px solid #314463;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 92px;
+}
+
+button {
+  border: 1px solid #4366c2;
+  background: linear-gradient(135deg, #3158b4, #294995);
+  color: #f3f6ff;
+  border-radius: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: #adc0e2;
+}
+
+.check input {
+  width: auto;
+}
+
+.error {
+  margin: 0;
+  border: 1px solid #c55d5d;
+  background: rgba(145, 43, 43, 0.2);
+  color: #ffb3b3;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+}
+
+.muted {
+  color: #8ea2c5;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 1440px) {
+  .app {
+    grid-template-columns: 280px 1fr;
+  }
+
+  .inspector {
+    display: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  .app {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    grid-template-rows: repeat(4, auto);
+  }
+
+  .tool-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .api-input {
+    width: 100%;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,11 @@
+venv/
+mcp_server/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.git/
+.coverage
+htmlcov/
+task_manager.db

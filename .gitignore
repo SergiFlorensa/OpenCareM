@@ -1,0 +1,14 @@
+venv/
+mcp_server/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.env
+.env.local
+.env.*.local
+*.db
+*.sqlite3
+frontend/node_modules/
+frontend/dist/

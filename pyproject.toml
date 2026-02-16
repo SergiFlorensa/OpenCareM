@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+explicit_package_bases = true
+exclude = "(^venv/|^mcp_server/\\.venv/)"
+plugins = ["sqlalchemy.ext.mypy.plugin"]

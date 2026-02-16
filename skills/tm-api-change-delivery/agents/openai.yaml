@@ -1,0 +1,4 @@
+interface:
+  display_name: "TM API Change Delivery"
+  short_description: "Ship API changes with contracts and tests"
+  default_prompt: "Use $tm-api-change-delivery to implement an API change with contracts, tests, and docs alignment."

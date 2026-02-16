@@ -1,0 +1,4 @@
+interface:
+  display_name: "TM Observability Ops"
+  short_description: "Run and validate Prometheus Grafana stack"
+  default_prompt: "Use $tm-observability-ops to operate and troubleshoot Prometheus and Grafana in docker compose."

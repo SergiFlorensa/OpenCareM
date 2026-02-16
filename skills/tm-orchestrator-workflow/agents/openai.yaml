@@ -1,0 +1,4 @@
+interface:
+  display_name: "TM Orchestrator Workflow"
+  short_description: "Enforce task board and handoff workflow"
+  default_prompt: "Use $tm-orchestrator-workflow to plan and execute a repository change with full handoff discipline."

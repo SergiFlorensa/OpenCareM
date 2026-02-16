@@ -1,0 +1,235 @@
+﻿# Notas de Despliegue
+
+## Estado actual
+
+- Ejecucion local con `uvicorn`.
+- MCP local en `stdio`.
+- Migraciones controladas por Alembic (`alembic upgrade head`).
+- Pipeline CI base activo en GitHub Actions (`.github/workflows/ci.yml`).
+- Entorno Docker Compose operativo (`docker-compose.yml` + `docker/Dockerfile`).
+- Config por entorno base definida (`.env.example` y `.env.docker`).
+- Endpoint de metricas Prometheus disponible en `/metrics`.
+- Prometheus local integrado en Compose (`http://localhost:9090`).
+- Grafana local integrado en Compose (`http://localhost:3000`).
+- Login con proteccion anti brute force activo en API.
+- Metricas operativas de agentes exportadas en `/metrics` y paneles en dashboard Grafana.
+- Reglas de alerta baseline para agentes cargadas en Prometheus (`ops/prometheus/alerts.yml`).
+- Alertmanager integrado en Compose para ruteo de alertas (`http://localhost:9093`).
+- Triaje directo de `CareTask` activo en `POST /api/v1/care-tasks/{id}/triage` con trazabilidad en `agent_runs/agent_steps`.
+- Aprobacion humana de triaje activa en `POST /api/v1/care-tasks/{id}/triage/approve` con persistencia en `care_task_triage_reviews`.
+- Contexto clinico-operativo disponible en `GET /api/v1/clinical-context/*` para prompts, frontend y pruebas.
+- Catalogo Manchester de niveles/SLA disponible en `GET /api/v1/clinical-context/triage-levels/manchester`.
+- Auditoria de desviacion de triaje disponible en `POST/GET /api/v1/care-tasks/{id}/triage/audit`.
+- Metricas de auditoria expuestas en `/metrics`: `triage_audit_*`.
+- Chat clinico-operativo disponible en:
+  - `POST /api/v1/care-tasks/{id}/chat/messages`
+  - `GET /api/v1/care-tasks/{id}/chat/messages`
+  - `GET /api/v1/care-tasks/{id}/chat/memory`
+- Chat clinico-operativo reforzado con:
+  - modo por especialidad autenticada (`users.specialty`),
+  - continuidad longitudinal por paciente (`care_tasks.patient_reference`),
+  - trazabilidad de fuentes internas y web por mensaje.
+- Endpoints de chat ahora requieren autenticacion `Bearer`.
+- Workflow de chat trazable en `agent_runs/agent_steps`:
+  - `workflow_name=care_task_clinical_chat_v1`
+- Persistencia de memoria conversacional:
+  - tabla `care_task_chat_messages` (requiere `alembic upgrade head`).
+- Migracion requerida para TM-095:
+  - `e8a1c4b7d552_add_chat_specialty_patient_context_fields.py`
+  - agrega columnas en `users`, `care_tasks` y `care_task_chat_messages`.
+- Migracion requerida para TM-096:
+  - `c2f4a9e1b771_add_clinical_knowledge_sources_tables.py`
+  - crea tablas `clinical_knowledge_sources` y `clinical_knowledge_source_validations`.
+- Settings operativos nuevos:
+  - `CLINICAL_CHAT_WEB_ENABLED` (default `true`)
+  - `CLINICAL_CHAT_WEB_TIMEOUT_SECONDS` (default `6`)
+  - `CLINICAL_CHAT_WEB_STRICT_WHITELIST` (default `true`)
+  - `CLINICAL_CHAT_WEB_ALLOWED_DOMAINS` (CSV)
+  - `CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES` (default `true`)
+- API de curacion de conocimiento disponible en:
+  - `POST /api/v1/knowledge-sources/`
+  - `GET /api/v1/knowledge-sources/`
+  - `POST /api/v1/knowledge-sources/{id}/seal`
+  - `GET /api/v1/knowledge-sources/{id}/validations`
+  - `GET /api/v1/knowledge-sources/trusted-domains`
+- Playbook operativo para uso en hospital:
+  - `docs/90_playbook_curacion_fuentes_clinicas.md`
+- Frontend MVP para chat clinico disponible en `frontend/`:
+  - `npm install`
+  - `npm run dev` (Vite en `http://127.0.0.1:5173`)
+- Frontend v2 incorpora:
+  - selector de herramientas (`chat`, `medication`, `cases`, `treatment`, `deep_search`, `images`)
+  - selector de modo de conversacion (`auto`, `general`, `clinical`)
+  - soporte de conversacion libre con creacion automatica de `CareTask`
+- Motor neuronal local opcional de chat:
+  - proveedor: `ollama` (`app/services/llm_chat_provider.py`)
+  - activar en `.env`: `CLINICAL_CHAT_LLM_ENABLED=true`
+  - configurar endpoint/modelo:
+    - `CLINICAL_CHAT_LLM_BASE_URL=http://127.0.0.1:11434`
+    - `CLINICAL_CHAT_LLM_MODEL=llama3.1:8b`
+  - si el proveedor no responde, el sistema cae a fallback rule-based.
+- CORS base actualizado para frontend local:
+  - `http://localhost:5173` y `http://127.0.0.1:5173` incluidos por defecto en settings y `.env.example`/`.env.docker`.
+- Protocolo respiratorio operativo disponible en `POST /api/v1/care-tasks/{id}/respiratory-protocol/recommendation`.
+- Metricas respiratorias expuestas en `/metrics`: `respiratory_protocol_runs_total` y `respiratory_protocol_runs_completed_total`.
+- Humanizacion pediatrica operativa disponible en `POST /api/v1/care-tasks/{id}/humanization/recommendation`.
+- Metricas de humanizacion expuestas en `/metrics`: `pediatric_humanization_runs_total` y `pediatric_humanization_runs_completed_total`.
+- Screening avanzado operativo disponible en `POST /api/v1/care-tasks/{id}/screening/recommendation`.
+- Metricas de screening en `/metrics`: `advanced_screening_runs_total`, `advanced_screening_runs_completed_total`, `advanced_screening_alerts_generated_total`, `advanced_screening_alerts_suppressed_total`.
+- Auditoria de screening disponible en `POST/GET /api/v1/care-tasks/{id}/screening/audit`.
+- Resumen de auditoria screening en `GET /api/v1/care-tasks/{id}/screening/audit/summary`.
+- Metricas de calidad de screening en `/metrics`: `screening_audit_*` y `screening_rule_*_match_rate_percent`.
+- Soporte RX torax operativo disponible en `POST /api/v1/care-tasks/{id}/chest-xray/interpretation-support`.
+- Metricas RX torax en `/metrics`: `chest_xray_support_runs_total`, `chest_xray_support_runs_completed_total`, `chest_xray_support_critical_alerts_total`.
+- Soporte diferencial de pitiriasis disponible en `POST /api/v1/care-tasks/{id}/pityriasis-differential/recommendation`.
+- Metricas pitiriasis en `/metrics`: `pityriasis_differential_runs_total`, `pityriasis_differential_runs_completed_total`, `pityriasis_differential_red_flags_total`.
+- Soporte diferencial acne/rosacea disponible en `POST /api/v1/care-tasks/{id}/acne-rosacea/recommendation`.
+- Metricas acne/rosacea en `/metrics`: `acne_rosacea_differential_runs_total`, `acne_rosacea_differential_runs_completed_total`, `acne_rosacea_differential_red_flags_total`.
+- Soporte operativo de trauma disponible en `POST /api/v1/care-tasks/{id}/trauma/recommendation`.
+- Metricas trauma en `/metrics`: `trauma_support_runs_total`, `trauma_support_runs_completed_total`, `trauma_support_critical_alerts_total`.
+- Soporte operativo critico transversal disponible en `POST /api/v1/care-tasks/{id}/critical-ops/recommendation`.
+- Metricas critical-ops en `/metrics`: `critical_ops_support_runs_total`, `critical_ops_support_runs_completed_total`, `critical_ops_support_critical_alerts_total`.
+- Soporte operativo neurologico disponible en `POST /api/v1/care-tasks/{id}/neurology/recommendation`.
+- Metricas neurologia en `/metrics`: `neurology_support_runs_total`, `neurology_support_runs_completed_total`, `neurology_support_critical_alerts_total`.
+- Soporte operativo gastro-hepato disponible en `POST /api/v1/care-tasks/{id}/gastro-hepato/recommendation`.
+- Metricas gastro-hepato en `/metrics`: `gastro_hepato_support_runs_total`, `gastro_hepato_support_runs_completed_total`, `gastro_hepato_support_critical_alerts_total`.
+- Soporte operativo reuma-inmuno disponible en `POST /api/v1/care-tasks/{id}/rheum-immuno/recommendation`.
+- Metricas reuma-inmuno en `/metrics`: `rheum_immuno_support_runs_total`, `rheum_immuno_support_runs_completed_total`, `rheum_immuno_support_critical_alerts_total`.
+- Soporte operativo de psiquiatria disponible en `POST /api/v1/care-tasks/{id}/psychiatry/recommendation`.
+- Metricas de psiquiatria en `/metrics`: `psychiatry_support_runs_total`, `psychiatry_support_runs_completed_total`, `psychiatry_support_critical_alerts_total`.
+- Soporte operativo de hematologia disponible en `POST /api/v1/care-tasks/{id}/hematology/recommendation`.
+- Metricas de hematologia en `/metrics`: `hematology_support_runs_total`, `hematology_support_runs_completed_total`, `hematology_support_critical_alerts_total`.
+- Soporte operativo de endocrinologia disponible en `POST /api/v1/care-tasks/{id}/endocrinology/recommendation`.
+- Metricas de endocrinologia en `/metrics`: `endocrinology_support_runs_total`, `endocrinology_support_runs_completed_total`, `endocrinology_support_critical_alerts_total`.
+- Soporte operativo de nefrologia disponible en `POST /api/v1/care-tasks/{id}/nephrology/recommendation`.
+- Metricas de nefrologia en `/metrics`: `nephrology_support_runs_total`, `nephrology_support_runs_completed_total`, `nephrology_support_critical_alerts_total`.
+- Soporte operativo de neumologia disponible en `POST /api/v1/care-tasks/{id}/pneumology/recommendation`.
+- Metricas de neumologia en `/metrics`: `pneumology_support_runs_total`, `pneumology_support_runs_completed_total`, `pneumology_support_critical_alerts_total`.
+- Soporte operativo de geriatria disponible en `POST /api/v1/care-tasks/{id}/geriatrics/recommendation`.
+- Metricas de geriatria en `/metrics`: `geriatrics_support_runs_total`, `geriatrics_support_runs_completed_total`, `geriatrics_support_critical_alerts_total`.
+- Soporte operativo de oncologia disponible en `POST /api/v1/care-tasks/{id}/oncology/recommendation`.
+- Metricas de oncologia en `/metrics`: `oncology_support_runs_total`, `oncology_support_runs_completed_total`, `oncology_support_critical_alerts_total`.
+- Soporte operativo de anestesiologia/reanimacion disponible en `POST /api/v1/care-tasks/{id}/anesthesiology/recommendation`.
+- Metricas de anestesiologia/reanimacion en `/metrics`: `anesthesiology_support_runs_total`, `anesthesiology_support_runs_completed_total`, `anesthesiology_support_critical_alerts_total`.
+- Soporte operativo de cuidados paliativos disponible en `POST /api/v1/care-tasks/{id}/palliative/recommendation`.
+- Metricas de cuidados paliativos en `/metrics`: `palliative_support_runs_total`, `palliative_support_runs_completed_total`, `palliative_support_critical_alerts_total`.
+- Soporte operativo de urologia disponible en `POST /api/v1/care-tasks/{id}/urology/recommendation`.
+- Metricas de urologia en `/metrics`: `urology_support_runs_total`, `urology_support_runs_completed_total`, `urology_support_critical_alerts_total`.
+- Soporte operativo de oftalmologia disponible en `POST /api/v1/care-tasks/{id}/ophthalmology/recommendation`.
+- Metricas de oftalmologia en `/metrics`: `ophthalmology_support_runs_total`, `ophthalmology_support_runs_completed_total`, `ophthalmology_support_critical_alerts_total`.
+- Soporte operativo de inmunologia disponible en `POST /api/v1/care-tasks/{id}/immunology/recommendation`.
+- Metricas de inmunologia en `/metrics`: `immunology_support_runs_total`, `immunology_support_runs_completed_total`, `immunology_support_critical_alerts_total`.
+- Soporte operativo de recurrencia genetica disponible en `POST /api/v1/care-tasks/{id}/genetic-recurrence/recommendation`.
+- Metricas de recurrencia genetica en `/metrics`: `genetic_recurrence_support_runs_total`, `genetic_recurrence_support_runs_completed_total`, `genetic_recurrence_support_critical_alerts_total`.
+- Soporte operativo de ginecologia y obstetricia disponible en `POST /api/v1/care-tasks/{id}/gynecology-obstetrics/recommendation`.
+- Metricas de ginecologia y obstetricia en `/metrics`: `gynecology_obstetrics_support_runs_total`, `gynecology_obstetrics_support_runs_completed_total`, `gynecology_obstetrics_support_critical_alerts_total`.
+- Soporte operativo de pediatria y neonatologia disponible en `POST /api/v1/care-tasks/{id}/pediatrics-neonatology/recommendation`.
+- Metricas de pediatria y neonatologia en `/metrics`: `pediatrics_neonatology_support_runs_total`, `pediatrics_neonatology_support_runs_completed_total`, `pediatrics_neonatology_support_critical_alerts_total`.
+- Soporte operativo de epidemiologia clinica disponible en `POST /api/v1/care-tasks/{id}/epidemiology/recommendation`.
+- Metricas de epidemiologia clinica en `/metrics`: `epidemiology_support_runs_total`, `epidemiology_support_runs_completed_total`, `epidemiology_support_critical_alerts_total`.
+- Soporte operativo de anisakis disponible en `POST /api/v1/care-tasks/{id}/anisakis/recommendation`.
+- Metricas de anisakis en `/metrics`: `anisakis_support_runs_total`, `anisakis_support_runs_completed_total`, `anisakis_support_critical_alerts_total`.
+- La salida de trauma incluye `condition_matrix[]` (matriz estructurada por condicion, diagnostico, tratamiento y fuente) para consumo de frontend/auditoria.
+- Soporte medico-legal operativo disponible en `POST /api/v1/care-tasks/{id}/medicolegal/recommendation`.
+- Extension bioetica pediatrica en medico-legal:
+  - conflicto de representacion en menor con riesgo vital
+  - alertas de interes superior del menor y deber de proteccion
+  - trazabilidad reforzada de estado de necesidad terapeutica
+- Salida medico-legal ampliada para frontend/auditoria:
+  - `life_preserving_override_recommended`
+  - `ethical_legal_basis`
+  - `urgency_summary`
+- Metricas medico-legales en `/metrics`: `medicolegal_ops_runs_total`, `medicolegal_ops_runs_completed_total`, `medicolegal_ops_critical_alerts_total`.
+- Auditoria medico-legal disponible en `POST/GET /api/v1/care-tasks/{id}/medicolegal/audit`.
+- Resumen de auditoria medico-legal en `GET /api/v1/care-tasks/{id}/medicolegal/audit/summary`.
+- Metricas de calidad medico-legal en `/metrics`: `medicolegal_audit_*`, `medicolegal_rule_*_match_rate_percent`.
+- Soporte sepsis operativo disponible en `POST /api/v1/care-tasks/{id}/sepsis/recommendation`.
+- Metricas sepsis en `/metrics`: `sepsis_protocol_runs_total`, `sepsis_protocol_runs_completed_total`, `sepsis_protocol_critical_alerts_total`.
+- Soporte SCASEST operativo disponible en `POST /api/v1/care-tasks/{id}/scasest/recommendation`.
+- Metricas SCASEST en `/metrics`: `scasest_protocol_runs_total`, `scasest_protocol_runs_completed_total`, `scasest_protocol_critical_alerts_total`.
+- Auditoria SCASEST disponible en `POST/GET /api/v1/care-tasks/{id}/scasest/audit`.
+- Resumen auditoria SCASEST en `GET /api/v1/care-tasks/{id}/scasest/audit/summary`.
+- Metricas de calidad SCASEST en `/metrics`: `scasest_audit_*`, `scasest_rule_*_match_rate_percent`.
+- Scorecard global de calidad IA disponible en `GET /api/v1/care-tasks/quality/scorecard`.
+- Metricas globales de scorecard en `/metrics`: `care_task_quality_audit_*`.
+- Alertas SCASEST en Prometheus: `ScasestAuditUnderRateHigh`, `ScasestAuditOverRateHigh`.
+- Alertas globales de calidad IA en Prometheus:
+  - `CareTaskQualityUnderRateHigh`
+  - `CareTaskQualityOverRateHigh`
+  - `CareTaskQualityMatchRateLow`
+- Script de drill SCASEST para generar escenarios `under/over`: `app/scripts/simulate_scasest_alerts.py`.
+- Script de drill global para generar escenarios de calidad IA:
+  - `app/scripts/simulate_global_quality_alerts.py`
+- Gate de evaluacion continua de calidad IA disponible en:
+  - Test suite: `app/tests/test_quality_regression_gate.py`
+  - Runner: `app/scripts/run_quality_gate.py`
+- Flujo de episodio extremo-a-extremo disponible en `POST/GET /api/v1/emergency-episodes/*`.
+- KPI por episodio disponible en `GET /api/v1/emergency-episodes/{id}/kpis`.
+- Soporte de riesgo cardiovascular disponible en `POST /api/v1/care-tasks/{id}/cardio-risk/recommendation`.
+- Auditoria cardiovascular disponible en `POST/GET /api/v1/care-tasks/{id}/cardio-risk/audit`.
+- Resumen auditoria cardiovascular en `GET /api/v1/care-tasks/{id}/cardio-risk/audit/summary`.
+- Metricas cardiovasculares en `/metrics`: `cardio_risk_support_*`, `cardio_risk_audit_*`.
+- Soporte de reanimacion disponible en `POST /api/v1/care-tasks/{id}/resuscitation/recommendation`.
+- Extension obstetrica critica integrada en reanimacion:
+  - codigo obstetrico multidisciplinar
+  - ventana 4-5 min para histerotomia resucitativa
+  - control de compresion aortocava y toxicidad por magnesio
+- Terapia electrica integrada en reanimacion:
+  - bloque `electrical_therapy_plan` con energia por ritmo
+  - bloque `sedoanalgesia_plan` para cardioversion sincronizada
+  - bloque `pre_shock_safety_checklist` para seguridad pre-descarga
+- Auditoria de reanimacion disponible en `POST/GET /api/v1/care-tasks/{id}/resuscitation/audit`.
+- Resumen auditoria de reanimacion en `GET /api/v1/care-tasks/{id}/resuscitation/audit/summary`.
+- Metricas de reanimacion en `/metrics`: `resuscitation_protocol_*`, `resuscitation_audit_*`.
+- Alertas de reanimacion en Prometheus: `ResuscitationAuditUnderRateHigh`, `ResuscitationAuditOverRateHigh`.
+- Drill de reanimacion disponible: `app/scripts/simulate_resuscitation_alerts.py`.
+- Runbook de alertas de reanimacion: `docs/59_runbook_alertas_reanimacion.md`.
+- Dashboard Grafana actualizado con bloque de reanimacion:
+  - `Reanimacion Runs Total`
+  - `Reanimacion Under Rate %`
+  - `Reanimacion Over Rate %`
+  - `Reanimacion Shock Match %`
+
+## Proximo paso recomendado
+
+- Incluir paso de migraciones en arranque de entorno (`alembic upgrade head`).
+- Incluir gates de calidad en CI: `ruff`, `black --check`, `mypy`, `pytest`.
+- Definir imagen runtime endurecida (usuario no root y reduccion de dependencias build-time).
+- Ejecutar TM-038: pivot de dominio a Clinical Ops de forma incremental, sin downtime ni ruptura de API actual.
+- Continuar TM-039: castellanizacion por lotes de nombres internos sin romper contratos externos.
+- Ejecutar gate de evaluacion continua antes de cada despliegue:
+  - `.\venv\Scripts\python.exe app\scripts\run_quality_gate.py`
+- Recargar Prometheus tras cambios de alertas:
+  - `docker compose restart prometheus`
+
+## Riesgos
+
+- Falta pipeline CI.
+- Falta separacion formal por entorno.
+- Riesgo de deriva de dominio si se mezcla terminologia `Task` y `CareTask` sin versionado de contrato.
+
+## TM-058 (completado)
+
+- Se agregara endpoint de lectura para scorecard global:
+  - `GET /api/v1/care-tasks/quality/scorecard`
+- Objetivo operativo:
+  - Consultar calidad IA global sin recorrer cuatro summaries por separado.
+
+## TM-059 (completado)
+
+- Objetivo operativo:
+  - Monitorizar degradacion de calidad global en Grafana y Prometheus.
+
+## TM-102 (completado)
+
+- Mejora del runtime conversacional local sin pago:
+  - proveedor LLM intenta `Ollama /api/chat` con historial corto y fallback a `/api/generate`.
+  - continuidad de follow-up por expansion contextual (`query_expanded`) en backend.
+- Nuevas variables recomendadas para perfil 16GB:
+  - `CLINICAL_CHAT_LLM_NUM_CTX=4096`
+  - `CLINICAL_CHAT_LLM_TOP_P=0.9`
+- Perfil recomendado (latencia/calidad en 16GB):
+  - `CLINICAL_CHAT_LLM_MODEL=llama3.1:8b` (estable)
+  - opcional `qwen2.5:14b` si el equipo mantiene latencia aceptable.
+
+

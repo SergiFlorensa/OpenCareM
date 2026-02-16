@@ -1,0 +1,1321 @@
+﻿# Plan de Pruebas
+
+## Smoke tests minimos
+
+- Salud API:
+  - `GET /health` devuelve `200`.
+- Tareas API:
+  - Crear, listar, actualizar y eliminar tarea.
+- MCP:
+  - Registrar servidor con `codex mcp add`.
+  - Verificar con `codex mcp list`.
+  - Ejecutar al menos una operacion de lectura y una de escritura.
+
+## Evidencia
+
+- Fecha: 2026-02-05
+- Comando: `.\venv\Scripts\python.exe -m pytest -q`
+- Resultado: `4 passed`
+- Cobertura: configuracion local aplicada en `pytest.ini`.
+- Comandos Alembic validados:
+  - `alembic revision --autogenerate -m "init tasks table"`
+  - `alembic upgrade head`
+  - `alembic current`
+- Resultado Alembic: `f1b3f75c533d (head)`.
+- Comandos de regresion TM-004:
+  - `pytest -q`
+- Resultado TM-004:
+  - Tests OK con configuracion local `pytest.ini`.
+  - Sin warnings deprecados de `on_event` en FastAPI.
+- Resultado TM-005:
+  - Settings migrados a `SettingsConfigDict`.
+  - Sin warning de `class Config` deprecado en Pydantic settings.
+- Resultado TM-006:
+  - `ruff check app mcp_server` OK.
+  - `black --check app mcp_server` OK.
+  - `mypy app mcp_server` OK.
+  - `pytest -q` OK (`4 passed`).
+- Resultado TM-007:
+  - Flujo CI creado en `.github/workflows/ci.yml`.
+  - Secuencia de checks alineada con validacion local.
+- Resultado TM-009:
+  - Build de imagen endurecida completada.
+  - Compose config valida tras cambios.
+- Resultado TM-010:
+  - Separacion de variables por entorno aplicada.
+  - Compose usando `env_file` validado con `docker compose config`.
+- Resultado TM-011:
+  - Validaciones de seguridad de settings aplicadas.
+  - Tests dedicados de seguridad de configuracion agregados.
+- Resultado TM-012:
+  - Utilidades JWT/hash implementadas en capa core.
+  - Tests de seguridad core agregados y en verde.
+- Resultado TM-013:
+  - Endpoints `/auth/login` y `/auth/me` implementados.
+  - Tests de API auth agregados y en verde.
+- Resultado TM-014:
+  - Auth ahora valida usuarios persistentes en tabla `users`.
+  - Migraciones y tests actualizados para modelo de usuario.
+- Resultado TM-015:
+  - Registro de usuario habilitado con validacion de password.
+  - Tests cubren exito, username duplicado y password debil.
+- Resultado TM-016:
+  - Bootstrap de primer admin implementado por CLI.
+  - Tests cubren caso de exito y bloqueo si ya existen usuarios.
+- Resultado TM-017:
+  - RBAC admin v1 implementado para endpoint de usuarios.
+  - Tests cubren acceso sin token (401), sin rol admin (403) y con admin (200).
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_auth_api.py`.
+- Resultado TM-018:
+  - Refresh token con rotacion y logout implementados.
+  - Tests cubren rotacion, bloqueo de reuso y revocacion de sesion.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_auth_api.py`.
+- Resultado TM-019:
+  - Tests unitarios de `TaskService` agregados en capa de servicio.
+  - Cobertura funcional: create/get/list/update/delete/count.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_task_service_unit.py`.
+- Resultado TM-020:
+  - Script de smoke MCP agregado para ejecucion manual reproducible.
+  - Smoke test ampliado para incluir `openapi_schema`.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_mcp_smoke.py`.
+- Resultado TM-021:
+  - Flujo de gestion de errores documentado con catalogo por codigo de estado.
+  - Incluye runbook de diagnostico y ejemplos de respuesta.
+  - Referencia: `docs/16_error_handling_workflow.md`.
+- Resultado TM-022:
+  - Middleware de request logging implementado con `request_id` y latencia.
+  - Header `X-Request-ID` validado en respuestas.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_request_logging.py`.
+- Resultado TM-023:
+  - Endpoint `/metrics` de Prometheus habilitado en FastAPI.
+  - Tests validan exposicion del endpoint y presencia de metricas HTTP.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py`.
+- Resultado TM-024:
+  - Servicio Prometheus agregado a Docker Compose con scraping a `api:8000/metrics`.
+  - Config declarada en `ops/prometheus/prometheus.yml`.
+  - Validacion de estructura con `docker compose config`.
+- Resultado TM-025:
+  - Servicio Grafana agregado a Docker Compose con provisioning automatico.
+  - Datasource Prometheus y dashboard base versionados en `ops/grafana/`.
+  - Validacion de estructura con `docker compose config`.
+- Resultado TM-026:
+  - Login protegido con limite temporal por `username + IP`.
+  - Tests cubren bloqueo por intentos fallidos y reseteo tras login valido.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_auth_api.py`.
+- Resultado TM-027:
+  - Endpoint AI de triage de tareas agregado con salida explicable.
+  - Tests cubren casos bug/docs/default.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_ai_api.py`.
+- Resultado TM-028:
+  - Skills de proyecto creados y validados con `quick_validate.py`.
+  - Cobertura de orquestacion, entrega API y observabilidad.
+  - Referencia: `docs/23_project_skills_playbook.md`.
+- Resultado TM-029:
+  - Fundacion de ejecucion agente con traza persistente por paso implementada.
+  - Endpoint `POST /api/v1/agents/run` validado con casos de exito y fallback.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_agents_api.py`.
+  - Regresion completa validada: `.\venv\Scripts\python.exe -m pytest -q`.
+- Resultado TM-030:
+  - Modo AI configurable (`rules`/`hybrid`) implementado con provider opcional.
+  - Respuesta de triage enriquecida con `source` para trazabilidad de decision.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_ai_api.py app/tests/test_agents_api.py`.
+  - Lint validado: `.\venv\Scripts\python.exe -m ruff check app alembic`.
+- Resultado TM-031:
+  - Historial de corridas agente expuesto con listado y detalle por `run_id`.
+  - Cobertura de tests para list/detail/404 en `app/tests/test_agents_api.py`.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_agents_api.py`.
+- Resultado TM-032:
+  - Filtros operativos en historial (`status`, `workflow_name`, `created_from`, `created_to`, `limit`).
+  - Tests de filtros por estado/workflow y ventana temporal agregados.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_agents_api.py`.
+- Resultado TM-033:
+  - Resumen operativo agregado en `GET /agents/ops/summary`.
+  - Cobertura de test para agregados (`total_runs`, `failed_runs`, `fallback_rate_percent`).
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_agents_api.py`.
+- Resultado TM-034:
+  - Metricas Prometheus de agentes agregadas al endpoint `/metrics`.
+  - Dashboard Grafana actualizado con paneles de salud de agentes.
+  - Comando validado: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py`.
+- Resultado TM-035:
+  - Paneles `stat/gauge` de agentes ajustados a consulta instantanea (`instant=true`).
+  - Dashboard incrementado a version `4` para forzar refresco de provisioning.
+  - Referencia: `ops/grafana/dashboards/task_manager_overview.json`.
+- Resultado TM-036:
+  - Reglas de alerta de agentes agregadas en Prometheus (`failed_runs`, `fallback_rate`).
+  - Compose monta `ops/prometheus/alerts.yml` para carga automatica.
+  - Validacion esperada en runtime: `http://127.0.0.1:9090/rules` y `http://127.0.0.1:9090/alerts`.
+- Resultado TM-037:
+  - Alertmanager agregado en Compose y enlazado desde Prometheus.
+  - Config baseline en `ops/alertmanager/alertmanager.yml`.
+  - Validacion esperada en runtime: `http://127.0.0.1:9093/#/alerts`.
+
+- Plan TM-038:
+  - Validar consistencia documental del pivot (`docs/05_roadmap.md`, `docs/32_clinical_ops_pivot_phase1.md`).
+  - Confirmar que no hay roturas de contrato en endpoints existentes.
+  - Ejecutar regresion rapida: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_agents_api.py app/tests/test_ai_api.py`.
+- Resultado TM-038:
+  - Migracion aplicada: `.\venv\Scripts\alembic.exe upgrade head`.
+  - CRUD `care-tasks` validado en `app/tests/test_care_tasks_api.py`.
+  - Regresion de agentes/ai en verde.
+- Resultado TM-039 (fase inicial):
+  - Mensajes visibles de `care-tasks` traducidos a espanol.
+  - Guia de estrategia creada en `docs/34_castellanizacion_repositorio.md`.
+  - Regresion validada: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_agents_api.py app/tests/test_ai_api.py`.
+- Resultado TM-039 (cierre de fase):
+  - Traduccion ampliada en docs, contratos compartidos, skills y mensajes visibles de API/MCP.
+  - Ajuste de pruebas a nuevos mensajes en espanol.
+  - Regresion validada: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_auth_api.py app/tests/test_auth_bootstrap.py app/tests/test_security_core.py app/tests/test_tasks_api.py app/tests/test_care_tasks_api.py app/tests/test_ai_api.py app/tests/test_agents_api.py app/tests/test_mcp_smoke.py`.
+  - Resultado: `42 passed`.
+  - Regresion completa validada: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+  - Resultado final: `57 passed`.
+
+- Plan TM-040:
+  - Crear `care-task` y ejecutar `POST /api/v1/care-tasks/{id}/triage`.
+  - Validar que la respuesta incluya `agent_run_id`, `workflow_name` y `triage`.
+  - Validar que `agent_runs` y `agent_steps` persistan la traza con `workflow_name=care_task_triage_v1`.
+  - Ejecutar regresion enfocada: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_agents_api.py`.
+- Resultado TM-040:
+  - Endpoint `POST /api/v1/care-tasks/{id}/triage` validado con caso de exito y 404.
+  - Persistencia validada en `agent_runs` y `agent_steps` (`workflow_name=care_task_triage_v1`).
+  - Regresion enfocada: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_agents_api.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+  - Resultado final: `59 passed`.
+
+- Plan TM-041:
+  - Ejecutar `POST /care-tasks/{id}/triage/approve` sobre una corrida valida.
+  - Validar errores de negocio: run inexistente y run de otro `care_task`.
+  - Ejecutar regresion enfocada y completa.
+- Resultado TM-041:
+  - Endpoint de aprobacion humana implementado y validado.
+  - Tabla `care_task_triage_reviews` incluida para auditoria de decision.
+  - Regresion enfocada: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_agents_api.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+  - Resultado final: `62 passed`.
+
+- Plan TM-042:
+  - Exponer API de contexto clinico-operativo (`/clinical-context/*`).
+  - Validar areas, circuitos, roles, procedimientos y estandares.
+  - Verificar `404` en consulta de procedimiento inexistente.
+- Resultado TM-042:
+  - Endpoints `clinical-context` implementados y enrutados.
+  - Pruebas dedicadas en `app/tests/test_clinical_context_api.py`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_context_api.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+  - Resultado final: `67 passed`.
+
+- Plan TM-043:
+  - Publicar recurso `TriageLevel` para estandar Manchester.
+  - Validar integridad de niveles 1..5, colores y SLA objetivo.
+  - Ejecutar regresion de contexto y suite completa.
+- Resultado TM-043:
+  - Endpoint `GET /clinical-context/triage-levels/manchester` implementado.
+  - Prueba dedicada en `app/tests/test_clinical_context_api.py`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_context_api.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+  - Resultado final: `68 passed`.
+
+- Plan TM-044:
+  - Crear auditoria persistida IA vs humano para clasificar over/under-triage.
+  - Exponer endpoints de registro, historial y resumen.
+  - Exponer metricas Prometheus `triage_audit_*`.
+- Resultado TM-044:
+  - Endpoints de auditoria implementados en `care-tasks`.
+  - Metricas de auditoria visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+  - Resultado final: `71 passed`.
+
+- Plan TM-045:
+  - Implementar motor respiratorio operativo en servicio dedicado.
+  - Exponer `POST /care-tasks/{id}/respiratory-protocol/recommendation`.
+  - Persistir traza en `agent_runs/agent_steps` con `workflow_name=respiratory_protocol_v1`.
+  - Exponer metricas `respiratory_protocol_runs_*` en `/metrics`.
+- Resultado TM-045:
+  - Endpoint y servicio respiratorio implementados.
+  - Workflow respiratorio trazable persistido en `agent_runs`.
+  - Metricas respiratorias visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- Plan TM-046:
+  - Implementar motor de humanizacion pediatrica en servicio dedicado.
+  - Exponer `POST /care-tasks/{id}/humanization/recommendation`.
+  - Persistir traza en `agent_runs/agent_steps` con `workflow_name=pediatric_neuro_onco_support_v1`.
+  - Exponer metricas `pediatric_humanization_runs_*` en `/metrics`.
+- Resultado TM-046:
+  - Endpoint y servicio de humanizacion pediatrica implementados.
+  - Workflow trazable persistido en `agent_runs`.
+  - Metricas de humanizacion visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- Plan TM-047:
+  - Implementar motor de screening operativo avanzado con reglas interpretables.
+  - Exponer `POST /care-tasks/{id}/screening/recommendation`.
+  - Persistir traza en `agent_runs/agent_steps` con `workflow_name=advanced_screening_support_v1`.
+  - Exponer metricas de ejecucion y fatiga de alertas en `/metrics`.
+- Resultado TM-047:
+  - Endpoint y servicio de screening avanzado implementados.
+  - Workflow trazable persistido en `agent_runs`.
+  - Metricas de screening visibles en `/metrics`.
+- Plan TM-050:
+  - Ejecutar `POST /care-tasks/{id}/medicolegal/recommendation` con escenario normal y escenario critico.
+  - Verificar persistencia de traza en `agent_runs/agent_steps` (`workflow_name=medicolegal_ops_support_v1`).
+  - Verificar metricas Prometheus `medicolegal_ops_*` en `/metrics`.
+  - Ejecutar regresion enfocada y suite completa.
+- Resultado TM-050:
+  - Endpoint medico-legal implementado y validado con casos de exito y 404.
+  - Workflow trazable persistido en `agent_runs` y `agent_steps`.
+  - Metricas medico-legales visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+- Plan TM-051:
+  - Crear auditoria medico-legal IA vs humano (`POST/GET/summary`).
+  - Persistir tabla dedicada con clasificacion `match/under_legal_risk/over_legal_risk`.
+  - Exponer metricas `medicolegal_audit_*` y `medicolegal_rule_*_match_rate_percent`.
+  - Ejecutar regresion enfocada y suite completa.
+- Resultado TM-051:
+  - Endpoints de auditoria medico-legal implementados y validados.
+  - Nueva tabla `care_task_medicolegal_audit_logs` + migracion Alembic.
+  - Metricas de calidad medico-legal visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+- Plan TM-052:
+  - Implementar motor operativo de sepsis con qSOFA, bundle y escalado.
+  - Exponer endpoint `POST /care-tasks/{id}/sepsis/recommendation`.
+  - Persistir workflow `sepsis_protocol_support_v1` en `agent_runs/agent_steps`.
+  - Exponer metricas `sepsis_protocol_*` en `/metrics`.
+- Resultado TM-052:
+  - Endpoint y servicio de sepsis implementados.
+  - Workflow trazable persistido en `agent_runs`.
+  - Metricas de sepsis visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+- Plan TM-053:
+  - Implementar `EmergencyEpisode` con etapas y transiciones validadas.
+  - Exponer endpoints de creacion/listado/detalle/transicion/KPIs.
+  - Agregar pruebas de flujo completo e invalidaciones.
+- Resultado TM-053:
+  - Recurso `EmergencyEpisode` implementado con migracion Alembic.
+  - Endpoints `/emergency-episodes/*` en API.
+  - Pruebas de flujo extremo-a-extremo agregadas.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- Plan TM-054:
+  - Implementar endpoint `POST /care-tasks/{id}/scasest/recommendation`.
+  - Persistir workflow `scasest_protocol_support_v1` en `agent_runs/agent_steps`.
+  - Exponer metricas `scasest_protocol_*` en `/metrics`.
+  - Ejecutar regresion enfocada de API y metricas.
+- Resultado TM-054:
+  - Endpoint y servicio SCASEST implementados.
+  - Workflow trazable persistido en `agent_runs`.
+  - Metricas de SCASEST visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Resultado: `46 passed`.
+
+- Plan TM-055:
+  - Implementar auditoria SCASEST (registro/listado/resumen).
+  - Persistir tabla `care_task_scasest_audit_logs` y clasificacion `match/under/over`.
+  - Exponer metricas de calidad SCASEST en `/metrics`.
+  - Ejecutar regresion enfocada de API y metricas.
+- Resultado TM-055:
+  - Endpoints de auditoria SCASEST implementados y validados.
+  - Nueva tabla `care_task_scasest_audit_logs` + migracion Alembic.
+  - Metricas de calidad SCASEST visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+
+- Plan TM-056:
+  - Verificar que el dashboard JSON mantiene formato valido tras agregar paneles SCASEST.
+  - Verificar que reglas Prometheus cargan sin errores de sintaxis.
+  - Confirmar reflejo documental de runbook y alertas.
+- Resultado TM-056:
+  - Config dashboard validada con parseo JSON.
+  - Reglas Prometheus actualizadas en `ops/prometheus/alerts.yml`.
+  - Runbook operativo creado en `docs/51_runbook_alertas_scasest.md`.
+
+- Plan TM-057:
+  - Verificar que el script de simulacion SCASEST compila/arranca.
+  - Validar documentacion de uso del drill.
+- Resultado TM-057:
+  - Script `app/scripts/simulate_scasest_alerts.py` agregado.
+  - Guia `docs/52_scasest_alert_drill.md` agregada.
+  - Validacion tecnica minima: `.\venv\Scripts\python.exe -m py_compile app/scripts/simulate_scasest_alerts.py`.
+
+- Plan TM-058:
+  - Validar endpoint `GET /api/v1/care-tasks/quality/scorecard` sin datos (estado inicial en cero).
+  - Validar endpoint con datos de auditoria existentes (sumatorios y tasas agregadas coherentes).
+  - Verificar exposicion de metricas globales de calidad IA en `/metrics`.
+  - Ejecutar regresion enfocada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Resultado TM-058:
+  - Endpoint agregado: `GET /api/v1/care-tasks/quality/scorecard`.
+  - Metricas agregadas: `care_task_quality_audit_*`.
+  - Pruebas nuevas para scorecard y metricas globales en:
+    - `app/tests/test_care_tasks_api.py`
+    - `app/tests/test_metrics_endpoint.py`
+  - Regresion enfocada ejecutada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+  - Resultado: `52 passed`.
+
+- Plan TM-059:
+  - Validar sintaxis de `ops/prometheus/alerts.yml`.
+  - Validar parseo JSON de `ops/grafana/dashboards/task_manager_overview.json`.
+  - Validar exposicion de metricas `care_task_quality_audit_*` en `/metrics`.
+
+- Resultado TM-059:
+  - Alertas globales agregadas en `ops/prometheus/alerts.yml`.
+  - Paneles globales agregados en `ops/grafana/dashboards/task_manager_overview.json`.
+  - Runbook global agregado: `docs/54_runbook_alertas_calidad_global.md`.
+
+- Plan TM-060:
+  - Validar sintaxis del script de drill global.
+  - Confirmar que imprime scorecard global al finalizar.
+  - Documentar comandos de uso para `under`, `over`, `match-low`.
+
+- Resultado TM-060:
+  - Script agregado: `app/scripts/simulate_global_quality_alerts.py`.
+  - Validacion tecnica minima:
+    - `.\venv\Scripts\python.exe -m py_compile app/scripts/simulate_global_quality_alerts.py`
+  - Guia agregada: `docs/55_drill_alertas_calidad_global.md`.
+
+- Plan TM-061:
+  - Ejecutar suite dedicada de evaluacion continua de calidad IA clinica.
+  - Verificar escenario controlado de umbrales operativos (under <= 10, over <= 20, match >= 80).
+  - Verificar escenario degradado sintetico para confirmar clasificacion `degradado`.
+- Resultado TM-061:
+  - Suite agregada: `app/tests/test_quality_regression_gate.py`.
+  - Runner agregado: `app/scripts/run_quality_gate.py`.
+  - Gate agregado en CI: `.github/workflows/ci.yml`.
+  - Comando de validacion:
+    - `.\venv\Scripts\python.exe app\scripts\run_quality_gate.py`
+
+- Plan TM-062:
+  - Validar recomendacion cardiovascular con traza en `agent_runs`.
+  - Validar auditoria cardiovascular (`create/list/summary`).
+  - Validar metricas `cardio_risk_support_*` y `cardio_risk_audit_*` en `/metrics`.
+  - Validar que scorecard global incorpore dominio `cardio_risk`.
+- Resultado TM-062:
+  - Endpoints cardiovasculares implementados en `app/api/care_tasks.py`.
+  - Modelo y migracion agregados para `care_task_cardio_risk_audit_logs`.
+  - Metricas Prometheus cardiovasculares agregadas.
+  - Regresion foco:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py app/tests/test_quality_regression_gate.py`
+
+- Plan TM-063:
+  - Validar recomendacion de reanimacion con traza en `agent_runs`.
+  - Validar auditoria de reanimacion (`create/list/summary`).
+  - Validar metricas `resuscitation_protocol_*` y `resuscitation_audit_*` en `/metrics`.
+  - Validar que scorecard global incorpore dominio `resuscitation`.
+  - Validar migracion y sintaxis de reglas Prometheus.
+- Resultado TM-063:
+  - Endpoints de reanimacion implementados en `app/api/care_tasks.py`.
+  - Modelo y migracion agregados para `care_task_resuscitation_audit_logs`.
+  - Metricas Prometheus de reanimacion agregadas.
+  - Regresion foco:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py app/tests/test_quality_regression_gate.py`
+    - Resultado: `66 passed`.
+  - Migraciones:
+    - `.\venv\Scripts\python.exe -m alembic upgrade head`
+    - `.\venv\Scripts\python.exe -m alembic current`
+    - Resultado: `c5e8a2f1d440 (head)`.
+  - Alertas:
+    - `docker compose exec prometheus promtool check rules /etc/prometheus/alerts.yml`
+    - Resultado: `SUCCESS: 11 rules found`.
+
+- Plan TM-064:
+  - Validar script drill de reanimacion en modo `under/over/mixed`.
+  - Validar parseo del dashboard Grafana tras agregar paneles de reanimacion.
+  - Validar que reglas Prometheus sigan cargando correctamente.
+- Resultado TM-064:
+  - Script agregado: `app/scripts/simulate_resuscitation_alerts.py`.
+  - Validacion sintaxis script:
+    - `.\venv\Scripts\python.exe -m py_compile app/scripts/simulate_resuscitation_alerts.py`
+  - Dashboard actualizado: `ops/grafana/dashboards/task_manager_overview.json`.
+  - Validacion parseo JSON dashboard:
+    - `.\venv\Scripts\python.exe -c "import json; json.load(open('ops/grafana/dashboards/task_manager_overview.json', encoding='utf-8'))"`
+  - Validacion reglas Prometheus:
+    - `docker compose exec prometheus promtool check rules /etc/prometheus/alerts.yml`
+    - Resultado: pendiente en esta sesion (Docker Desktop apagado); revalidar con servicios levantados.
+
+- Plan TM-065:
+  - Validar extension obstetrica de `resuscitation/recommendation` con ventana critica 4-5 min.
+  - Validar alertas por acceso vascular no asegurado y toxicidad por magnesio.
+  - Validar que checklist de causas reversibles incluya bloque obstetrico ampliado.
+  - Ejecutar regresion focalizada en API y metricas.
+- Resultado TM-065:
+  - Campos obstetricos opcionales agregados al schema de entrada.
+  - Reglas obstetricas integradas en servicio de reanimacion sin cambios de DB.
+  - Prueba agregada:
+    - `test_run_resuscitation_support_obstetric_critical_window_actions`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k obstetric`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-066:
+  - Validar decision sincronizada/no sincronizada en taquiarritmias criticas.
+  - Validar energia inicial por ritmo y checklist de seguridad pre-descarga.
+  - Validar bloque de sedoanalgesia peri-procedimiento para cardioversion.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-066:
+  - Bloques agregados a recomendacion de reanimacion:
+    - `electrical_therapy_plan`
+    - `sedoanalgesia_plan`
+    - `pre_shock_safety_checklist`
+  - Prueba agregada:
+    - `test_run_resuscitation_support_recommends_synchronized_cardioversion`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/resuscitation_protocol.py app/services/resuscitation_protocol_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k cardioversion`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-067:
+  - Validar conflicto bioetico pediatrico en soporte medico-legal.
+  - Verificar alerta de interes superior del menor y riesgo legal alto.
+  - Verificar acciones/documentacion reforzada en riesgo vital.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-067:
+  - Campos opcionales agregados a `MedicolegalOpsRequest` para conflicto de representacion.
+  - Reglas de conflicto pediatrico integradas en `MedicolegalOpsService`.
+  - Prueba agregada:
+    - `test_run_medicolegal_ops_pediatric_life_saving_conflict_prioritizes_protection`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/medicolegal_ops.py app/services/medicolegal_ops_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pediatric_life_saving_conflict`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-068:
+  - Estructurar fundamento etico-legal en salida de recomendacion medico-legal.
+  - Verificar bandera de override vital y resumen de urgencia.
+  - Verificar presencia de base etico-legal en conflicto pediatrico critico.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-068:
+  - Campos nuevos en `MedicolegalOpsRecommendation`:
+    - `life_preserving_override_recommended`
+    - `ethical_legal_basis`
+    - `urgency_summary`
+  - Ajustes de pruebas:
+    - `test_run_medicolegal_ops_returns_recommendation_and_trace`
+    - `test_run_medicolegal_ops_pediatric_life_saving_conflict_prioritizes_protection`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/medicolegal_ops.py app/services/medicolegal_ops_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/medicolegal_ops.py app/services/medicolegal_ops_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pediatric_life_saving_conflict`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-069:
+  - Implementar endpoint diferencial de pitiriasis sobre `care-tasks`.
+  - Persistir traza de workflow dermatologico en `agent_runs/agent_steps`.
+  - Exponer metricas operativas de ejecucion y red flags en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-069:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/pityriasis-differential/recommendation`
+  - Workflow agregado:
+    - `workflow_name=pityriasis_differential_support_v1`
+  - Metricas agregadas:
+    - `pityriasis_differential_runs_total`
+    - `pityriasis_differential_runs_completed_total`
+    - `pityriasis_differential_red_flags_total`
+  - Pruebas agregadas:
+    - `test_run_pityriasis_differential_returns_recommendation_and_trace`
+    - `test_run_pityriasis_differential_detects_red_flags`
+    - `test_run_pityriasis_differential_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_pityriasis_differential_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/pityriasis_protocol.py app/services/pityriasis_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/pityriasis_protocol.py app/services/pityriasis_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pityriasis_differential`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k pityriasis_differential`
+
+- Plan TM-070:
+  - Implementar endpoint diferencial acne/rosacea sobre `care-tasks`.
+  - Persistir traza de workflow dermatologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y red flags en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-070:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/acne-rosacea/recommendation`
+  - Workflow agregado:
+    - `workflow_name=acne_rosacea_differential_support_v1`
+  - Metricas agregadas:
+    - `acne_rosacea_differential_runs_total`
+    - `acne_rosacea_differential_runs_completed_total`
+    - `acne_rosacea_differential_red_flags_total`
+  - Pruebas agregadas:
+    - `test_run_acne_rosacea_differential_returns_recommendation_and_trace`
+    - `test_run_acne_rosacea_differential_detects_fulminans_red_flag`
+    - `test_run_acne_rosacea_differential_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_acne_rosacea_differential_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/acne_rosacea_protocol.py app/services/acne_rosacea_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/acne_rosacea_protocol.py app/services/acne_rosacea_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k acne_rosacea_differential`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k acne_rosacea_differential`
+
+- Plan TM-070-QA-VERIF:
+  - Revalidar artefactos declarados en TM-070.
+  - Ejecutar regresion focalizada de acne/rosacea (API + metricas).
+  - Ejecutar regresion ampliada de `care_tasks` + `metrics`.
+- Resultado TM-070-QA-VERIF:
+  - Artefactos declarados de TM-070 presentes y localizados en repo.
+  - Comandos ejecutados:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k acne_rosacea_differential`
+      - Resultado: `3 passed, 51 deselected`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k acne_rosacea_differential`
+      - Resultado: `1 passed, 20 deselected`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+      - Resultado: `75 passed`
+
+- Plan TM-048:
+  - Implementar auditoria de screening (IA vs humano) con tabla dedicada.
+  - Exponer endpoints de registro/listado/resumen de auditoria screening.
+  - Publicar metricas de calidad global y por regla en `/metrics`.
+- Resultado TM-048:
+  - Tabla `care_task_screening_audit_logs` y migracion `d2a7c9b4e110`.
+  - Endpoints `POST/GET /care-tasks/{id}/screening/audit` y `GET /summary`.
+  - Metricas `screening_audit_*` y `screening_rule_*_match_rate_percent`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- Plan TM-049:
+  - Implementar soporte operativo de interpretacion RX torax.
+  - Exponer `POST /care-tasks/{id}/chest-xray/interpretation-support`.
+  - Persistir traza en `agent_runs/agent_steps` con `workflow_name=chest_xray_support_v1`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+- Resultado TM-049:
+  - Endpoint y servicio de soporte RX torax implementados.
+  - Workflow trazable persistido en `agent_runs`.
+  - Metricas RX torax visibles en `/metrics`.
+  - Regresion foco: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- Plan TM-071:
+  - Implementar endpoint de soporte operativo de trauma sobre `care-tasks`.
+  - Persistir traza de workflow de trauma en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-071:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/trauma/recommendation`
+  - Workflow agregado:
+    - `workflow_name=trauma_support_v1`
+  - Metricas agregadas:
+    - `trauma_support_runs_total`
+    - `trauma_support_runs_completed_total`
+    - `trauma_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_trauma_support_returns_recommendation_and_trace`
+    - `test_run_trauma_support_detects_crush_risk_and_serial_ecg_requirement`
+    - `test_run_trauma_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_trauma_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m ruff check app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/schemas/__init__.py app/services/__init__.py app/schemas/trauma_support_protocol.py app/services/trauma_support_protocol_service.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `$env:COVERAGE_FILE='.coverage.trauma_tmp'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py -k trauma_support`
+
+- Plan TM-072:
+  - Extender soporte de trauma con matriz de condiciones clinicas estructurada.
+  - Cubrir en `condition_matrix` las patologias de politrauma, choque hemorragico, neumotorax a tension, taponamiento, TCE, sindrome compartimental y quemaduras.
+  - Validar pruebas de trauma (API + metricas).
+- Resultado TM-072:
+  - Contrato de salida ampliado en `TraumaSupportRecommendation` con `condition_matrix[]`.
+  - Se agregan campos de entrada para activar reglas toracicas, neurologicas, compartimentales y quemaduras.
+  - Prueba nueva:
+    - `test_run_trauma_support_detects_tension_pneumothorax_and_tamponade`
+  - Pruebas actualizadas:
+    - `test_run_trauma_support_returns_recommendation_and_trace` (valida `source`/matriz)
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/trauma_support_protocol.py app/services/trauma_support_protocol_service.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py`
+    - `$env:COVERAGE_FILE='.coverage.trauma_matrix_tmp'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py -k trauma_support`
+    - Resultado: `5 passed`.
+
+- Plan TM-073:
+  - Implementar endpoint de soporte operativo critico transversal sobre `care-tasks`.
+  - Persistir traza de workflow critico transversal en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-073:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/critical-ops/recommendation`
+  - Workflow agregado:
+    - `workflow_name=critical_ops_support_v1`
+  - Metricas agregadas:
+    - `critical_ops_support_runs_total`
+    - `critical_ops_support_runs_completed_total`
+    - `critical_ops_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_critical_ops_support_returns_recommendation_and_trace`
+    - `test_run_critical_ops_support_detects_sla_breaches_and_red_flags`
+    - `test_run_critical_ops_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_critical_ops_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/critical_ops_protocol.py app/services/critical_ops_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/critical_ops_protocol.py app/services/critical_ops_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k critical_ops`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k critical_ops`
+
+- Plan TM-074:
+  - Implementar endpoint de soporte operativo neurologico sobre `care-tasks`.
+  - Persistir traza del workflow neurologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas de riesgo vascular en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-074:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/neurology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=neurology_support_v1`
+  - Metricas agregadas:
+    - `neurology_support_runs_total`
+    - `neurology_support_runs_completed_total`
+    - `neurology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_neurology_support_returns_recommendation_and_trace`
+    - `test_run_neurology_support_detects_contraindications_and_nmda_pattern`
+    - `test_run_neurology_support_prioritizes_wakeup_pathway`
+    - `test_run_neurology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_neurology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/neurology_support_protocol.py app/services/neurology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/neurology_support_protocol.py app/services/neurology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k neurology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k neurology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-075:
+  - Implementar endpoint de soporte operativo gastro-hepato sobre `care-tasks`.
+  - Persistir traza del workflow gastro-hepato en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-075:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/gastro-hepato/recommendation`
+  - Workflow agregado:
+    - `workflow_name=gastro_hepato_support_v1`
+  - Metricas agregadas:
+    - `gastro_hepato_support_runs_total`
+    - `gastro_hepato_support_runs_completed_total`
+    - `gastro_hepato_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_gastro_hepato_support_returns_recommendation_and_trace`
+    - `test_run_gastro_hepato_support_flags_surgery_and_pharmacology`
+    - `test_run_gastro_hepato_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_gastro_hepato_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/gastro_hepato_support_protocol.py app/services/gastro_hepato_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/gastro_hepato_support_protocol.py app/services/gastro_hepato_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k gastro_hepato_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k gastro_hepato_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-076:
+  - Implementar endpoint de soporte operativo reuma-inmuno sobre `care-tasks`.
+  - Persistir traza del workflow reuma-inmuno en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-076:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/rheum-immuno/recommendation`
+  - Workflow agregado:
+    - `workflow_name=rheum_immuno_support_v1`
+  - Metricas agregadas:
+    - `rheum_immuno_support_runs_total`
+    - `rheum_immuno_support_runs_completed_total`
+    - `rheum_immuno_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_rheum_immuno_support_returns_recommendation_and_trace`
+    - `test_run_rheum_immuno_support_flags_safety_maternal_and_data_domains`
+    - `test_run_rheum_immuno_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_rheum_immuno_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/rheum_immuno_support_protocol.py app/services/rheum_immuno_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/rheum_immuno_support_protocol.py app/services/rheum_immuno_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k rheum_immuno_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k rheum_immuno_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-077:
+  - Implementar endpoint de soporte operativo de psiquiatria sobre `care-tasks`.
+  - Persistir traza del workflow de psiquiatria en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-077:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/psychiatry/recommendation`
+  - Workflow agregado:
+    - `workflow_name=psychiatry_support_v1`
+  - Metricas agregadas:
+    - `psychiatry_support_runs_total`
+    - `psychiatry_support_runs_completed_total`
+    - `psychiatry_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_psychiatry_support_returns_recommendation_and_trace`
+    - `test_run_psychiatry_support_enforces_elderly_insomnia_safety_flow`
+    - `test_run_psychiatry_support_flags_pregnancy_and_metabolic_risk`
+    - `test_run_psychiatry_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_psychiatry_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/psychiatry_support_protocol.py app/services/psychiatry_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/psychiatry_support_protocol.py app/services/psychiatry_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k psychiatry_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k psychiatry_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-078:
+  - Implementar endpoint de soporte operativo de hematologia sobre `care-tasks`.
+  - Persistir traza del workflow de hematologia en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-078:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/hematology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=hematology_support_v1`
+  - Metricas agregadas:
+    - `hematology_support_runs_total`
+    - `hematology_support_runs_completed_total`
+    - `hematology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_hematology_support_returns_recommendation_and_trace`
+    - `test_run_hematology_support_flags_hemophilia_and_splenectomy_safety`
+    - `test_run_hematology_support_flags_oncology_fanconi_and_transplant`
+    - `test_run_hematology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_hematology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/hematology_support_protocol.py app/services/hematology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/hematology_support_protocol.py app/services/hematology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k hematology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k hematology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-079:
+  - Implementar endpoint de soporte operativo de endocrinologia sobre `care-tasks`.
+  - Persistir traza del workflow endocrino-metabolico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-079:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/endocrinology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=endocrinology_support_v1`
+  - Metricas agregadas:
+    - `endocrinology_support_runs_total`
+    - `endocrinology_support_runs_completed_total`
+    - `endocrinology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_endocrinology_support_returns_recommendation_and_trace`
+    - `test_run_endocrinology_support_flags_thyroid_and_siadh_safety`
+    - `test_run_endocrinology_support_flags_diabetes_and_confounders`
+    - `test_run_endocrinology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_endocrinology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/endocrinology_support_protocol.py app/services/endocrinology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/endocrinology_support_protocol.py app/services/endocrinology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k endocrinology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k endocrinology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`112 passed`)
+
+- Plan TM-080:
+  - Implementar endpoint de soporte operativo de nefrologia sobre `care-tasks`.
+  - Persistir traza del workflow nefrologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-080:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/nephrology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=nephrology_support_v1`
+  - Metricas agregadas:
+    - `nephrology_support_runs_total`
+    - `nephrology_support_runs_completed_total`
+    - `nephrology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_nephrology_support_returns_recommendation_and_trace`
+    - `test_run_nephrology_support_flags_acid_base_and_aeiou`
+    - `test_run_nephrology_support_flags_nephroprotection_and_interstitial_safety`
+    - `test_run_nephrology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_nephrology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/nephrology_support_protocol.py app/services/nephrology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/nephrology_support_protocol.py app/services/nephrology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k nephrology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k nephrology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`117 passed`)
+
+- Plan TM-081:
+  - Implementar endpoint de soporte operativo de neumologia sobre `care-tasks`.
+  - Persistir traza del workflow neumologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-081:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/pneumology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=pneumology_support_v1`
+  - Metricas agregadas:
+    - `pneumology_support_runs_total`
+    - `pneumology_support_runs_completed_total`
+    - `pneumology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_pneumology_support_returns_recommendation_and_trace`
+    - `test_run_pneumology_support_flags_safety_and_lba_context`
+    - `test_run_pneumology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_pneumology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/pneumology_support_protocol.py app/services/pneumology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/pneumology_support_protocol.py app/services/pneumology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pneumology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k pneumology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-082:
+  - Implementar endpoint de soporte operativo de geriatria sobre `care-tasks`.
+  - Persistir traza del workflow geriatrico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-082:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/geriatrics/recommendation`
+  - Workflow agregado:
+    - `workflow_name=geriatrics_support_v1`
+  - Metricas agregadas:
+    - `geriatrics_support_runs_total`
+    - `geriatrics_support_runs_completed_total`
+    - `geriatrics_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_geriatrics_support_returns_recommendation_and_trace`
+    - `test_run_geriatrics_support_flags_start_v3_and_tetanus_logic`
+    - `test_run_geriatrics_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_geriatrics_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/geriatrics_support_protocol.py app/services/geriatrics_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/geriatrics_support_protocol.py app/services/geriatrics_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k geriatrics_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k geriatrics_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+
+- Plan TM-083:
+  - Implementar endpoint de soporte operativo de oncologia sobre `care-tasks`.
+  - Persistir traza del workflow oncologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-083:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/oncology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=oncology_support_v1`
+  - Metricas agregadas:
+    - `oncology_support_runs_total`
+    - `oncology_support_runs_completed_total`
+    - `oncology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_oncology_support_returns_recommendation_and_trace`
+    - `test_run_oncology_support_flags_cardio_and_sarcoma_branches`
+    - `test_run_oncology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_oncology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/oncology_support_protocol.py app/services/oncology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/oncology_support_protocol.py app/services/oncology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k oncology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k oncology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`129 passed`)
+
+- Plan TM-084:
+  - Implementar endpoint de soporte operativo de anestesiologia/reanimacion sobre `care-tasks`.
+  - Persistir traza del workflow anestesiologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-084:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/anesthesiology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=anesthesiology_support_v1`
+  - Metricas agregadas:
+    - `anesthesiology_support_runs_total`
+    - `anesthesiology_support_runs_completed_total`
+    - `anesthesiology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_anesthesiology_support_returns_recommendation_and_trace`
+    - `test_run_anesthesiology_support_differential_blocks_and_safety`
+    - `test_run_anesthesiology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_anesthesiology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/anesthesiology_support_protocol.py app/services/anesthesiology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/anesthesiology_support_protocol.py app/services/anesthesiology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k anesthesiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k anesthesiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`133 passed`)
+
+- Plan TM-085:
+  - Implementar endpoint de soporte operativo de cuidados paliativos sobre `care-tasks`.
+  - Persistir traza del workflow paliativo en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-085:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/palliative/recommendation`
+  - Workflow agregado:
+    - `workflow_name=palliative_support_v1`
+  - Metricas agregadas:
+    - `palliative_support_runs_total`
+    - `palliative_support_runs_completed_total`
+    - `palliative_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_palliative_support_returns_recommendation_and_trace`
+    - `test_run_palliative_support_flags_ethical_and_delirium_logic`
+    - `test_run_palliative_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_palliative_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/palliative_support_protocol.py app/services/palliative_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/palliative_support_protocol.py app/services/palliative_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k palliative_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k palliative_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`137 passed`)
+
+- Plan TM-086:
+  - Implementar endpoint de soporte operativo de urologia sobre `care-tasks`.
+  - Persistir traza del workflow urologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-086:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/urology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=urology_support_v1`
+  - Metricas agregadas:
+    - `urology_support_runs_total`
+    - `urology_support_runs_completed_total`
+    - `urology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_urology_support_returns_recommendation_and_trace`
+    - `test_run_urology_support_prioritizes_diversion_and_triple_therapy_safety`
+    - `test_run_urology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_urology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/urology_support_protocol.py app/services/urology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/urology_support_protocol.py app/services/urology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k urology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k urology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`141 passed`)
+
+- Plan TM-087:
+  - Implementar endpoint de soporte operativo de anisakis sobre `care-tasks`.
+  - Persistir traza del workflow anisakis en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-087:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/anisakis/recommendation`
+  - Workflow agregado:
+    - `workflow_name=anisakis_support_v1`
+  - Metricas agregadas:
+    - `anisakis_support_runs_total`
+    - `anisakis_support_runs_completed_total`
+    - `anisakis_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_anisakis_support_returns_recommendation_and_trace`
+    - `test_run_anisakis_support_handles_digestive_profile_without_anaphylaxis`
+    - `test_run_anisakis_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_anisakis_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/anisakis_support_protocol.py app/services/anisakis_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/anisakis_support_protocol.py app/services/anisakis_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k anisakis_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k anisakis_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`145 passed`)
+
+- Plan TM-088:
+  - Implementar endpoint de soporte operativo de epidemiologia clinica sobre `care-tasks`.
+  - Persistir traza del workflow epidemiologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-088:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/epidemiology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=epidemiology_support_v1`
+  - Metricas agregadas:
+    - `epidemiology_support_runs_total`
+    - `epidemiology_support_runs_completed_total`
+    - `epidemiology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_epidemiology_support_returns_recommendation_and_trace`
+    - `test_run_epidemiology_support_flags_rr_and_nnt_safety_blocks`
+    - `test_run_epidemiology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_epidemiology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/epidemiology_support_protocol.py app/services/epidemiology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/epidemiology_support_protocol.py app/services/epidemiology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k epidemiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k epidemiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`149 passed`)
+
+- Plan TM-089:
+  - Implementar endpoint de soporte operativo de oftalmologia sobre `care-tasks`.
+  - Persistir traza del workflow oftalmologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-089:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/ophthalmology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=ophthalmology_support_v1`
+  - Metricas agregadas:
+    - `ophthalmology_support_runs_total`
+    - `ophthalmology_support_runs_completed_total`
+    - `ophthalmology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_ophthalmology_support_returns_recommendation_and_trace`
+    - `test_run_ophthalmology_support_flags_neuro_and_anisocoria_logic`
+    - `test_run_ophthalmology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_ophthalmology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/ophthalmology_support_protocol.py app/services/ophthalmology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/ophthalmology_support_protocol.py app/services/ophthalmology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k ophthalmology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k ophthalmology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`153 passed`)
+
+- Plan TM-090:
+  - Implementar endpoint de soporte operativo de inmunologia sobre `care-tasks`.
+  - Persistir traza del workflow inmunologico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-090:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/immunology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=immunology_support_v1`
+  - Metricas agregadas:
+    - `immunology_support_runs_total`
+    - `immunology_support_runs_completed_total`
+    - `immunology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_immunology_support_returns_recommendation_and_trace`
+    - `test_run_immunology_support_differential_profiles_and_safety_blocks`
+    - `test_run_immunology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_immunology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/immunology_support_protocol.py app/services/immunology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/immunology_support_protocol.py app/services/immunology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k immunology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k immunology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`157 passed`)
+
+- Plan TM-091:
+  - Implementar endpoint de soporte operativo de recurrencia genetica sobre `care-tasks`.
+  - Persistir traza del workflow de recurrencia en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-091:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/genetic-recurrence/recommendation`
+  - Workflow agregado:
+    - `workflow_name=genetic_recurrence_support_v1`
+  - Metricas agregadas:
+    - `genetic_recurrence_support_runs_total`
+    - `genetic_recurrence_support_runs_completed_total`
+    - `genetic_recurrence_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_genetic_recurrence_support_returns_recommendation_and_trace`
+    - `test_run_genetic_recurrence_support_handles_mosaicism_fraction_and_consistency`
+    - `test_run_genetic_recurrence_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_genetic_recurrence_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/genetic_recurrence_support_protocol.py app/services/genetic_recurrence_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/genetic_recurrence_support_protocol.py app/services/genetic_recurrence_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k genetic_recurrence`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k genetic_recurrence`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`161 passed`)
+
+- Plan TM-092:
+  - Implementar endpoint de soporte operativo de ginecologia/obstetricia sobre `care-tasks`.
+  - Persistir traza del workflow gineco-obstetrico en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-092:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/gynecology-obstetrics/recommendation`
+  - Workflow agregado:
+    - `workflow_name=gynecology_obstetrics_support_v1`
+  - Metricas agregadas:
+    - `gynecology_obstetrics_support_runs_total`
+    - `gynecology_obstetrics_support_runs_completed_total`
+    - `gynecology_obstetrics_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_gynecology_obstetrics_support_returns_recommendation_and_trace`
+    - `test_run_gynecology_obstetrics_support_blocks_unsafe_pharmacology`
+    - `test_run_gynecology_obstetrics_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_gynecology_obstetrics_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/gynecology_obstetrics_support_protocol.py app/services/gynecology_obstetrics_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/gynecology_obstetrics_support_protocol.py app/services/gynecology_obstetrics_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k gynecology_obstetrics`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k gynecology_obstetrics`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`165 passed`)
+
+- Plan TM-093:
+  - Implementar endpoint de soporte operativo de pediatria/neonatologia sobre `care-tasks`.
+  - Persistir traza del workflow pediatrico-neonatal en `agent_runs/agent_steps`.
+  - Exponer metricas de ejecucion y alertas criticas en `/metrics`.
+  - Ejecutar regresion focalizada de API y metricas.
+- Resultado TM-093:
+  - Endpoint agregado:
+    - `POST /api/v1/care-tasks/{id}/pediatrics-neonatology/recommendation`
+  - Workflow agregado:
+    - `workflow_name=pediatrics_neonatology_support_v1`
+  - Metricas agregadas:
+    - `pediatrics_neonatology_support_runs_total`
+    - `pediatrics_neonatology_support_runs_completed_total`
+    - `pediatrics_neonatology_support_critical_alerts_total`
+  - Pruebas agregadas:
+    - `test_run_pediatrics_neonatology_support_returns_recommendation_and_trace`
+    - `test_run_pediatrics_neonatology_support_flags_critical_branches`
+    - `test_run_pediatrics_neonatology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_pediatrics_neonatology_support_metrics`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/pediatrics_neonatology_support_protocol.py app/services/pediatrics_neonatology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/pediatrics_neonatology_support_protocol.py app/services/pediatrics_neonatology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pediatrics_neonatology`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k pediatrics_neonatology`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`169 passed`)
+
+- Plan TM-094:
+  - Implementar chat clinico-operativo persistente sobre `care-tasks`.
+  - Persistir memoria conversacional por sesion en tabla dedicada.
+  - Persistir trazabilidad de chat en `agent_runs/agent_steps`.
+  - Ejecutar regresion focalizada de API para endpoints de chat.
+- Resultado TM-094:
+  - Endpoints agregados:
+    - `POST /api/v1/care-tasks/{id}/chat/messages`
+    - `GET /api/v1/care-tasks/{id}/chat/messages`
+    - `GET /api/v1/care-tasks/{id}/chat/memory`
+  - Workflow agregado:
+    - `workflow_name=care_task_clinical_chat_v1`
+  - Persistencia agregada:
+    - tabla `care_task_chat_messages` (migracion Alembic dedicada)
+  - Pruebas agregadas:
+    - `test_create_care_task_chat_message_persists_message_and_trace`
+    - `test_list_care_task_chat_messages_and_memory_summary`
+    - `test_create_care_task_chat_message_returns_404_when_task_not_found`
+  - Comandos de validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/models/care_task_chat_message.py app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/services/agent_run_service.py app/api/care_tasks.py app/tests/test_care_tasks_api.py alembic/versions/d4f6a9c8e221_add_care_task_chat_messages_table.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/models/care_task_chat_message.py app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/services/agent_run_service.py app/api/care_tasks.py app/tests/test_care_tasks_api.py alembic/versions/d4f6a9c8e221_add_care_task_chat_messages_table.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat_message` (`3 passed, 126 deselected`)
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py` (`129 passed`)
+    - `.\venv\Scripts\python.exe -m pytest -q` (`234 passed`)
+
+- Plan TM-095:
+  - Integrar modo de especialidad por credencial autenticada en chat.
+  - Integrar continuidad longitudinal por paciente (`patient_reference`) entre episodios.
+  - Integrar fuentes internas indexadas y fuentes web opcionales trazables.
+  - Asegurar contrato auth/chat actualizado y regresion total en verde.
+- Resultado TM-095:
+  - Cobertura de pruebas agregada/ajustada:
+    - `app/tests/test_auth_api.py` actualizado para `specialty`.
+    - `app/tests/test_care_tasks_api.py`:
+      - `test_chat_endpoints_require_authentication`
+      - `test_chat_memory_aggregates_patient_history_across_tasks`
+      - chat tests existentes actualizados con login y headers `Bearer`.
+  - Comandos de validacion ejecutados:
+    - `.\venv\Scripts\python.exe -m py_compile app/models/user.py app/models/care_task.py app/models/care_task_chat_message.py app/schemas/auth.py app/schemas/care_task.py app/schemas/clinical_chat.py app/services/auth_service.py app/services/care_task_service.py app/services/clinical_chat_service.py app/api/auth.py app/api/care_tasks.py app/tests/test_auth_api.py app/tests/test_care_tasks_api.py alembic/versions/e8a1c4b7d552_add_chat_specialty_patient_context_fields.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/models/user.py app/models/care_task.py app/models/care_task_chat_message.py app/schemas/auth.py app/schemas/care_task.py app/schemas/clinical_chat.py app/services/auth_service.py app/services/care_task_service.py app/services/clinical_chat_service.py app/api/auth.py app/api/care_tasks.py app/core/config.py app/tests/test_auth_api.py app/tests/test_care_tasks_api.py alembic/versions/e8a1c4b7d552_add_chat_specialty_patient_context_fields.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_auth_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q`
+    - `.\venv\Scripts\python.exe -m alembic upgrade head`
+    - `.\venv\Scripts\python.exe -m alembic current` (`e8a1c4b7d552 (head)`)
+
+- Plan TM-096:
+  - Crear modelo de datos para fuentes clinicas y eventos de sellado profesional.
+  - Exponer API para alta/listado/sellado con control de permisos.
+  - Endurecer chat para usar whitelist web estricta y fuentes internas validadas.
+  - Validar regresion de chat y suite completa.
+- Resultado TM-096:
+  - Pruebas agregadas:
+    - `app/tests/test_knowledge_sources_api.py`:
+      - `test_create_knowledge_source_requires_auth`
+      - `test_create_knowledge_source_rejects_non_whitelisted_domain`
+      - `test_create_seal_and_list_validated_knowledge_source`
+      - `test_non_admin_cannot_seal_knowledge_source`
+      - `test_chat_uses_validated_knowledge_source`
+  - Pruebas ajustadas:
+    - `app/tests/test_care_tasks_api.py` (chat tolera ausencia de fuentes validadas al inicio).
+  - Comandos de validacion ejecutados:
+    - `.\venv\Scripts\python.exe -m py_compile app/models/clinical_knowledge_source.py app/models/clinical_knowledge_source_validation.py app/services/knowledge_source_service.py app/api/knowledge_sources.py app/services/clinical_chat_service.py app/core/config.py app/main.py app/api/__init__.py app/tests/test_knowledge_sources_api.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/models/clinical_knowledge_source.py app/models/clinical_knowledge_source_validation.py app/models/__init__.py app/core/database.py app/services/knowledge_source_service.py app/services/clinical_chat_service.py app/api/knowledge_sources.py app/api/__init__.py app/main.py app/core/config.py app/tests/test_knowledge_sources_api.py app/tests/test_care_tasks_api.py alembic/versions/c2f4a9e1b771_add_clinical_knowledge_sources_tables.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_knowledge_sources_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat`
+    - `.\venv\Scripts\python.exe -m pytest -q`
+    - `.\venv\Scripts\python.exe -m alembic upgrade head`
+    - `.\venv\Scripts\python.exe -m alembic current` (`c2f4a9e1b771 (head)`)
+
+- Plan TM-098:
+  - Generar frontend MVP de chat clinico con React + Vite.
+  - Validar compilacion de frontend y compatibilidad CORS local.
+  - Validar regresion minima de settings backend.
+- Resultado TM-098:
+  - Workspace frontend agregado en `frontend/` con:
+    - login profesional
+    - gestion de casos
+    - chat + memoria + trazabilidad
+  - Comandos de validacion ejecutados:
+    - `cd frontend && npm install`
+    - `cd frontend && npm run build` (`vite v5.x, build OK`)
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_settings_security.py` (`4 passed`)
+
+- Plan TM-099:
+  - Redisenar frontend a UX tipo assistant con herramientas seleccionables.
+  - Extender chat backend a modo hibrido (`general`/`clinical`) trazable.
+  - Validar compilacion frontend y regresion de endpoints de chat.
+- Resultado TM-099:
+  - `POST /care-tasks/{id}/chat/messages` soporta `conversation_mode` y `tool_mode`.
+  - Respuesta de chat expone `response_mode` y `tool_mode`.
+  - Frontend v2 integra barra de herramientas, modo conversacional y conversacion libre.
+  - Comandos de validacion ejecutados:
+    - `cd frontend && npm run build`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/api/care_tasks.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat`
+
+- Plan TM-100:
+  - Integrar proveedor neuronal local para chat (Ollama) sin romper fallback actual.
+  - Exponer trazabilidad de uso/latencia del LLM en `interpretability_trace`.
+  - Validar build/lint/tests del flujo de chat.
+- Resultado TM-100:
+  - Nuevo servicio `app/services/llm_chat_provider.py` integrado en chat.
+  - Configuracion de LLM agregada en settings y `.env.example`/`.env.docker`.
+  - Documentacion tecnica y ADR de motor neuronal local agregadas.
+  - Comandos de validacion ejecutados:
+    - `cd frontend && npm run build`
+    - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/schemas/clinical_chat.py app/api/care_tasks.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat`
+
+- Plan TM-101:
+  - Verificar continuidad de hilo entre turnos de la misma sesion.
+  - Evitar contaminacion de memoria con hechos de control de UI (`modo_respuesta`, `herramienta`).
+  - Validar regresion de chat sin romper contratos.
+- Resultado TM-101:
+  - Contexto de dialogo previo integrado en prompt LLM (`recent_dialogue`).
+  - Filtro aplicado para excluir hechos de control de `memory_facts_used`.
+  - Nuevo test:
+    - `test_chat_continuity_filters_control_facts_from_memory`
+  - Comandos de validacion ejecutados:
+    - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_continuity_filters_control_facts_from_memory or chat_message"` (`6 passed`)
+
+- Plan TM-102:
+  - Mejorar continuidad semantica en queries de seguimiento.
+  - Priorizar endpoint conversacional de Ollama (`/api/chat`) con fallback robusto.
+  - Ajustar configuracion LLM local para perfil 16GB.
+  - Validar regresion de chat y nuevas reglas de continuidad.
+- Resultado TM-102:
+  - Query expansion contextual agregada (`query_expanded`) para follow-up.
+  - Proveedor LLM actualizado a estrategia `chat -> generate`.
+  - Nuevos settings: `CLINICAL_CHAT_LLM_NUM_CTX`, `CLINICAL_CHAT_LLM_TOP_P`.
+  - Test nuevo:
+    - `test_chat_follow_up_query_reuses_previous_context_for_domain_matching`
+  - Comandos de validacion ejecutados:
+    - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/core/config.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_continuity_filters_control_facts_from_memory or chat_follow_up_query_reuses_previous_context_for_domain_matching or chat_message"` (`7 passed`)

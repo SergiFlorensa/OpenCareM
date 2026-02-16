@@ -1,0 +1,351 @@
+﻿# Estado Actual
+
+## Stack activo
+
+- API: FastAPI
+- ORM: SQLAlchemy
+- DB local: SQLite (`task_manager.db`)
+- Migraciones: Alembic (`alembic/`)
+- Config: `pydantic-settings`
+- MCP server local: `mcp_server/server.py`
+- Orquestacion local en contenedores: Docker Compose (`docker-compose.yml`)
+- Runtime container hardening: Docker multi-stage + usuario no root.
+- Configuracion por entorno documentada en `docs/08_environment_strategy.md`.
+- Base inicial de seguridad de settings documentado en `docs/09_security_baseline.md`.
+- Fundacion de autenticacion JWT y hashing documentada en `docs/10_auth_foundation.md`.
+- Flujo auth minimo en API documentado en `docs/11_auth_api_workflow.md`.
+- Bootstrap seguro del primer admin por CLI documentado en `docs/12_bootstrap_admin_cli.md`.
+- RBAC admin v1 documentado en `docs/13_admin_rbac.md`.
+- Flujo de refresh token con rotacion documentado en `docs/14_refresh_token_workflow.md`.
+- Flujo de manejo de errores documentado en `docs/16_error_handling_workflow.md`.
+- Logging estructurado por request documentado en `docs/17_request_logging.md`.
+- Metricas Prometheus expuestas en `/metrics` y documentadas en `docs/18_prometheus_metrics.md`.
+- Prometheus integrado en Docker Compose documentado en `docs/19_prometheus_compose_setup.md`.
+- Grafana integrado en Docker Compose con dashboard base en `docs/20_grafana_setup.md`.
+- Login protegido con rate limit anti brute force en `docs/21_login_rate_limit.md`.
+- Endpoint AI de triage de tareas documentado en `docs/22_ai_task_triage.md`.
+- Modo AI triage configurable (`rules`/`hybrid`) documentado en `docs/25_ai_triage_hybrid_mode.md`.
+- Skills de proyecto creados para orquestacion/API/observabilidad en `docs/23_project_skills_playbook.md`.
+- Fundacion de ejecucion de agentes con trazas por paso en `docs/24_agent_run_foundation.md`.
+- Endpoints de historial de corridas agente en `docs/26_agent_run_history_endpoints.md`.
+- Filtros operativos de historial agente en `docs/27_agent_run_history_filters.md`.
+- Resumen operativo agregado de agentes en `docs/28_agent_ops_summary.md`.
+- Metricas de agentes integradas en Prometheus/Grafana en `docs/29_agent_prometheus_grafana_metrics.md`.
+- Alertas baseline de agentes activadas en Prometheus (`docs/30_agent_alerts_baseline.md`).
+- Alertmanager integrado para ruteo de alertas (`docs/31_alertmanager_integration.md`).
+- Pivot de dominio iniciado hacia Clinical Ops Copilot (`docs/32_clinical_ops_pivot_phase1.md`).
+- Catalogo de contexto clinico-operativo integrado en API (`docs/37_contexto_operaciones_clinicas_urgencias_es.md`).
+- Motor de protocolo respiratorio para urgencias integrado en API (`docs/40_motor_protocolo_respiratorio.md`).
+- Motor de humanizacion pediatrica integrado en API (`docs/41_motor_humanizacion_pediatrica.md`).
+- Motor de screening operativo avanzado integrado en API (`docs/42_motor_screening_operativo_avanzado.md`).
+- Auditoria de calidad de screening integrada en API (`docs/43_auditoria_calidad_screening.md`).
+- Soporte operativo de interpretacion RX torax integrado en API (`docs/44_soporte_interpretacion_rx_torax.md`).
+- Soporte operativo medico-legal para urgencias integrado en API (`docs/45_motor_medico_legal_urgencias.md`).
+- Extension bioetica pediatrica en motor medico-legal integrada en API (`docs/62_bioetica_pediatrica_conflicto_autonomia_vida.md`).
+- Salida medico-legal con fundamento etico-legal estructurado para auditoria/front integrada en API.
+- Auditoria de calidad medico-legal integrada en API (`docs/46_auditoria_calidad_medico_legal.md`).
+- Motor operativo de sepsis para urgencias integrado en API (`docs/47_motor_sepsis_urgencias.md`).
+- Flujo extremo-a-extremo de episodio de urgencias integrado en API (`docs/48_flujo_extremo_a_extremo_episodio_urgencias.md`).
+- Motor operativo de SCASEST para urgencias integrado en API (`docs/49_motor_scasest_urgencias.md`).
+- Auditoria de calidad SCASEST integrada en API (`docs/50_auditoria_calidad_scasest.md`).
+- Runbook de alertas SCASEST disponible (`docs/51_runbook_alertas_scasest.md`).
+- Drill guiado para disparar alertas SCASEST disponible (`docs/52_scasest_alert_drill.md`).
+- Scorecard global de calidad IA clinica disponible (`docs/53_scorecard_calidad_ia_clinica.md`).
+- Runbook de alertas de calidad global disponible (`docs/54_runbook_alertas_calidad_global.md`).
+- Drill guiado para alertas de calidad global disponible (`docs/55_drill_alertas_calidad_global.md`).
+- Gate de evaluacion continua de calidad IA clinica activo en CI (`docs/56_evaluacion_continua_gate_calidad_ia.md`).
+- Motor operativo de riesgo cardiovascular integrado en API (`docs/57_motor_riesgo_cardiovascular_urgencias.md`).
+- Motor operativo de reanimacion y soporte vital integrado en API (`docs/58_motor_reanimacion_soporte_vital_urgencias.md`).
+- Extension obstetrica y de terapia electrica integrada en soporte de reanimacion (`docs/58_motor_reanimacion_soporte_vital_urgencias.md`, `docs/61_terapia_electrica_arritmias_criticas.md`).
+- Motor diferencial de pitiriasis integrado en API (`docs/63_motor_diferencial_pitiriasis_urgencias.md`).
+- Motor diferencial acne/rosacea integrado en API (`docs/64_motor_diferencial_acne_rosacea_urgencias.md`).
+- Motor de soporte operativo de trauma integrado en API (`docs/65_motor_trauma_urgencias_trimodal.md`).
+- Motor de soporte operativo critico transversal integrado en API (`docs/66_motor_operativo_critico_transversal_urgencias.md`).
+- Motor de soporte operativo neurologico integrado en API (`docs/67_motor_operativo_neurologia_urgencias.md`).
+- Motor de soporte operativo gastro-hepato integrado en API (`docs/68_motor_operativo_gastro_hepato_urgencias.md`).
+- Motor de soporte operativo reuma-inmuno integrado en API (`docs/69_motor_operativo_reuma_inmuno_urgencias.md`).
+- Motor de soporte operativo de psiquiatria integrado en API (`docs/70_motor_operativo_psiquiatria_urgencias.md`).
+- Motor de soporte operativo de hematologia integrado en API (`docs/71_motor_operativo_hematologia_urgencias.md`).
+- Motor de soporte operativo de endocrinologia integrado en API (`docs/72_motor_operativo_endocrinologia_urgencias.md`).
+- Motor de soporte operativo de nefrologia integrado en API (`docs/73_motor_operativo_nefrologia_urgencias.md`).
+- Motor de soporte operativo de neumologia integrado en API (`docs/74_motor_operativo_neumologia_urgencias.md`).
+- Motor de soporte operativo de geriatria y fragilidad integrado en API (`docs/75_motor_operativo_geriatria_fragilidad_urgencias.md`).
+- Motor de soporte operativo de oncologia integrado en API (`docs/76_motor_operativo_oncologia_urgencias.md`).
+- Motor de soporte operativo de anestesiologia y reanimacion integrado en API (`docs/77_motor_operativo_anestesiologia_reanimacion_urgencias.md`).
+- Motor de soporte operativo de cuidados paliativos integrado en API (`docs/78_motor_operativo_cuidados_paliativos_urgencias.md`).
+- Motor de soporte operativo de urologia integrado en API (`docs/79_motor_operativo_urologia_urgencias.md`).
+- Motor de soporte operativo de anisakis integrado en API (`docs/80_motor_operativo_anisakis_urgencias.md`).
+- Motor de soporte operativo de epidemiologia clinica integrado en API (`docs/81_motor_operativo_epidemiologia_clinica_urgencias.md`).
+- Motor de soporte operativo de oftalmologia integrado en API (`docs/82_motor_operativo_oftalmologia_urgencias.md`).
+- Motor de soporte operativo de inmunologia integrado en API (`docs/83_motor_operativo_inmunologia_urgencias.md`).
+- Motor de soporte operativo de recurrencia genetica en OI integrado en API (`docs/84_motor_operativo_recurrencia_genetica_oi_urgencias.md`).
+- Motor de soporte operativo de ginecologia y obstetricia integrado en API (`docs/85_motor_operativo_ginecologia_obstetricia_urgencias.md`).
+- Motor de soporte operativo de pediatria y neonatologia integrado en API (`docs/86_motor_operativo_pediatria_neonatologia_urgencias.md`).
+- Chat clinico-operativo profesional por CareTask integrado en API (`docs/87_chat_clinico_operativo_profesional.md`).
+- Chat clinico-operativo v2 con especialidad autenticada, contexto longitudinal por paciente y fuentes trazables (`docs/88_chat_clinico_especialidad_contexto_longitudinal.md`).
+- Chat clinico-operativo v3 con fuentes confiables: whitelist estricta web + sellado profesional de conocimiento (`docs/89_chat_fuentes_confiables_whitelist_sellado.md`).
+- Playbook operativo de curacion/sellado de fuentes clinicas disponible para adopcion por equipo asistencial (`docs/90_playbook_curacion_fuentes_clinicas.md`).
+- Frontend MVP de chat clinico disponible en `frontend/` con interfaz moderna para simulacion profesional (`docs/91_frontend_chat_clinico_mvp.md`).
+- Frontend v2 de chat con selector de herramientas y modo hibrido general/clinico (`docs/92_frontend_chat_herramientas_modo_hibrido.md`).
+- Motor conversacional neuronal local (Ollama) opcional con continuidad contextual en follow-up y fallback determinista (`docs/93_motor_conversacional_neuronal_open_source.md`).
+
+## Estructura funcional
+
+- `app/main.py`
+  - Crea app FastAPI.
+  - Registra router de tareas en `settings.API_V1_PREFIX`.
+  - No crea tablas en startup; el esquema se gestiona por Alembic.
+- `app/api/tasks.py`
+  - Endpoints CRUD + stats.
+- `app/api/care_tasks.py`
+  - Endpoints CRUD + stats para dominio clinico-operativo.
+- `app/api/clinical_context.py`
+  - Endpoints de catalogo operativo de urgencias (areas, circuitos, roles, procedimientos, estandares).
+- `app/services/task_service.py`
+  - Logica de negocio (create/get/update/delete/count).
+- `app/services/care_task_service.py`
+  - Logica de negocio de `CareTask` con prioridad clinica, SLA y auditoria de triaje.
+- `app/services/clinical_context_service.py`
+  - Catalogo versionado de contexto operativo para agentes/frontend.
+- `app/services/agent_run_service.py`
+  - Ejecuta workflow agente y persiste trazas por paso.
+- `app/services/respiratory_protocol_service.py`
+  - Motor de recomendacion operativa para infecciones respiratorias viricas.
+- `app/services/humanization_protocol_service.py`
+  - Motor de recomendacion operativa de humanizacion en pediatria de alta complejidad.
+- `app/services/advanced_screening_service.py`
+  - Motor de screening operativo con reglas interpretables y control de fatiga de alarmas.
+- `app/services/chest_xray_support_service.py`
+  - Motor de soporte para patrones radiograficos de torax y deteccion de red flags.
+- `app/services/medicolegal_ops_service.py`
+  - Motor de soporte medico-legal para checklist documental, alertas criticas y acciones operativas.
+- `app/services/sepsis_protocol_service.py`
+  - Motor de soporte operativo para bundle de sepsis, alertas y escalado temprano.
+- `app/services/scasest_protocol_service.py`
+  - Motor de soporte operativo para sospecha de SCASEST, acciones iniciales y escalado.
+- `app/services/resuscitation_protocol_service.py`
+  - Motor de soporte operativo de reanimacion (RCP, choque, ventilacion, causas reversibles y post-ROSC).
+- `app/services/pityriasis_protocol_service.py`
+  - Motor de soporte operativo para diagnostico diferencial de pitiriasis y red flags dermatologicas.
+- `app/services/acne_rosacea_protocol_service.py`
+  - Motor de soporte operativo para diferencial acne/rosacea y seguridad farmacoterapeutica inicial.
+- `app/services/trauma_support_protocol_service.py`
+  - Motor de soporte operativo de trauma con curva trimodal, via aerea critica y riesgos sistemicos.
+- `app/services/critical_ops_protocol_service.py`
+  - Motor de soporte operativo critico transversal con SLA clinicos, rutas de decision y red flags de urgencias.
+- `app/services/neurology_support_protocol_service.py`
+  - Motor de soporte operativo neurologico para triaje vascular, diferenciales criticos y seguridad terapeutica.
+- `app/services/gastro_hepato_support_protocol_service.py`
+  - Motor de soporte operativo gastro-hepato para urgencias vasculares, red flags abdominales y decision quirurgica inicial.
+- `app/services/rheum_immuno_support_protocol_service.py`
+  - Motor de soporte operativo reuma-inmuno para alertas vitales, seguridad terapeutica y soporte materno-fetal.
+- `app/services/psychiatry_support_protocol_service.py`
+  - Motor de soporte operativo de psiquiatria para triaje temporal, riesgo suicida y seguridad farmacologica en poblaciones especiales.
+- `app/services/hematology_support_protocol_service.py`
+  - Motor de soporte operativo de hematologia para MAT, sangrado critico, onco-hematologia y seguridad post-esplenectomia.
+- `app/services/endocrinology_support_protocol_service.py`
+  - Motor de soporte operativo de endocrinologia para emergencias bioquimicas, cribado endocrino y decision farmacologica metabolica.
+- `app/services/nephrology_support_protocol_service.py`
+  - Motor de soporte operativo de nefrologia para FRA, sindrome renopulmonar, equilibrio acido-base y criterios de dialisis urgente.
+- `app/services/pneumology_support_protocol_service.py`
+  - Motor de soporte operativo de neumologia para diferenciales por imagen, control ventilatorio, escalado EPOC/asma y seguridad intervencionista.
+- `app/services/geriatrics_support_protocol_service.py`
+  - Motor de soporte operativo geriatrico para fragilidad, inmovilidad, delirium y optimizacion farmacologica START v3.
+- `app/services/oncology_support_protocol_service.py`
+  - Motor de soporte operativo de oncologia para inmuno-oncologia, irAEs, cardio-oncologia, neutropenia febril y respuesta en sarcomas.
+- `app/services/anesthesiology_support_protocol_service.py`
+  - Motor de soporte operativo de anestesiologia/reanimacion para ISR de emergencia y seleccion anatomica de bloqueos simpaticos.
+- `app/services/palliative_support_protocol_service.py`
+  - Motor de soporte operativo de cuidados paliativos para decisiones de final de vida, seguridad opioide y delirium.
+- `app/services/urology_support_protocol_service.py`
+  - Motor de soporte operativo de urologia para infeccion renal critica, obstruccion urinaria, trauma genital y onco-urologia.
+- `app/services/ophthalmology_support_protocol_service.py`
+  - Motor de soporte operativo de oftalmologia para triaje vascular retiniano, neuroftalmologia pupilar, seguridad IFIS y clasificacion DMAE.
+- `app/services/immunology_support_protocol_service.py`
+  - Motor de soporte operativo de inmunologia para inmunodeficiencias humorales, defensa innata pulmonar y diferenciales Bruton/IgA/Hiper-IgM/CVID.
+- `app/services/genetic_recurrence_support_protocol_service.py`
+  - Motor de soporte operativo de recurrencia genetica para patron dominante recurrente (OI tipo II/COL1A1-COL1A2) con alerta de mosaicismo germinal.
+- `app/services/gynecology_obstetrics_support_protocol_service.py`
+  - Motor de soporte operativo de ginecologia y obstetricia para oncogenetica hereditaria, triaje de ectopico, riesgo obstetrico y seguridad farmacologica.
+- `app/services/pediatrics_neonatology_support_protocol_service.py`
+  - Motor de soporte operativo de pediatria/neonatologia para sarampion, reanimacion neonatal, contactos de tosferina, invaginacion y secuelas tardias de sifilis congenita.
+- `app/services/clinical_chat_service.py`
+  - Motor de chat hibrido (general/clinico) con especialidad autenticada, memoria por sesion/paciente, herramientas de consulta y filtrado web por whitelist.
+- `app/services/llm_chat_provider.py`
+  - Proveedor neuronal local (Ollama) con estrategia `api/chat -> api/generate`, historial corto por sesion y trazabilidad.
+- `frontend/src/App.tsx`
+  - Consola web v2 con UX tipo assistant, herramientas (medication/cases/treatment/deep_search/images), chat por sesion y panel de trazabilidad.
+- `app/services/knowledge_source_service.py`
+  - Servicio de curacion de conocimiento clinico: alta, listado y sellado profesional auditable.
+- `app/services/anisakis_support_protocol_service.py`
+  - Motor de soporte operativo para sospecha de reaccion por anisakis, seguridad diagnostica y prevencion al alta.
+- `app/services/epidemiology_support_protocol_service.py`
+  - Motor de soporte operativo de epidemiologia clinica para metrica de riesgo, NNT, inferencia causal y evaluacion economica.
+- `app/services/emergency_episode_service.py`
+  - Motor de etapas/transiciones para modelar episodio completo de urgencias y KPIs de tiempos.
+- `app/models/task.py`
+  - Modelo SQLAlchemy de tabla `tasks`.
+- `app/models/care_task.py`
+  - Modelo SQLAlchemy de tabla `care_tasks` para pivot clinico-operativo, incluyendo `patient_reference` para continuidad de visitas.
+- `app/models/care_task_chat_message.py`
+  - Modelo SQLAlchemy de tabla `care_task_chat_messages` para memoria conversacional, especialidad efectiva y trazabilidad de fuentes.
+- `app/models/clinical_knowledge_source.py`
+  - Modelo SQLAlchemy de fuentes clinicas confiables por especialidad y estado de validacion.
+- `app/models/clinical_knowledge_source_validation.py`
+  - Modelo SQLAlchemy de eventos de sellado/revision profesional por fuente.
+- `app/models/agent_run.py`
+  - Modelos `agent_runs` y `agent_steps` para ejecucion trazable.
+- `app/models/user.py`
+  - Modelo SQLAlchemy de tabla `users` para autenticacion y especialidad operativa.
+- `app/schemas/task.py`
+  - Validacion de entrada/salida con Pydantic.
+
+## Endpoints disponibles
+
+Asumiendo `API_V1_PREFIX=/api/v1`:
+
+- `POST /api/v1/tasks/`
+- `GET /api/v1/tasks/`
+- `GET /api/v1/tasks/{task_id}`
+- `PUT /api/v1/tasks/{task_id}`
+- `DELETE /api/v1/tasks/{task_id}`
+- `GET /api/v1/tasks/stats/count`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/register` (incluye `specialty`)
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/admin/users` (solo admin)
+- `POST /api/v1/knowledge-sources/` (requiere auth)
+- `GET /api/v1/knowledge-sources/` (requiere auth)
+- `POST /api/v1/knowledge-sources/{source_id}/seal` (solo admin)
+- `GET /api/v1/knowledge-sources/{source_id}/validations` (requiere auth)
+- `GET /api/v1/knowledge-sources/trusted-domains` (requiere auth)
+- `POST /api/v1/care-tasks/`
+- `GET /api/v1/care-tasks/`
+- `GET /api/v1/care-tasks/quality/scorecard`
+- `GET /api/v1/care-tasks/{task_id}`
+- `PUT /api/v1/care-tasks/{task_id}`
+- `DELETE /api/v1/care-tasks/{task_id}`
+- `GET /api/v1/care-tasks/stats/count`
+- `POST /api/v1/care-tasks/{task_id}/triage`
+- `POST /api/v1/care-tasks/{task_id}/triage/approve`
+- `POST /api/v1/care-tasks/{task_id}/triage/audit`
+- `GET /api/v1/care-tasks/{task_id}/triage/audit`
+- `GET /api/v1/care-tasks/{task_id}/triage/audit/summary`
+- `POST /api/v1/care-tasks/{task_id}/chat/messages` (requiere auth)
+- `GET /api/v1/care-tasks/{task_id}/chat/messages` (requiere auth)
+- `GET /api/v1/care-tasks/{task_id}/chat/memory` (requiere auth)
+- `POST /api/v1/care-tasks/{task_id}/respiratory-protocol/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/humanization/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/screening/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/screening/audit`
+- `GET /api/v1/care-tasks/{task_id}/screening/audit`
+- `GET /api/v1/care-tasks/{task_id}/screening/audit/summary`
+- `POST /api/v1/care-tasks/{task_id}/chest-xray/interpretation-support`
+- `POST /api/v1/care-tasks/{task_id}/pityriasis-differential/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/acne-rosacea/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/trauma/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/critical-ops/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/neurology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/gastro-hepato/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/rheum-immuno/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/psychiatry/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/hematology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/endocrinology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/nephrology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/pneumology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/geriatrics/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/oncology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/anesthesiology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/palliative/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/urology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/ophthalmology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/immunology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/genetic-recurrence/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/gynecology-obstetrics/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/pediatrics-neonatology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/epidemiology/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/anisakis/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/medicolegal/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/medicolegal/audit`
+- `GET /api/v1/care-tasks/{task_id}/medicolegal/audit`
+- `GET /api/v1/care-tasks/{task_id}/medicolegal/audit/summary`
+- `POST /api/v1/care-tasks/{task_id}/sepsis/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/scasest/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/scasest/audit`
+- `GET /api/v1/care-tasks/{task_id}/scasest/audit`
+- `GET /api/v1/care-tasks/{task_id}/scasest/audit/summary`
+- `POST /api/v1/care-tasks/{task_id}/cardio-risk/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/cardio-risk/audit`
+- `GET /api/v1/care-tasks/{task_id}/cardio-risk/audit`
+- `GET /api/v1/care-tasks/{task_id}/cardio-risk/audit/summary`
+- `POST /api/v1/care-tasks/{task_id}/resuscitation/recommendation`
+- `POST /api/v1/care-tasks/{task_id}/resuscitation/audit`
+- `GET /api/v1/care-tasks/{task_id}/resuscitation/audit`
+- `GET /api/v1/care-tasks/{task_id}/resuscitation/audit/summary`
+- `POST /api/v1/emergency-episodes/`
+- `GET /api/v1/emergency-episodes/`
+- `GET /api/v1/emergency-episodes/{episode_id}`
+- `POST /api/v1/emergency-episodes/{episode_id}/transition`
+- `GET /api/v1/emergency-episodes/{episode_id}/kpis`
+- `GET /api/v1/clinical-context/resumen`
+- `GET /api/v1/clinical-context/areas`
+- `GET /api/v1/clinical-context/circuitos`
+- `GET /api/v1/clinical-context/roles`
+- `GET /api/v1/clinical-context/procedimientos`
+- `GET /api/v1/clinical-context/procedimientos/{clave}`
+- `GET /api/v1/clinical-context/estandares`
+- `GET /api/v1/clinical-context/triage-levels/manchester`
+- `POST /api/v1/agents/run`
+- `GET /api/v1/agents/runs`
+- `GET /api/v1/agents/runs/{run_id}`
+- `GET /api/v1/agents/ops/summary`
+
+## Estado MCP actual
+
+- MCP server implementado en `mcp_server/server.py`.
+- Implementa tools:
+  - `list_tasks`
+  - `create_task`
+  - `get_task`
+  - `update_task`
+  - `delete_task`
+  - `tasks_stats_count`
+  - `openapi_schema`
+- El server MCP no accede a DB directamente; consume la API HTTP.
+
+## Estado de testing
+
+- Tests API y MCP en `app/tests/`.
+- Configuracion local de pytest en `pytest.ini` (testpaths y coverage sobre `app`).
+- Cobertura funcional actual:
+  - CRUD y stats de tareas.
+  - Unit tests de `TaskService` (capa servicio sin HTTP).
+  - Smoke de herramientas MCP (create/list/get/update/delete/stats/openapi) con cliente HTTP simulado sobre TestClient.
+  - Script manual de smoke MCP en `mcp_server/smoke.py`.
+
+## Estado de calidad de codigo
+
+- Lint: `ruff` configurado localmente en `pyproject.toml`.
+- Formato: `black` configurado localmente en `pyproject.toml`.
+- Tipado: `mypy` configurado localmente en `pyproject.toml` (plugin SQLAlchemy activo).
+- Flujo operativo documentado en `docs/06_quality_workflow.md`.
+- CI automatizado en `.github/workflows/ci.yml`.
+
+## Estado de migraciones
+
+- Alembic inicializado con configuracion en `alembic.ini` y `alembic/env.py`.
+- Migracion inicial aplicada:
+  - Revision: `f1b3f75c533d`
+  - Estado: `head`
+- Decision registrada en `docs/decisions/ADR-0001-alembic-schema-source-of-truth.md`.
+
+## Riesgos actuales
+
+- Pendiente ampliar CI con matriz de versiones/entornos y checks de seguridad.
+- Pendiente definir estrategia para secretos por entorno (`.env` local vs secret manager en despliegue).
+- Pendiente reforzar hardening para contenedores (usuario no root, imagen base minimizada por perfil).
+
+
+

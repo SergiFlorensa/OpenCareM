@@ -1,0 +1,2183 @@
+# Tablero de Tareas
+
+## Formato de item
+
+- ID:
+- Objetivo:
+- Alcance:
+- Agentes involucrados:
+- Estado: pendiente | en curso | bloqueado | completado
+- Dependencias:
+- Evidencia:
+
+## Items activos
+
+- ID: TM-001
+- Objetivo: Documentar setup MCP en Codex CLI y marco de agentes.
+- Alcance: `docs/` + `agents/`.
+- Agentes involucrados: orchestrator, mcp-agent, qa-agent.
+- Estado: completado
+- Dependencias: API y MCP server local operativos.
+- Evidencia:
+  - `codex mcp list`
+  - `codex mcp get task-manager-api --json`
+  - Estructura documental creada en `docs/` y `agents/`.
+
+- ID: TM-002
+- Objetivo: Implementar tests API y smoke MCP.
+- Alcance: `app/tests/` y `mcp_server/client.py`.
+- Agentes involucrados: orchestrator, qa-agent, mcp-agent.
+- Estado: completado
+- Dependencias: fixtures de DB aislada para FastAPI.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m pytest -q`
+  - `4 passed`
+
+- ID: TM-003
+- Objetivo: Migrar gestion de esquema a Alembic.
+- Alcance: `alembic/`, `alembic.ini`, decision arquitectonica y docs.
+- Agentes involucrados: orchestrator, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: modelo `Task` y metadata SQLAlchemy.
+- Evidencia:
+  - `alembic revision --autogenerate -m "init tasks table"`
+  - `alembic upgrade head`
+  - `alembic current`
+  - `f1b3f75c533d (head)`
+  - `docs/decisions/ADR-0001-alembic-schema-source-of-truth.md`
+
+- ID: TM-004
+- Objetivo: Eliminar deprecaciones de lifecycle y fijar config local de pytest/coverage.
+- Alcance: `app/main.py` + `pytest.ini` + actualizacion de docs.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: suite de tests existente (`app/tests/`).
+- Evidencia:
+  - Migracion a `lifespan` en `app/main.py`
+  - Config local en `pytest.ini`
+  - `pytest -q` ejecutado en raiz del repo
+
+- ID: TM-005
+- Objetivo: Eliminar warning de Pydantic settings legacy.
+- Alcance: `app/core/config.py` y actualizacion de docs.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: `pydantic-settings` v2.
+- Evidencia:
+  - Migracion de `class Config` a `SettingsConfigDict`
+  - `pytest -q` ejecutado tras el cambio
+
+- ID: TM-006
+- Objetivo: Estabilizar flujo local de calidad (lint, format, type-check).
+- Alcance: `pyproject.toml`, ajustes de formato/codigo y guia operativa.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: suite de tests y packaging local de `mcp_server`.
+- Evidencia:
+  - `ruff check app mcp_server`
+  - `black --check app mcp_server`
+  - `mypy app mcp_server`
+  - `pytest -q`
+  - `docs/06_quality_workflow.md`
+
+- ID: TM-007
+- Objetivo: Activar CI automatizado para calidad, migraciones y tests.
+- Alcance: `.github/workflows/ci.yml` + documentacion de flujo.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-003 (Alembic) y TM-006 (quality tools).
+- Evidencia:
+  - `.github/workflows/ci.yml`
+  - `docs/06_quality_workflow.md` (seccion CI)
+  - `ruff`, `black`, `mypy`, `pytest` en verde local
+
+- ID: TM-008
+- Objetivo: Containerizar arranque local con Docker Compose (API + PostgreSQL).
+- Alcance: `docker/Dockerfile`, `docker-compose.yml`, `.dockerignore`, docs de uso.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-003 (Alembic) y TM-007 (CI base).
+- Evidencia:
+  - `docker-compose.yml`
+  - `docker/Dockerfile`
+  - `docs/07_docker_compose_workflow.md`
+
+- ID: TM-009
+- Objetivo: Endurecer imagen Docker de API para entorno runtime.
+- Alcance: `docker/Dockerfile` (multi-stage + non-root) y docs.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-008.
+- Evidencia:
+  - `docker build -f docker/Dockerfile -t task-manager-api:hardening-test .`
+  - `docs/07_docker_compose_workflow.md` (seccion hardening)
+
+- ID: TM-010
+- Objetivo: Separar configuracion por entorno para local y Docker.
+- Alcance: `.env.example`, `.env.docker`, `docker-compose.yml`, documentacion.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-008.
+- Evidencia:
+  - `.env.example`
+  - `.env.docker`
+  - `docker-compose.yml` usando `env_file`
+  - `docs/08_environment_strategy.md`
+
+- ID: TM-011
+- Objetivo: Aplicar baseline de seguridad en configuracion de settings.
+- Alcance: `app/core/config.py`, tests de seguridad y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-010.
+- Evidencia:
+  - `app/core/config.py` con validaciones por entorno
+  - `app/tests/test_settings_security.py`
+  - `docs/09_security_baseline.md`
+
+- ID: TM-012
+- Objetivo: Crear fundacion de autenticacion JWT en capa core.
+- Alcance: utilidades de seguridad, exports core y tests unitarios.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-011.
+- Evidencia:
+  - `app/core/security.py`
+  - `app/tests/test_security_core.py`
+  - `docs/10_auth_foundation.md`
+
+- ID: TM-013
+- Objetivo: Exponer flujo auth minimo en API.
+- Alcance: `app/api/auth.py`, servicio auth, tests de endpoints y docs.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-012.
+- Evidencia:
+  - `app/api/auth.py`
+  - `app/tests/test_auth_api.py`
+  - `docs/11_auth_api_workflow.md`
+
+- ID: TM-014
+- Objetivo: Migrar auth de credenciales demo a usuarios persistentes.
+- Alcance: modelo `User`, migraciones, auth service DB, tests y docs.
+- Agentes involucrados: orchestrator, data-agent, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-013.
+- Evidencia:
+  - `app/models/user.py`
+  - `alembic/versions/74e6f2319a21_add_users_table.py`
+  - `app/services/auth_service.py` con consulta a DB
+  - `app/tests/test_auth_api.py` sembrando usuario en test DB
+
+- ID: TM-015
+- Objetivo: Agregar registro de usuario con validacion de password.
+- Alcance: endpoint `/auth/register`, servicio auth y pruebas de casos invalidos.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-014.
+- Evidencia:
+  - `app/api/auth.py` (`/auth/register`)
+  - `app/core/security.py` (`validate_password_policy`)
+  - `app/tests/test_auth_api.py` con casos de registro
+
+- ID: TM-016
+- Objetivo: Crear bootstrap seguro de primer admin por CLI.
+- Alcance: migracion de rol admin, servicio bootstrap, script CLI y tests.
+- Agentes involucrados: orchestrator, data-agent, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-015.
+- Evidencia:
+  - `app/scripts/bootstrap_admin.py`
+  - `app/services/auth_service.py` (`bootstrap_first_admin`)
+  - `app/tests/test_auth_bootstrap.py`
+  - `docs/12_bootstrap_admin_cli.md`
+
+- ID: TM-017
+- Objetivo: Agregar control de permisos admin (RBAC v1) para endpoints protegidos.
+- Alcance: dependencias auth, endpoint admin de usuarios, pruebas y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-016.
+- Evidencia:
+  - `app/api/deps.py`
+  - `app/api/auth.py` (`/auth/admin/users`)
+  - `app/tests/test_auth_api.py`
+  - `docs/13_admin_rbac.md`
+
+- ID: TM-018
+- Objetivo: Endurecer auth JWT con refresh tokens y rotacion.
+- Alcance: modelo de sesion refresh, endpoints `/auth/refresh` y `/auth/logout`, pruebas y docs.
+- Agentes involucrados: orchestrator, data-agent, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-017.
+- Evidencia:
+  - `app/models/auth_session.py`
+  - `app/api/auth.py` (`/auth/refresh`, `/auth/logout`)
+  - `app/tests/test_auth_api.py`
+  - `docs/14_refresh_token_workflow.md`
+
+- ID: TM-019
+- Objetivo: Crear tests unitarios para `TaskService`.
+- Alcance: cobertura de CRUD y conteo de tareas en capa servicio (sin HTTP).
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-018.
+- Evidencia:
+  - `app/tests/test_task_service_unit.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_task_service_unit.py`
+
+- ID: TM-020
+- Objetivo: Agregar script de smoke test MCP reproducible.
+- Alcance: script CLI de smoke para tools MCP, ampliacion de test y documentacion.
+- Agentes involucrados: orchestrator, mcp-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-019.
+- Evidencia:
+  - `mcp_server/smoke.py`
+  - `app/tests/test_mcp_smoke.py`
+  - `docs/15_mcp_smoke_runbook.md`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_mcp_smoke.py`
+
+- ID: TM-021
+- Objetivo: Documentar flujo de error handling de la API.
+- Alcance: catalogo de errores HTTP, causas, ejemplos y pasos de diagnostico.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-020.
+- Evidencia:
+  - `docs/16_error_handling_workflow.md`
+
+- ID: TM-022
+- Objetivo: Agregar logging estructurado por request.
+- Alcance: middleware con request_id, status_code, latencia y metodo/ruta.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-021.
+- Evidencia:
+  - `app/main.py`
+  - `app/tests/test_request_logging.py`
+  - `docs/17_request_logging.md`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_request_logging.py`
+
+- ID: TM-023
+- Objetivo: Exponer metricas Prometheus en endpoint dedicado.
+- Alcance: instrumentacion HTTP, endpoint `/metrics`, pruebas y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-022.
+- Evidencia:
+  - `app/main.py`
+  - `app/tests/test_metrics_endpoint.py`
+  - `docs/18_prometheus_metrics.md`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py`
+
+- ID: TM-024
+- Objetivo: Integrar Prometheus real en Docker Compose para scraping continuo.
+- Alcance: servicio `prometheus`, config `prometheus.yml` y documentacion de uso.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-023.
+- Evidencia:
+  - `docker-compose.yml`
+  - `ops/prometheus/prometheus.yml`
+  - `docs/19_prometheus_compose_setup.md`
+  - `docs/decisions/ADR-0004-prometheus-compose-scraping.md`
+
+- ID: TM-025
+- Objetivo: Integrar Grafana en Docker Compose con dashboard base.
+- Alcance: servicio `grafana`, datasource hacia Prometheus y dashboard inicial para API.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-024.
+- Evidencia:
+  - `docker-compose.yml`
+  - `ops/grafana/provisioning/datasources/datasource.yml`
+  - `ops/grafana/provisioning/dashboards/dashboard.yml`
+  - `ops/grafana/dashboards/task_manager_overview.json`
+  - `docs/20_grafana_setup.md`
+  - `docs/decisions/ADR-0005-grafana-compose-dashboard-baseline.md`
+
+- ID: TM-026
+- Objetivo: Mitigar brute force en login con rate limit por usuario+IP.
+- Alcance: tabla de intentos, bloqueo temporal, settings, tests y documentacion.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-025.
+- Evidencia:
+  - `app/models/login_attempt.py`
+  - `app/services/login_throttle_service.py`
+  - `app/api/auth.py`
+  - `app/tests/test_auth_api.py`
+  - `docs/21_login_rate_limit.md`
+  - `docs/decisions/ADR-0006-login-bruteforce-protection.md`
+
+- ID: TM-027
+- Objetivo: Agregar triage inteligente de tareas con recomendaciones explicables.
+- Alcance: endpoint AI de sugerencia (`priority`, `category`, `confidence`, `reason`) + tests + docs.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-026.
+- Evidencia:
+  - `app/services/ai_triage_service.py`
+  - `app/api/ai.py`
+  - `app/tests/test_ai_api.py`
+  - `docs/22_ai_task_triage.md`
+  - `docs/decisions/ADR-0007-ai-triage-rules-first.md`
+
+- ID: TM-028
+- Objetivo: Crear skills de proyecto para potenciar agentes con workflows reutilizables.
+- Alcance: skills de orquestacion, entrega API y observabilidad basados en guia oficial.
+- Agentes involucrados: orchestrator, api-agent, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-027.
+- Evidencia:
+  - `skills/tm-orchestrator-workflow/SKILL.md`
+  - `skills/tm-api-change-delivery/SKILL.md`
+  - `skills/tm-observability-ops/SKILL.md`
+  - `docs/23_project_skills_playbook.md`
+
+- ID: TM-029
+- Objetivo: Crear fundacion de ejecucion de agentes con trazabilidad por pasos.
+- Alcance: modelos `AgentRun` y `AgentStep`, endpoint `/api/v1/agents/run`, pruebas y documentacion.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-027.
+- Evidencia:
+  - `app/models/agent_run.py`
+  - `app/services/agent_run_service.py`
+  - `app/api/agents.py`
+  - `alembic/versions/5dc1b6a8f4aa_add_agent_runs_and_steps_tables.py`
+  - `app/tests/test_agents_api.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_agents_api.py`
+
+- ID: TM-030
+- Objetivo: Evolucionar triage AI a modo configurable rules/hybrid con provider opcional.
+- Alcance: settings AI mode, servicio de provider LLM opcional, tests y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-029.
+- Evidencia:
+  - `app/core/config.py` (`AI_TRIAGE_MODE`)
+  - `app/services/llm_triage_provider.py`
+  - `app/services/ai_triage_service.py`
+  - `app/schemas/ai.py` (campo `source`)
+  - `app/tests/test_ai_api.py`
+  - `docs/25_ai_triage_hybrid_mode.md`
+  - `docs/decisions/ADR-0010-ai-triage-hybrid-mode-with-safe-fallback.md`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_ai_api.py app/tests/test_agents_api.py`
+
+- ID: TM-031
+- Objetivo: Exponer historial de ejecuciones de agentes para operacion y debugging.
+- Alcance: endpoints para listar corridas y ver detalle por `run_id`, tests y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-030.
+- Evidencia:
+  - `app/api/agents.py` (`GET /agents/runs`, `GET /agents/runs/{run_id}`)
+  - `app/services/agent_run_service.py` (consulta de historial)
+  - `app/schemas/agent.py` (summary response)
+  - `app/tests/test_agents_api.py` (list/detail/404)
+  - `docs/26_agent_run_history_endpoints.md`
+  - `docs/decisions/ADR-0011-agent-run-history-api.md`
+
+- ID: TM-032
+- Objetivo: Mejorar operacion con filtros de historial de corridas agente.
+- Alcance: filtros por estado, workflow y ventana temporal en `GET /agents/runs`, con pruebas y docs.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-031.
+- Evidencia:
+  - `app/api/agents.py` (query params de filtro)
+  - `app/services/agent_run_service.py` (filtro por estado/workflow/fechas)
+  - `app/tests/test_agents_api.py` (tests de filtros)
+  - `docs/27_agent_run_history_filters.md`
+  - `docs/decisions/ADR-0012-agent-run-history-filtering.md`
+
+- ID: TM-033
+- Objetivo: Exponer resumen operativo de agentes para monitoreo rapido.
+- Alcance: endpoint de summary con total runs, failed runs y fallback rate, mas pruebas y docs.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-032.
+- Evidencia:
+  - `app/services/agent_run_service.py` (`get_ops_summary`)
+  - `app/api/agents.py` (`GET /agents/ops/summary`)
+  - `app/tests/test_agents_api.py` (test de summary)
+  - `docs/28_agent_ops_summary.md`
+  - `docs/decisions/ADR-0013-agent-ops-summary-metrics.md`
+
+- ID: TM-034
+- Objetivo: Visualizar salud de agentes en Grafana con metricas Prometheus dedicadas.
+- Alcance: metricas exportadas en `/metrics`, paneles de dashboard y documentacion operativa.
+- Agentes involucrados: orchestrator, api-agent, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-033.
+- Evidencia:
+  - `app/metrics/agent_metrics.py`
+  - `app/main.py` (registro de metricas agentes)
+  - `app/tests/test_metrics_endpoint.py` (metricas `agent_*`)
+  - `ops/grafana/dashboards/task_manager_overview.json` (paneles de agentes)
+  - `docs/29_agent_prometheus_grafana_metrics.md`
+  - `docs/decisions/ADR-0014-agent-observability-metrics-in-prometheus.md`
+
+- ID: TM-035
+- Objetivo: Corregir visualizacion en Grafana para paneles de metricas agente.
+- Alcance: activar consultas instantaneas en paneles stat/gauge y documentar recarga.
+- Agentes involucrados: orchestrator, devops-agent.
+- Estado: completado
+- Dependencias: TM-034.
+- Evidencia:
+  - `ops/grafana/dashboards/task_manager_overview.json` (targets con `instant=true`)
+  - `docs/29_agent_prometheus_grafana_metrics.md` (pasos de recarga)
+
+- ID: TM-036
+- Objetivo: Activar alertas basicas para salud de agentes.
+- Alcance: reglas por `failed_runs` y `fallback_rate_percent`, documentacion operativa y validacion.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-035.
+- Evidencia:
+  - `ops/prometheus/alerts.yml`
+  - `ops/prometheus/prometheus.yml` (`rule_files`)
+  - `docker-compose.yml` (montaje de `alerts.yml`)
+  - `docs/30_agent_alerts_baseline.md`
+  - `docs/decisions/ADR-0015-agent-alerts-baseline.md`
+
+- ID: TM-037
+- Objetivo: Integrar Alertmanager para enrutar alertas de Prometheus.
+- Alcance: configuracion base de Alertmanager, conexion desde Prometheus y documentacion operativa.
+- Agentes involucrados: orchestrator, devops-agent.
+- Estado: completado
+- Dependencias: TM-036.
+- Evidencia:
+  - `ops/alertmanager/alertmanager.yml`
+  - `ops/prometheus/prometheus.yml` (bloque `alerting`)
+  - `docker-compose.yml` (servicio `alertmanager`)
+  - `docs/31_alertmanager_integration.md`
+  - `docs/decisions/ADR-0016-alertmanager-routing-baseline.md`
+
+- ID: TM-038
+- Objetivo: Iniciar pivot de dominio a Clinical Ops Copilot sin romper la base actual.
+- Alcance: contratos API/Datos/QA/DevOps, roadmap incremental y guia didactica de Fase 1.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-037.
+- Evidencia:
+  - `docs/32_clinical_ops_pivot_phase1.md`
+  - `docs/33_care_tasks_api_workflow.md`
+  - `docs/05_roadmap.md` (seccion Clinical Ops)
+  - `app/models/care_task.py`
+  - `app/api/care_tasks.py`
+  - `alembic/versions/a4c2d1e9b7f0_add_care_tasks_table.py`
+
+- ID: TM-039
+- Objetivo: Iniciar castellanizacion progresiva del repositorio (es-ES) sin romper compatibilidad.
+- Alcance: mensajes visibles de API, documentacion reciente y estrategia global de migracion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-038.
+- Evidencia:
+  - `app/api/care_tasks.py`
+  - `app/api/auth.py`
+  - `app/api/agents.py`
+  - `app/api/ai.py`
+  - `app/core/security.py`
+  - `app/services/agent_run_service.py`
+  - `app/services/ai_triage_service.py`
+  - `app/services/auth_service.py`
+  - `app/services/login_throttle_service.py`
+  - `app/services/llm_triage_provider.py`
+  - `app/scripts/bootstrap_admin.py`
+  - `mcp_server/server.py`
+  - `mcp_server/smoke.py`
+  - `skills/` (skills y referencias traducidas)
+  - `docs/` (encabezados y guias principales en espanol)
+  - `docs/34_castellanizacion_repositorio.md`
+  - `agents/shared/api_contract.md`
+  - `agents/shared/data_contract.md`
+  - `agents/shared/mcp_contract.md`
+  - `agents/shared/test_plan.md`
+  - `agents/shared/deploy_notes.md`
+
+
+
+
+- ID: TM-040
+- Objetivo: Conectar CareTask con trazabilidad de agente via endpoint de triage por recurso.
+- Alcance: `POST /api/v1/care-tasks/{id}/triage`, servicio de ejecucion, pruebas y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-038, TM-029, TM-033.
+- Evidencia:
+  - Implementacion en `app/api/care_tasks.py` y `app/services/agent_run_service.py`.
+  - Pruebas en `app/tests/test_care_tasks_api.py`.
+  - Documento operativo en `docs/35_care_task_agent_triage_workflow.md`.
+  - Decision tecnica en `docs/decisions/ADR-0018-care-task-triage-via-resource-endpoint.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-041
+- Objetivo: Cerrar human-in-the-loop con aprobacion explicita de triaje en CareTask.
+- Alcance: `POST /api/v1/care-tasks/{id}/triage/approve`, persistencia de revision, pruebas y docs.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-040.
+- Evidencia:
+  - Modelo y migracion de `care_task_triage_reviews`.
+  - Endpoint en `app/api/care_tasks.py`.
+  - Pruebas en `app/tests/test_care_tasks_api.py`.
+  - Documento `docs/36_care_task_triage_human_approval.md`.
+  - Decision tecnica en `docs/decisions/ADR-0019-human-in-the-loop-care-task-triage-approval.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-042
+- Objetivo: Integrar contexto operativo realista de urgencias para guiar agentes y flujos.
+- Alcance: catalogos de areas/circuitos/roles/procedimientos/estandares y endpoints de consulta.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-041.
+- Evidencia:
+  - API `clinical-context` en `app/api/clinical_context.py`.
+  - Servicio catalogo en `app/services/clinical_context_service.py`.
+  - Pruebas en `app/tests/test_clinical_context_api.py`.
+  - Documento `docs/37_contexto_operaciones_clinicas_urgencias_es.md`.
+  - Decision tecnica en `docs/decisions/ADR-0020-clinical-context-catalog-api.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_context_api.py`.
+  - Regresion completa: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-043
+- Objetivo: Incorporar recurso `TriageLevel` con estandar Manchester y SLA de respuesta.
+- Alcance: schema, servicio, endpoint y pruebas para niveles 1-5.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-042.
+- Evidencia:
+  - Schema `TriageLevelResponse` en `app/schemas/clinical_context.py`.
+  - Endpoint `GET /api/v1/clinical-context/triage-levels/manchester`.
+  - Pruebas de integridad en `app/tests/test_clinical_context_api.py`.
+  - Documento tecnico `docs/38_manchester_triage_levels.md`.
+  - Decision tecnica `docs/decisions/ADR-0021-manchester-triage-levels-canonical-catalog.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-044
+- Objetivo: Auditar over-triage y under-triage comparando IA vs validacion humana.
+- Alcance: modelo de auditoria, endpoints, metricas y pruebas.
+- Agentes involucrados: orchestrator, data-agent, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-043.
+- Evidencia:
+  - Tabla `care_task_triage_audit_logs` y migracion `c1d4e8f92b30`.
+  - Endpoints `POST/GET /care-tasks/{id}/triage/audit` y `GET /summary`.
+  - Metricas Prometheus `triage_audit_*` en `/metrics`.
+  - Documento `docs/39_triage_audit_logs.md`.
+  - ADR `docs/decisions/ADR-0022-triage-audit-over-under-classification.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-045
+- Objetivo: Implementar motor de protocolo respiratorio para decisiones tempranas en urgencias.
+- Alcance: recomendacion operativa (diagnostico/prueba/antiviral/aislamiento), endpoint y trazabilidad.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-044.
+- Evidencia:
+  - Servicio `app/services/respiratory_protocol_service.py`.
+  - Endpoint `POST /api/v1/care-tasks/{id}/respiratory-protocol/recommendation`.
+  - Workflow `respiratory_protocol_v1` persistido en `agent_runs` y `agent_steps`.
+  - Metricas `respiratory_protocol_runs_total` y `respiratory_protocol_runs_completed_total` en `/metrics`.
+  - Documento tecnico `docs/40_motor_protocolo_respiratorio.md`.
+  - ADR `docs/decisions/ADR-0023-motor-protocolo-respiratorio-operativo.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-046
+- Objetivo: Implementar motor de humanizacion pediatrica neuro-oncologica con validacion humana obligatoria.
+- Alcance: recomendacion operativa familiar/psicosocial/multidisciplinar, endpoint y trazabilidad.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-045.
+- Evidencia:
+  - Servicio `app/services/humanization_protocol_service.py`.
+  - Schema `app/schemas/humanization_protocol.py`.
+  - Endpoint `POST /api/v1/care-tasks/{id}/humanization/recommendation`.
+  - Workflow `pediatric_neuro_onco_support_v1` persistido en `agent_runs` y `agent_steps`.
+  - Metricas `pediatric_humanization_runs_total` y `pediatric_humanization_runs_completed_total` en `/metrics`.
+  - Documento tecnico `docs/41_motor_humanizacion_pediatrica.md`.
+  - ADR `docs/decisions/ADR-0024-motor-humanizacion-pediatrica-operativa.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-047
+- Objetivo: Implementar motor de screening operativo avanzado (geriatria, VIH/sepsis, COVID persistente y eficiencia long-acting).
+- Alcance: recomendaciones interpretables, control de fatiga de alarmas, endpoint, trazabilidad y metricas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-046.
+- Evidencia:
+  - Servicio `app/services/advanced_screening_service.py`.
+  - Schema `app/schemas/advanced_screening.py`.
+  - Endpoint `POST /api/v1/care-tasks/{id}/screening/recommendation`.
+  - Workflow `advanced_screening_support_v1` persistido en `agent_runs` y `agent_steps`.
+  - Metricas en `/metrics`: `advanced_screening_runs_total`, `advanced_screening_runs_completed_total`, `advanced_screening_alerts_generated_total`, `advanced_screening_alerts_suppressed_total`.
+  - Documento `docs/42_motor_screening_operativo_avanzado.md`.
+  - ADR `docs/decisions/ADR-0025-motor-screening-operativo-avanzado.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-048
+- Objetivo: Auditar calidad del screening avanzado comparando recomendacion IA operativa vs validacion humana.
+- Alcance: persistencia de auditoria, endpoints de registro/listado/resumen y metricas de calidad por regla.
+- Agentes involucrados: orchestrator, data-agent, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-047.
+- Evidencia:
+  - Modelo `app/models/care_task_screening_audit_log.py`.
+  - Migracion `alembic/versions/d2a7c9b4e110_add_care_task_screening_audit_logs_table.py`.
+  - Endpoints `POST/GET /care-tasks/{id}/screening/audit` y `GET /summary`.
+  - Metricas `screening_audit_*` y `screening_rule_*_match_rate_percent` en `/metrics`.
+  - Documento `docs/43_auditoria_calidad_screening.md`.
+  - ADR `docs/decisions/ADR-0026-auditoria-calidad-screening-avanzado.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-049
+- Objetivo: Implementar motor de soporte de interpretacion radiografica de torax (operativo, no diagnostico).
+- Alcance: endpoint de apoyo por patrones/signos, trazabilidad de workflow, metricas y pruebas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-048.
+- Evidencia:
+  - Servicio `app/services/chest_xray_support_service.py`.
+  - Schema `app/schemas/chest_xray_support.py`.
+  - Endpoint `POST /api/v1/care-tasks/{id}/chest-xray/interpretation-support`.
+  - Workflow `chest_xray_support_v1` en `agent_runs` y `agent_steps`.
+  - Metricas `chest_xray_support_runs_total`, `chest_xray_support_runs_completed_total`, `chest_xray_support_critical_alerts_total`.
+  - Documento `docs/44_soporte_interpretacion_rx_torax.md`.
+  - ADR `docs/decisions/ADR-0027-soporte-operativo-interpretacion-rx-torax.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-050
+- Objetivo: Implementar motor de soporte medico-legal operativo para urgencias.
+- Alcance: endpoint por CareTask, checklist legal, alertas criticas, trazabilidad en agente, metricas y pruebas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-049.
+- Evidencia:
+  - Servicio `app/services/medicolegal_ops_service.py`.
+  - Schema `app/schemas/medicolegal_ops.py`.
+  - Endpoint `POST /api/v1/care-tasks/{id}/medicolegal/recommendation`.
+  - Workflow `medicolegal_ops_support_v1` en `agent_runs` y `agent_steps`.
+  - Metricas `medicolegal_ops_runs_total`, `medicolegal_ops_runs_completed_total`, `medicolegal_ops_critical_alerts_total`.
+  - Documento `docs/45_motor_medico_legal_urgencias.md`.
+  - ADR `docs/decisions/ADR-0028-soporte-operativo-medico-legal-urgencias.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-051
+- Objetivo: Auditar calidad del soporte medico-legal comparando recomendacion IA vs validacion humana.
+- Alcance: persistencia de auditoria, endpoints de registro/listado/resumen y metricas de precision por regla.
+- Agentes involucrados: orchestrator, data-agent, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-050.
+- Evidencia:
+  - Modelo `app/models/care_task_medicolegal_audit_log.py`.
+  - Migracion `alembic/versions/e4b7a1d9c220_add_care_task_medicolegal_audit_logs_table.py`.
+  - Endpoints `POST/GET /care-tasks/{id}/medicolegal/audit` y `GET /summary`.
+  - Metricas `medicolegal_audit_*` y `medicolegal_rule_*_match_rate_percent` en `/metrics`.
+  - Documento `docs/46_auditoria_calidad_medico_legal.md`.
+  - ADR `docs/decisions/ADR-0029-auditoria-calidad-medico-legal.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-052
+- Objetivo: Implementar motor operativo de sepsis para urgencias.
+- Alcance: endpoint por CareTask, reglas qSOFA/bundle/escalado, trazabilidad de workflow y metricas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-051.
+- Evidencia:
+  - Servicio `app/services/sepsis_protocol_service.py`.
+  - Schema `app/schemas/sepsis_protocol.py`.
+  - Endpoint `POST /api/v1/care-tasks/{id}/sepsis/recommendation`.
+  - Workflow `sepsis_protocol_support_v1` en `agent_runs` y `agent_steps`.
+  - Metricas `sepsis_protocol_runs_total`, `sepsis_protocol_runs_completed_total`, `sepsis_protocol_critical_alerts_total`.
+  - Documento `docs/47_motor_sepsis_urgencias.md`.
+  - ADR `docs/decisions/ADR-0030-motor-operativo-sepsis-urgencias.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-053
+- Objetivo: Modelar flujo extremo-a-extremo de urgencias con etapas y transiciones trazables.
+- Alcance: recurso `EmergencyEpisode`, endpoints de proceso, KPIs de tiempos y documentacion.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-052.
+- Evidencia:
+  - Modelo `app/models/emergency_episode.py`.
+  - Migracion `alembic/versions/f7a4c2d9e111_add_emergency_episodes_table.py`.
+  - Endpoints `POST/GET /emergency-episodes/*` y `/kpis`.
+  - Servicio `app/services/emergency_episode_service.py` con reglas de transicion.
+  - Pruebas `app/tests/test_emergency_episodes_api.py`.
+  - Documento `docs/48_flujo_extremo_a_extremo_episodio_urgencias.md`.
+  - ADR `docs/decisions/ADR-0031-flujo-extremo-a-extremo-episodio-urgencias.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests`.
+
+- ID: TM-054
+- Objetivo: Implementar motor operativo de SCASEST para urgencias.
+- Alcance: endpoint por CareTask, reglas de sospecha/riesgo alto, trazabilidad de workflow y metricas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-053.
+- Evidencia:
+  - Servicio `app/services/scasest_protocol_service.py`.
+  - Schema `app/schemas/scasest_protocol.py`.
+  - Endpoint `POST /api/v1/care-tasks/{id}/scasest/recommendation`.
+  - Workflow `scasest_protocol_support_v1` en `agent_runs` y `agent_steps`.
+  - Metricas `scasest_protocol_runs_total`, `scasest_protocol_runs_completed_total`, `scasest_protocol_critical_alerts_total`.
+  - Documento `docs/49_motor_scasest_urgencias.md`.
+  - ADR `docs/decisions/ADR-0032-motor-operativo-scasest-urgencias.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+
+- ID: TM-055
+- Objetivo: Auditar calidad de soporte SCASEST comparando recomendacion IA vs validacion humana.
+- Alcance: persistencia de auditoria, endpoints de registro/listado/resumen y metricas de precision por regla.
+- Agentes involucrados: orchestrator, data-agent, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-054.
+- Evidencia:
+  - Modelo `app/models/care_task_scasest_audit_log.py`.
+  - Migracion `alembic/versions/a9b3d5e7f210_add_care_task_scasest_audit_logs_table.py`.
+  - Endpoints `POST/GET /care-tasks/{id}/scasest/audit` y `GET /summary`.
+  - Metricas `scasest_audit_*` y `scasest_rule_*_match_rate_percent` en `/metrics`.
+  - Documento `docs/50_auditoria_calidad_scasest.md`.
+  - ADR `docs/decisions/ADR-0033-auditoria-calidad-scasest.md`.
+  - Validacion: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`.
+
+- ID: TM-056
+- Objetivo: Operativizar observabilidad SCASEST con dashboard, alertas y runbook de respuesta.
+- Alcance: paneles Grafana, reglas Prometheus y guia de actuacion.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-055.
+- Evidencia:
+  - Dashboard `ops/grafana/dashboards/task_manager_overview.json` actualizado con paneles SCASEST.
+  - Reglas nuevas en `ops/prometheus/alerts.yml`: `ScasestAuditUnderRateHigh`, `ScasestAuditOverRateHigh`.
+  - Runbook `docs/51_runbook_alertas_scasest.md`.
+  - ADR `docs/decisions/ADR-0034-observabilidad-scasest-alertas-y-runbook.md`.
+
+- ID: TM-057
+- Objetivo: Facilitar practica de alertas SCASEST con simulador reproducible.
+- Alcance: script de generacion de casos `under/over/mixed` y guia de uso.
+- Agentes involucrados: orchestrator, qa-agent.
+- Estado: completado
+- Dependencias: TM-056.
+- Evidencia:
+  - Script `app/scripts/simulate_scasest_alerts.py`.
+  - Guia `docs/52_scasest_alert_drill.md`.
+
+- ID: TM-058
+- Objetivo: Exponer scorecard global de calidad IA clinica para seguimiento operativo rapido.
+- Alcance: agregar resumen unificado de auditorias (triaje/screening/medico-legal/SCASEST), endpoint API, metricas y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-055, TM-056, TM-057.
+- Evidencia:
+  - Servicio: `CareTaskService.get_quality_scorecard`.
+  - Endpoint: `GET /api/v1/care-tasks/quality/scorecard`.
+  - Metricas: `care_task_quality_audit_*` en `/metrics`.
+  - Pruebas:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `52 passed`.
+
+- ID: TM-059
+- Objetivo: Operativizar scorecard global con alertas y paneles de observabilidad.
+- Alcance: reglas Prometheus para calidad global, paneles Grafana y runbook de respuesta.
+- Agentes involucrados: orchestrator, devops-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-058.
+- Evidencia:
+  - Alertas en `ops/prometheus/alerts.yml`:
+    - `CareTaskQualityUnderRateHigh`
+    - `CareTaskQualityOverRateHigh`
+    - `CareTaskQualityMatchRateLow`
+  - Paneles en `ops/grafana/dashboards/task_manager_overview.json`:
+    - `Calidad Global Audit Total`
+    - `Calidad Global Under Rate %`
+    - `Calidad Global Over Rate %`
+    - `Calidad Global Match Rate %`
+  - Runbook: `docs/54_runbook_alertas_calidad_global.md`.
+
+- ID: TM-060
+- Objetivo: Facilitar drill reproducible para alertas de calidad global IA clinica.
+- Alcance: script CLI para generar escenarios `under`/`over`/`match-low` y guia operativa.
+- Agentes involucrados: orchestrator, qa-agent.
+- Estado: completado
+- Dependencias: TM-058, TM-059.
+- Evidencia:
+  - Script: `app/scripts/simulate_global_quality_alerts.py`.
+  - Validacion: `.\venv\Scripts\python.exe -m py_compile app/scripts/simulate_global_quality_alerts.py`.
+  - Guia: `docs/55_drill_alertas_calidad_global.md`.
+
+- ID: TM-061
+- Objetivo: Activar evaluacion continua con gate de calidad IA clinica en CI.
+- Alcance: suite de regresion controlada para scorecard global, runner dedicado y paso obligatorio en pipeline.
+- Agentes involucrados: orchestrator, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-058, TM-059, TM-060.
+- Evidencia:
+  - Test suite: `app/tests/test_quality_regression_gate.py`.
+  - Runner: `app/scripts/run_quality_gate.py`.
+  - CI gate: `.github/workflows/ci.yml` (paso `Gate de evaluacion continua`).
+  - Validacion local:
+    - `.\venv\Scripts\python.exe app\scripts\run_quality_gate.py`
+
+- ID: TM-062
+- Objetivo: Implementar soporte operativo de riesgo cardiovascular con auditoria y observabilidad.
+- Alcance: endpoint de recomendacion, auditoria IA vs humano, metricas Prometheus y reglas de alerta.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-061.
+- Evidencia:
+  - Endpoint: `POST /api/v1/care-tasks/{id}/cardio-risk/recommendation`.
+  - Auditoria: `POST/GET /api/v1/care-tasks/{id}/cardio-risk/audit` y `GET /summary`.
+  - Modelo y migracion: `care_task_cardio_risk_audit_logs`, `alembic/versions/b1f4a2c9d330_add_care_task_cardio_risk_audit_logs_table.py`.
+  - Metricas: `cardio_risk_support_*` y `cardio_risk_audit_*` en `/metrics`.
+  - Alertas: `CardioRiskAuditUnderRateHigh`, `CardioRiskAuditOverRateHigh` en `ops/prometheus/alerts.yml`.
+
+- ID: TM-063
+- Objetivo: Implementar soporte operativo de reanimacion (BLS/ACLS) con auditoria y observabilidad.
+- Alcance: endpoint de recomendacion, auditoria IA vs humano, metricas Prometheus y reglas de alerta.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-062.
+- Evidencia:
+  - Endpoint: `POST /api/v1/care-tasks/{id}/resuscitation/recommendation`.
+  - Auditoria: `POST/GET /api/v1/care-tasks/{id}/resuscitation/audit` y `GET /summary`.
+  - Modelo y migracion: `care_task_resuscitation_audit_logs`, `alembic/versions/c5e8a2f1d440_add_care_task_resuscitation_audit_logs_table.py`.
+  - Metricas: `resuscitation_protocol_*` y `resuscitation_audit_*` en `/metrics`.
+  - Alertas: `ResuscitationAuditUnderRateHigh`, `ResuscitationAuditOverRateHigh` en `ops/prometheus/alerts.yml`.
+  - Pruebas: `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py app/tests/test_quality_regression_gate.py` (`66 passed`).
+  - Migraciones: `.\venv\Scripts\python.exe -m alembic upgrade head` y `.\venv\Scripts\python.exe -m alembic current` (`c5e8a2f1d440 (head)`).
+  - Alertas Prometheus: `docker compose exec prometheus promtool check rules /etc/prometheus/alerts.yml` (`SUCCESS: 11 rules found`).
+
+- ID: TM-064
+- Objetivo: Operativizar alertas de reanimacion con drill reproducible, runbook y paneles Grafana.
+- Alcance: script de simulacion de auditorias, guias operativas y paneles de observabilidad.
+- Agentes involucrados: orchestrator, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-063.
+- Evidencia:
+  - Script: `app/scripts/simulate_resuscitation_alerts.py`.
+  - Runbook: `docs/59_runbook_alertas_reanimacion.md`.
+  - Drill: `docs/60_reanimacion_alert_drill.md`.
+  - Dashboard: `ops/grafana/dashboards/task_manager_overview.json`.
+  - Validacion local: `python -m py_compile app/scripts/simulate_resuscitation_alerts.py` y `python -m ruff check app/scripts/simulate_resuscitation_alerts.py` (OK).
+  - Validacion dashboard: carga JSON de `ops/grafana/dashboards/task_manager_overview.json` (OK).
+  - Riesgo pendiente: falta revalidar `promtool check rules` con Docker Desktop activo (`docker compose exec prometheus promtool check rules /etc/prometheus/alerts.yml`).
+
+- ID: TM-065
+- Objetivo: Extender soporte de reanimacion al contexto obstetrico critico con recomendaciones operativas y trazabilidad.
+- Alcance: esquemas/servicio/API de resuscitation para embarazo, reglas especificas (DUL, regla 4-5 min, equipo obstetrico) y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-063, TM-064.
+- Evidencia:
+  - Schemas: `app/schemas/resuscitation_protocol.py` (campos obstetricos opcionales).
+  - Servicio: `app/services/resuscitation_protocol_service.py` (regla 4-5 min, DUL, magnesio, equipo obstetrico).
+  - Prueba nueva: `test_run_resuscitation_support_obstetric_critical_window_actions` en `app/tests/test_care_tasks_api.py`.
+  - Documentacion: `docs/58_motor_reanimacion_soporte_vital_urgencias.md`.
+  - Decision: `docs/decisions/ADR-0040-extension-obstetrica-reanimacion-operativa.md`.
+  - Contratos actualizados: `agents/shared/api_contract.md`, `agents/shared/data_contract.md`, `agents/shared/test_plan.md`, `agents/shared/deploy_notes.md`.
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/resuscitation_protocol.py app/services/resuscitation_protocol_service.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/resuscitation_protocol.py app/services/resuscitation_protocol_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k obstetric`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`65 passed`).
+
+- ID: TM-066
+- Objetivo: Integrar protocolo de terapia electrica en arritmias criticas dentro del motor de reanimacion.
+- Alcance: recomendaciones de cardioversion/desfibrilacion, energia por ritmo, sedoanalgesia peri-procedimiento y checklist de seguridad pre-descarga.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-063, TM-065.
+- Evidencia:
+  - Schemas: `app/schemas/resuscitation_protocol.py` (PAS/PAD opcionales + nuevos bloques de salida).
+  - Servicio: `app/services/resuscitation_protocol_service.py` (plan electrico, sedoanalgesia, checklist pre-descarga, alerta por presion de pulso estrecha).
+  - Prueba nueva: `test_run_resuscitation_support_recommends_synchronized_cardioversion` en `app/tests/test_care_tasks_api.py`.
+  - Documentacion: `docs/58_motor_reanimacion_soporte_vital_urgencias.md` y `docs/61_terapia_electrica_arritmias_criticas.md`.
+  - Decision: `docs/decisions/ADR-0041-terapia-electrica-arritmias-reanimacion.md`.
+  - Contratos actualizados: `agents/shared/api_contract.md`, `agents/shared/data_contract.md`, `agents/shared/test_plan.md`, `agents/shared/deploy_notes.md`.
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/resuscitation_protocol.py app/services/resuscitation_protocol_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/resuscitation_protocol.py app/services/resuscitation_protocol_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k cardioversion`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`66 passed`).
+
+- ID: TM-067
+- Objetivo: Integrar soporte bioetico pediatrico para conflicto entre autonomia parental y preservacion de la vida en urgencias.
+- Alcance: ampliacion del motor medico-legal con reglas de menor en riesgo vital, rechazo de transfusion por representantes y activacion de deber de proteccion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-050, TM-051.
+- Evidencia:
+  - Schema: `app/schemas/medicolegal_ops.py` (campos de conflicto bioetico pediatrico).
+  - Servicio: `app/services/medicolegal_ops_service.py` (interes superior del menor, desamparo legal, estado de necesidad terapeutica).
+  - Prueba nueva: `test_run_medicolegal_ops_pediatric_life_saving_conflict_prioritizes_protection` en `app/tests/test_care_tasks_api.py`.
+  - Documentacion: `docs/45_motor_medico_legal_urgencias.md` y `docs/62_bioetica_pediatrica_conflicto_autonomia_vida.md`.
+  - Decision: `docs/decisions/ADR-0042-soporte-bioetico-pediatrico-medicolegal.md`.
+  - Contratos actualizados: `agents/shared/api_contract.md`, `agents/shared/data_contract.md`, `agents/shared/test_plan.md`, `agents/shared/deploy_notes.md`.
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/medicolegal_ops.py app/services/medicolegal_ops_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/medicolegal_ops.py app/services/medicolegal_ops_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pediatric_life_saving_conflict`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`67 passed`).
+
+- ID: TM-068
+- Objetivo: Estructurar fundamento etico-legal explicito en soporte medico-legal pediatrico de urgencias.
+- Alcance: ampliar salida de recomendacion con decision de override vital, bases de justificacion y urgencia operativa para trazabilidad clinico-juridica.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-067.
+- Evidencia:
+  - Schema: `app/schemas/medicolegal_ops.py` (`life_preserving_override_recommended`, `ethical_legal_basis`, `urgency_summary`).
+  - Servicio: `app/services/medicolegal_ops_service.py` (decision de override vital, fundamento etico-legal estructurado y resumen operativo de urgencia).
+  - Pruebas actualizadas: `app/tests/test_care_tasks_api.py` (caso base y conflicto pediatrico vital con aserciones de nuevas salidas).
+  - Documentacion: `docs/45_motor_medico_legal_urgencias.md`, `docs/62_bioetica_pediatrica_conflicto_autonomia_vida.md`, `docs/01_current_state.md`.
+  - Decision: `docs/decisions/ADR-0043-fundamento-etico-legal-estructurado-medicolegal.md`.
+  - Contratos actualizados: `agents/shared/api_contract.md`, `agents/shared/data_contract.md`, `agents/shared/deploy_notes.md`, `agents/shared/test_plan.md`.
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/medicolegal_ops.py app/services/medicolegal_ops_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/medicolegal_ops.py app/services/medicolegal_ops_service.py app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pediatric_life_saving_conflict`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`67 passed`).
+  - Riesgos pendientes identificados:
+    - El fundamento etico-legal es soporte operativo y no sustituye validacion de asesoria juridica institucional.
+    - Persisten diferencias regulatorias por jurisdiccion; revisar despliegue real antes de uso asistencial.
+
+- ID: TM-069
+- Objetivo: Integrar soporte de diagnostico diferencial operativo para pitiriasis (versicolor, rosada y alba) con red flags de seguridad.
+- Alcance: nuevo endpoint por CareTask, motor de reglas interpretables, traza de AgentRun y metricas operativas para observabilidad.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-044, TM-068.
+- Evidencia:
+  - Schema: `app/schemas/pityriasis_protocol.py`.
+  - Servicio: `app/services/pityriasis_protocol_service.py` (clasificacion versicolor/rosada/alba y red flags).
+  - Workflow: `AgentRunService.run_pityriasis_differential_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/pityriasis-differential/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `pityriasis_differential_runs_total`, `pityriasis_differential_runs_completed_total`, `pityriasis_differential_red_flags_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_pityriasis_differential_returns_recommendation_and_trace`
+    - `test_run_pityriasis_differential_detects_red_flags`
+    - `test_run_pityriasis_differential_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_pityriasis_differential_metrics`
+  - Documentacion:
+    - `docs/63_motor_diferencial_pitiriasis_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0044-soporte-diferencial-pitiriasis-operativo.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/pityriasis_protocol.py app/services/pityriasis_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/pityriasis_protocol.py app/services/pityriasis_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pityriasis_differential`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k pityriasis_differential`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`71 passed`).
+  - Riesgos pendientes identificados:
+    - El motor es de soporte operativo y no sustituye diagnostico dermatologico presencial.
+    - Los umbrales de reglas requieren validacion clinica local para minimizar falsos positivos/negativos.
+
+- ID: TM-070
+- Objetivo: Integrar soporte operativo diferencial para acne y rosacea con escalado terapeutico y seguridad farmacologica.
+- Alcance: nuevo endpoint por CareTask, reglas interpretables de clasificacion/acceso terapeutico, checklist de monitorizacion de isotretinoina, trazas y metricas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-069.
+- Evidencia:
+  - Schema: `app/schemas/acne_rosacea_protocol.py`.
+  - Servicio: `app/services/acne_rosacea_protocol_service.py` (diferencial acne/rosacea, severidad y red flags).
+  - Workflow: `AgentRunService.run_acne_rosacea_differential_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/acne-rosacea/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `acne_rosacea_differential_runs_total`, `acne_rosacea_differential_runs_completed_total`, `acne_rosacea_differential_red_flags_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_acne_rosacea_differential_returns_recommendation_and_trace`
+    - `test_run_acne_rosacea_differential_detects_fulminans_red_flag`
+    - `test_run_acne_rosacea_differential_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_acne_rosacea_differential_metrics`
+  - Documentacion:
+    - `docs/64_motor_diferencial_acne_rosacea_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0045-soporte-diferencial-acne-rosacea-operativo.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/acne_rosacea_protocol.py app/services/acne_rosacea_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/acne_rosacea_protocol.py app/services/acne_rosacea_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k acne_rosacea_differential`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k acne_rosacea_differential`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`75 passed`).
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza diagnostico dermatologico presencial.
+    - El checklist de isotretinoina no sustituye protocolos institucionales de farmacovigilancia.
+
+- ID: TM-070-QA-VERIF
+- Objetivo: Verificar cierre real de TM-070 con evidencia ejecutada en entorno local actual.
+- Alcance: comprobacion de artefactos declarados + regresion focalizada y ampliada de API/metricas.
+- Agentes involucrados: orchestrator, qa-agent.
+- Estado: completado
+- Dependencias: TM-070.
+- Evidencia:
+  - Artefactos verificados:
+    - `app/schemas/acne_rosacea_protocol.py`
+    - `app/services/acne_rosacea_protocol_service.py`
+    - `app/services/agent_run_service.py`
+    - `app/api/care_tasks.py`
+    - `app/metrics/agent_metrics.py`
+    - `docs/64_motor_diferencial_acne_rosacea_urgencias.md`
+    - `docs/decisions/ADR-0045-soporte-diferencial-acne-rosacea-operativo.md`
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Pruebas ejecutadas:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k acne_rosacea_differential` (`3 passed`)
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k acne_rosacea_differential` (`1 passed`)
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`75 passed`)
+  - Riesgos pendientes identificados:
+    - Se mantiene el riesgo clinico ya declarado en TM-070: motor de soporte, no sustituto de diagnostico presencial.
+    - Se mantiene el riesgo operativo ya declarado en TM-070: checklist de isotretinoina no reemplaza farmacovigilancia institucional.
+
+- ID: TM-071
+- Objetivo: Integrar soporte operativo de trauma con curva trimodal, via aerea critica y riesgos sistémicos.
+- Alcance: nuevo endpoint por CareTask, reglas interpretables de trauma (trimodal/laringe/medula/aplastamiento/extremos de vida/hipotermia/Gustilo), trazas y metricas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-063, TM-065, TM-070.
+- Evidencia:
+  - Schema: `app/schemas/trauma_support_protocol.py`.
+  - Servicio: `app/services/trauma_support_protocol_service.py` (curva trimodal, TECLA/TICLA, triada laringea, sindromes medulares, aplastamiento, hipotermia, Gustilo).
+  - Workflow: `AgentRunService.run_trauma_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/trauma/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `trauma_support_runs_total`, `trauma_support_runs_completed_total`, `trauma_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_trauma_support_returns_recommendation_and_trace`
+    - `test_run_trauma_support_detects_crush_risk_and_serial_ecg_requirement`
+    - `test_run_trauma_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_trauma_support_metrics`
+  - Documentacion:
+    - `docs/65_motor_trauma_urgencias_trimodal.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0046-soporte-operativo-trauma-trimodal.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m ruff check app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/schemas/__init__.py app/services/__init__.py app/schemas/trauma_support_protocol.py app/services/trauma_support_protocol_service.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `$env:COVERAGE_FILE='.coverage.trauma_tmp'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py -k trauma_support`
+    - Resultado: `4 passed`.
+  - Riesgos pendientes identificados:
+    - El motor de trauma es soporte operativo y no reemplaza protocolos institucionales de trauma mayor ni juicio clinico presencial.
+    - Los umbrales y desencadenantes deben calibrarse por centro para minimizar sobre-alerta o infra-alerta.
+
+- ID: TM-072
+- Objetivo: Estructurar matriz clinica de trauma con diagnostico/tratamiento/fuente para consumo operativo.
+- Alcance: ampliar contrato de trauma con `condition_matrix[]` y reglas de activacion para politrauma, choque hemorragico, neumotorax a tension, taponamiento, TCE, sindrome compartimental y quemaduras.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-071.
+- Evidencia:
+  - Schema ampliado: `app/schemas/trauma_support_protocol.py` (`TraumaConditionCard`, `condition_matrix`).
+  - Servicio ampliado: `app/services/trauma_support_protocol_service.py` (cards estructuradas por condicion y fuente `CCM 2025 - Especialidad Urgencias`).
+  - Prueba nueva:
+    - `test_run_trauma_support_detects_tension_pneumothorax_and_tamponade`.
+  - Prueba actualizada:
+    - `test_run_trauma_support_returns_recommendation_and_trace` (validacion de `condition_matrix[0].source`).
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/test_plan.md`
+    - `agents/shared/deploy_notes.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/trauma_support_protocol.py app/services/trauma_support_protocol_service.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py`
+    - `$env:COVERAGE_FILE='.coverage.trauma_matrix_tmp'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py -k trauma_support`
+    - Resultado: `5 passed`.
+  - Riesgos pendientes identificados:
+    - La matriz es soporte informativo-operativo y no sustituye guias locales ni criterio del equipo de trauma.
+    - La presencia de signos aislados puede inducir sobre-clasificacion; requiere calibracion por centro.
+
+- ID: TM-073
+- Objetivo: Integrar soporte operativo critico transversal para SLA, soporte respiratorio, anafilaxia, toxicologia y banderas rojas de urgencias.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (tiempos operativos, decision de dispositivos, ruta dolor toracico/TEP, shock hemodinamico, antidotos, red flags), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-063, TM-071, TM-072.
+- Evidencia:
+  - Schema: `app/schemas/critical_ops_protocol.py`.
+  - Servicio: `app/services/critical_ops_protocol_service.py` (SLA, soporte respiratorio, ruta TEP, anafilaxia, hemodinamica, toxicologia, red flags).
+  - Workflow: `AgentRunService.run_critical_ops_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/critical-ops/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `critical_ops_support_runs_total`, `critical_ops_support_runs_completed_total`, `critical_ops_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_critical_ops_support_returns_recommendation_and_trace`
+    - `test_run_critical_ops_support_detects_sla_breaches_and_red_flags`
+    - `test_run_critical_ops_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_critical_ops_support_metrics`
+  - Documentacion:
+    - `docs/66_motor_operativo_critico_transversal_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0047-soporte-operativo-critico-transversal.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/critical_ops_protocol.py app/services/critical_ops_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/critical_ops_protocol.py app/services/critical_ops_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k critical_ops`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k critical_ops`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`84 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no sustituye diagnostico ni protocolos institucionales locales.
+    - Los umbrales de disparo hemodinamicos/toxicologicos deben calibrarse por centro para evitar sobre-alerta.
+
+- ID: TM-074
+- Objetivo: Integrar soporte operativo neurologico para triaje vascular, diferenciales criticos y seguridad terapeutica.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (HSA/ictus, parkinsonismos, SGB, miastenia, anti-NMDA, biomarcadores y mielopatia), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-063, TM-073.
+- Evidencia:
+  - Schema: `app/schemas/neurology_support_protocol.py`.
+  - Servicio: `app/services/neurology_support_protocol_service.py` (HSA/HSA perimesencefalica, codigo ictus con perfusion/penumbra, diferenciales neurologicos, seguridad en SGB y rutas autoinmunes).
+  - Workflow: `AgentRunService.run_neurology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/neurology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `neurology_support_runs_total`, `neurology_support_runs_completed_total`, `neurology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_neurology_support_returns_recommendation_and_trace`
+    - `test_run_neurology_support_detects_contraindications_and_nmda_pattern`
+    - `test_run_neurology_support_prioritizes_wakeup_pathway`
+    - `test_run_neurology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_neurology_support_metrics`
+  - Documentacion:
+    - `docs/67_motor_operativo_neurologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0048-soporte-operativo-neurologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/neurology_support_protocol.py app/services/neurology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/neurology_support_protocol.py app/services/neurology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k neurology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k neurology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`89 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza diagnostico neurologico/neuroquirurgico presencial.
+    - Los umbrales de activacion (HSA/ictus/parkinsonismos autoinmunes) requieren calibracion y validacion local por centro.
+    - La disponibilidad de TAC perfusion/angiografia/LCR condiciona la aplicabilidad de algunas recomendaciones.
+
+- ID: TM-075
+- Objetivo: Integrar soporte operativo gastro-hepato para urgencias vasculares, abdomen agudo y decisiones quirurgicas iniciales.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (trombosis portal, HDA cirrotico, gas portal/neumatosis, Courvoisier, diverticulitis, hernia crural, criterios quirurgicos, seguridad farmacologica EII, ERGE/PAF), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-073, TM-074.
+- Evidencia:
+  - Schema: `app/schemas/gastro_hepato_support_protocol.py`.
+  - Servicio: `app/services/gastro_hepato_support_protocol_service.py` (trombosis portal, HDA cirrotico, red flags de imagen, decisiones quirurgicas, seguridad EII y soporte funcional/genetico).
+  - Workflow: `AgentRunService.run_gastro_hepato_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/gastro-hepato/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `gastro_hepato_support_runs_total`, `gastro_hepato_support_runs_completed_total`, `gastro_hepato_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_gastro_hepato_support_returns_recommendation_and_trace`
+    - `test_run_gastro_hepato_support_flags_surgery_and_pharmacology`
+    - `test_run_gastro_hepato_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_gastro_hepato_support_metrics`
+  - Documentacion:
+    - `docs/68_motor_operativo_gastro_hepato_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0049-soporte-operativo-gastro-hepato-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/gastro_hepato_support_protocol.py app/services/gastro_hepato_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/gastro_hepato_support_protocol.py app/services/gastro_hepato_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k gastro_hepato_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k gastro_hepato_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`93 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza decision de digestivo/cirugia.
+    - Los umbrales de activacion para HDA/isquemia/decision quirurgica requieren calibracion local.
+    - La aplicabilidad depende de disponibilidad local de Doppler, TAC y endoscopia urgente.
+
+- ID: TM-076
+- Objetivo: Integrar soporte operativo reuma-inmuno para triaje de riesgo vital, decision diagnostica y seguridad materno-fetal.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (TEP en LES, isquemia digital en esclerosis, arteritis temporal, miopatias inflamatorias, Behcet, pseudo-gota, espondiloartropatias, lupus neonatal, IgG4/SAF), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-073, TM-074, TM-075.
+- Evidencia:
+  - Schema: `app/schemas/rheum_immuno_support_protocol.py`.
+  - Servicio: `app/services/rheum_immuno_support_protocol_service.py` (TEP en LES, isquemia digital, arteritis temporal, miopatias inflamatorias, Behcet, pseudo-gota, espondiloartropatias, seguridad materno-fetal e IgG4/SAF).
+  - Workflow: `AgentRunService.run_rheum_immuno_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/rheum-immuno/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `rheum_immuno_support_runs_total`, `rheum_immuno_support_runs_completed_total`, `rheum_immuno_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_rheum_immuno_support_returns_recommendation_and_trace`
+    - `test_run_rheum_immuno_support_flags_safety_maternal_and_data_domains`
+    - `test_run_rheum_immuno_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_rheum_immuno_support_metrics`
+  - Documentacion:
+    - `docs/69_motor_operativo_reuma_inmuno_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0050-soporte-operativo-reuma-inmuno-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/rheum_immuno_support_protocol.py app/services/rheum_immuno_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/rheum_immuno_support_protocol.py app/services/rheum_immuno_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k rheum_immuno_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k rheum_immuno_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`97 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza evaluacion reumatologica/inmunologica presencial.
+    - La regla de exclusion de arteritis temporal por VSG normal es operativa y requiere correlacion clinica local.
+    - La disponibilidad de ecocardiografia fetal, imagen articular y laboratorios condiciona aplicabilidad de algunas recomendaciones.
+
+- ID: TM-077
+- Objetivo: Integrar soporte operativo de psiquiatria para urgencias con triaje temporal, riesgo suicida infanto-juvenil y seguridad farmacologica en poblaciones especiales.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (estres agudo/TEPT/adaptativo, riesgo suicida adolescente, pronostico psicosis, bipolaridad en embarazo, insomnio geriatrico, anorexia y mecanismos de defensa), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-073, TM-074, TM-076.
+- Evidencia:
+  - Schema: `app/schemas/psychiatry_support_protocol.py`.
+  - Servicio: `app/services/psychiatry_support_protocol_service.py` (triage temporal estres/TEPT, riesgo suicida infanto-juvenil, pronostico en psicosis, seguridad farmacologica en embarazo/geriatria y alertas internistas de TCA).
+  - Workflow: `AgentRunService.run_psychiatry_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/psychiatry/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `psychiatry_support_runs_total`, `psychiatry_support_runs_completed_total`, `psychiatry_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_psychiatry_support_returns_recommendation_and_trace`
+    - `test_run_psychiatry_support_enforces_elderly_insomnia_safety_flow`
+    - `test_run_psychiatry_support_flags_pregnancy_and_metabolic_risk`
+    - `test_run_psychiatry_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_psychiatry_support_metrics`
+  - Documentacion:
+    - `docs/70_motor_operativo_psiquiatria_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0051-soporte-operativo-psiquiatria-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/psychiatry_support_protocol.py app/services/psychiatry_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/psychiatry_support_protocol.py app/services/psychiatry_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k psychiatry_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k psychiatry_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`102 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion psiquiatrica presencial.
+    - La priorizacion temporal estres agudo/TEPT requiere calibracion local con protocolo institucional.
+    - La orientacion psicodinamica en trastorno delirante es cualitativa y no sustituye entrevista clinica estructurada.
+
+- ID: TM-078
+- Objetivo: Integrar soporte operativo de hematologia para urgencias con foco en microangiopatias tromboticas, sangrado critico y seguridad postquirurgica.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (MAT/SHU/TIH, hemofilia con inhibidores, diferenciales de linfoma, anemia de Fanconi, seguridad en esplenectomia y quimerismo post-trasplante), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-075, TM-076, TM-077.
+- Evidencia:
+  - Schema: `app/schemas/hematology_support_protocol.py`.
+  - Servicio: `app/services/hematology_support_protocol_service.py` (MAT/SHU/TIH, hemofilia con inhibidores, seguridad en esplenectomia y soporte onco-hematologico).
+  - Workflow: `AgentRunService.run_hematology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/hematology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `hematology_support_runs_total`, `hematology_support_runs_completed_total`, `hematology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_hematology_support_returns_recommendation_and_trace`
+    - `test_run_hematology_support_flags_hemophilia_and_splenectomy_safety`
+    - `test_run_hematology_support_flags_oncology_fanconi_and_transplant`
+    - `test_run_hematology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_hematology_support_metrics`
+  - Documentacion:
+    - `docs/71_motor_operativo_hematologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0052-soporte-operativo-hematologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/hematology_support_protocol.py app/services/hematology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/hematology_support_protocol.py app/services/hematology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k hematology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k hematology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`107 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza evaluacion hematologica presencial.
+    - Las decisiones terapeuticas definitivas en MAT/TIH/hemofilia dependen de protocolo y recursos locales.
+    - La clasificacion de linfoma es de apoyo y no sustituye biopsia/anatomia patologica.
+
+- ID: TM-079
+- Objetivo: Integrar soporte operativo de endocrinologia y metabolismo para urgencias con foco en emergencias bioquimicas, tiroides, hipofisis, suprarrenal y diabetes.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (errores innatos del metabolismo, SIADH, hiperprolactinemia, crisis suprarrenal, incidentaloma suprarrenal y seleccion farmacologica diabetologica), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-078.
+- Evidencia:
+  - Schema: `app/schemas/endocrinology_support_protocol.py`.
+  - Servicio: `app/services/endocrinology_support_protocol_service.py` (hipoglucemia hipocetosica, SIADH, CMT, incidentaloma suprarrenal, DM1 y seguridad farmacologica).
+  - Workflow: `AgentRunService.run_endocrinology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/endocrinology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `endocrinology_support_runs_total`, `endocrinology_support_runs_completed_total`, `endocrinology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_endocrinology_support_returns_recommendation_and_trace`
+    - `test_run_endocrinology_support_flags_thyroid_and_siadh_safety`
+    - `test_run_endocrinology_support_flags_diabetes_and_confounders`
+    - `test_run_endocrinology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_endocrinology_support_metrics`
+  - Documentacion:
+    - `docs/72_motor_operativo_endocrinologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0053-soporte-operativo-endocrinologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/endocrinology_support_protocol.py app/services/endocrinology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/endocrinology_support_protocol.py app/services/endocrinology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k endocrinology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k endocrinology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`112 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza evaluacion endocrinologica presencial.
+    - Los umbrales de SIADH/hipoglucemia e interpretacion de incidentaloma requieren ajuste por protocolo local.
+    - La seleccion farmacologica en diabetes debe individualizarse por comorbilidades y contexto asistencial.
+
+- ID: TM-080
+- Objetivo: Integrar soporte operativo de nefrologia para urgencias con foco en FRA, sindrome renopulmonar, equilibrio acido-base y criterios de dialisis urgente.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (clasificacion prerrenal/parenquimatosa/obstructiva, AEIOU, nefroproteccion con iSGLT2, glomerulopatias y seguridad farmacologica), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-079.
+- Evidencia:
+  - Schema: `app/schemas/nephrology_support_protocol.py`.
+  - Servicio: `app/services/nephrology_support_protocol_service.py` (FRA, sindrome renopulmonar, acido-base, AEIOU, iSGLT2 y seguridad RAAS).
+  - Workflow: `AgentRunService.run_nephrology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/nephrology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `nephrology_support_runs_total`, `nephrology_support_runs_completed_total`, `nephrology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_nephrology_support_returns_recommendation_and_trace`
+    - `test_run_nephrology_support_flags_acid_base_and_aeiou`
+    - `test_run_nephrology_support_flags_nephroprotection_and_interstitial_safety`
+    - `test_run_nephrology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_nephrology_support_metrics`
+  - Documentacion:
+    - `docs/73_motor_operativo_nefrologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Decision:
+    - `docs/decisions/ADR-0054-soporte-operativo-nefrologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/nephrology_support_protocol.py app/services/nephrology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/nephrology_support_protocol.py app/services/nephrology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k nephrology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k nephrology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`117 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza evaluacion nefrologica presencial.
+    - La indicacion final de plasmaferesis/dialisis depende de protocolo y recursos locales.
+    - La clasificacion del FRA requiere correlacion clinica y no debe usarse de forma aislada.
+
+- ID: TM-081
+- Objetivo: Integrar soporte operativo de neumologia para urgencias con foco en diferenciales por imagen, fisiologia ventilatoria, EPOC/asma grave y seguridad de decision intervencionista.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (NOC y diferenciales, control ventilatorio, escalado GOLD, biologicos en asma, LBA y riesgo quirurgico por VO2 max), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-080.
+- Evidencia:
+  - Schema: `app/schemas/pneumology_support_protocol.py`.
+  - Servicio: `app/services/pneumology_support_protocol_service.py` (NOC y diferenciales por TAC, control ventilatorio, escalado EPOC/asma biologica, LBA y seguridad por VO2 max).
+  - Workflow: `AgentRunService.run_pneumology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/pneumology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `pneumology_support_runs_total`, `pneumology_support_runs_completed_total`, `pneumology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_pneumology_support_returns_recommendation_and_trace`
+    - `test_run_pneumology_support_flags_safety_and_lba_context`
+    - `test_run_pneumology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_pneumology_support_metrics`
+  - Documentacion:
+    - `docs/74_motor_operativo_neumologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0055-soporte-operativo-neumologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/pneumology_support_protocol.py app/services/pneumology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/pneumology_support_protocol.py app/services/pneumology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pneumology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k pneumology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`121 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza evaluacion neumologica presencial.
+    - Las decisiones de lobectomia/radioterapia requieren comite local y funcionalismo completo.
+    - La seleccion de biologicos debe individualizarse por fenotipo y disponibilidad institucional.
+
+- ID: TM-082
+- Objetivo: Integrar soporte operativo de geriatria para urgencias con foco en fragilidad, inmovilidad, delirium y optimizacion farmacologica START v3.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (cambios morfologicos del envejecimiento, balance nitrogenado negativo, delirium infeccioso y alertas START), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-081.
+- Evidencia:
+  - Schema: `app/schemas/geriatrics_support_protocol.py`.
+  - Servicio: `app/services/geriatrics_support_protocol_service.py` (envejecimiento fisiologico, inmovilidad, delirium y START v3).
+  - Workflow: `AgentRunService.run_geriatrics_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/geriatrics/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `geriatrics_support_runs_total`, `geriatrics_support_runs_completed_total`, `geriatrics_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_geriatrics_support_returns_recommendation_and_trace`
+    - `test_run_geriatrics_support_flags_start_v3_and_tetanus_logic`
+    - `test_run_geriatrics_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_geriatrics_support_metrics`
+  - Documentacion:
+    - `docs/75_motor_operativo_geriatria_fragilidad_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0056-soporte-operativo-geriatria-fragilidad-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/geriatrics_support_protocol.py app/services/geriatrics_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/geriatrics_support_protocol.py app/services/geriatrics_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k geriatrics_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k geriatrics_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`125 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion geriatrica presencial.
+    - El bloqueo de benzodiacepinas en delirium exige excepciones protocolizadas por equipo tratante.
+    - La interpretacion de cambios morfologicos por edad requiere correlacion clinico-funcional.
+
+- ID: TM-083
+- Objetivo: Integrar soporte operativo de oncologia para urgencias con foco en inmuno-oncologia, toxicidades inmunomediadas, cardio-oncologia, neutropenia febril y respuesta en sarcomas.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (checkpoint inhibitors, biomarcadores dMMR/MSI, irAEs hepaticas, FEVI pre-tratamiento, criterios de neutropenia febril y necrosis post-neoadyuvancia), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-082.
+- Evidencia:
+  - Schema: `app/schemas/oncology_support_protocol.py`.
+  - Servicio: `app/services/oncology_support_protocol_service.py` (checkpoint inhibitors, dMMR/MSI-high, irAEs hepaticas, FEVI y neutropenia febril).
+  - Workflow: `AgentRunService.run_oncology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/oncology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `oncology_support_runs_total`, `oncology_support_runs_completed_total`, `oncology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_oncology_support_returns_recommendation_and_trace`
+    - `test_run_oncology_support_flags_cardio_and_sarcoma_branches`
+    - `test_run_oncology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_oncology_support_metrics`
+  - Documentacion:
+    - `docs/76_motor_operativo_oncologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0057-soporte-operativo-oncologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/oncology_support_protocol.py app/services/oncology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/oncology_support_protocol.py app/services/oncology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k oncology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k oncology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`129 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion oncologica presencial.
+    - La gestion de irAEs requiere protocolos institucionales para escalado de inmunosupresion.
+    - La decision final en neutropenia febril y cardio-oncologia depende de recursos locales y contexto clinico integral.
+
+- ID: TM-084
+- Objetivo: Integrar soporte operativo de anestesiologia y reanimacion para urgencias con foco en ISR y seleccion de bloqueos simpaticos por anatomia del dolor.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (indicaciones de ISR, SLAs de preoxigenacion/intubacion, alertas de seguridad de via aerea, via IV exclusiva y recomendacion de bloqueo del ganglio impar), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-083.
+- Evidencia:
+  - Schema: `app/schemas/anesthesiology_support_protocol.py`.
+  - Servicio: `app/services/anesthesiology_support_protocol_service.py` (ISR de emergencia, seguridad de via aerea y bloqueos simpaticos por anatomia del dolor).
+  - Workflow: `AgentRunService.run_anesthesiology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/anesthesiology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `anesthesiology_support_runs_total`, `anesthesiology_support_runs_completed_total`, `anesthesiology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_anesthesiology_support_returns_recommendation_and_trace`
+    - `test_run_anesthesiology_support_differential_blocks_and_safety`
+    - `test_run_anesthesiology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_anesthesiology_support_metrics`
+  - Documentacion:
+    - `docs/77_motor_operativo_anestesiologia_reanimacion_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0058-soporte-operativo-anestesiologia-reanimacion-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/anesthesiology_support_protocol.py app/services/anesthesiology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/anesthesiology_support_protocol.py app/services/anesthesiology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k anesthesiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k anesthesiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`133 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion anestesiologica presencial.
+    - La ejecucion de ISR y bloqueos intervencionistas depende de protocolo y recursos locales.
+    - La seleccion final del bloqueo requiere correlacion anatomica e imagen guiada por el equipo tratante.
+
+- ID: TM-085
+- Objetivo: Integrar soporte operativo de cuidados paliativos y paciente terminal para urgencias con foco en adecuacion terapeutica, seguridad opioide y delirium.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (rechazo vs adecuacion del esfuerzo, rutas de opioides en insuficiencia renal, dolor irruptivo, alerta de neurotoxicidad y decisiones de confort en demencia avanzada), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-084.
+- Evidencia:
+  - Schema: `app/schemas/palliative_support_protocol.py`.
+  - Servicio: `app/services/palliative_support_protocol_service.py` (decision etico-legal, seguridad opioide renal, confort en demencia avanzada y delirium).
+  - Workflow: `AgentRunService.run_palliative_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/palliative/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `palliative_support_runs_total`, `palliative_support_runs_completed_total`, `palliative_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_palliative_support_returns_recommendation_and_trace`
+    - `test_run_palliative_support_flags_ethical_and_delirium_logic`
+    - `test_run_palliative_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_palliative_support_metrics`
+  - Documentacion:
+    - `docs/78_motor_operativo_cuidados_paliativos_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0059-soporte-operativo-cuidados-paliativos-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/palliative_support_protocol.py app/services/palliative_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/palliative_support_protocol.py app/services/palliative_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k palliative_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k palliative_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`137 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion paliativa presencial.
+    - Las decisiones de final de vida requieren ajuste al marco normativo y protocolo local.
+    - La rotacion opioide y el manejo de delirium requieren seguimiento clinico estrecho.
+
+- ID: TM-086
+- Objetivo: Integrar soporte operativo de urologia para urgencias con foco en infeccion renal critica, obstruccion urinaria, trauma genital y onco-urologia.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (PFE, FRA obstructivo, bloqueo de sondaje en fractura de pene, nefrectomia parcial en rinon unico y estrategia sistemica en prostata metastasica), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-085.
+- Evidencia:
+  - Schema: `app/schemas/urology_support_protocol.py`.
+  - Servicio: `app/services/urology_support_protocol_service.py` (PFE, FRA obstructivo, trauma genital con bloqueo de sondaje y rutas onco-urologicas).
+  - Workflow: `AgentRunService.run_urology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/urology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `urology_support_runs_total`, `urology_support_runs_completed_total`, `urology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_urology_support_returns_recommendation_and_trace`
+    - `test_run_urology_support_prioritizes_diversion_and_triple_therapy_safety`
+    - `test_run_urology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_urology_support_metrics`
+  - Documentacion:
+    - `docs/79_motor_operativo_urologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0060-soporte-operativo-urologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/urology_support_protocol.py app/services/urology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/urology_support_protocol.py app/services/urology_support_protocol_service.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k urology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k urology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`141 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion urologica presencial.
+    - La priorizacion de derivacion y revision quirurgica requiere protocolo local y disponibilidad de recursos.
+    - La estrategia sistemica en prostata metastasica debe validarse en comite onco-urologico segun contexto institucional.
+
+- ID: TM-087
+- Objetivo: Integrar soporte operativo de reacciones por Anisakis simplex para urgencias con foco en deteccion de sospecha alergica y recomendaciones de prevencion al alta.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (latencia post-ingesta, urticaria/anafilaxia, solicitud de IgE especifica, riesgo por cocinado insuficiente y medidas termicas estandar), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-086.
+- Evidencia:
+  - Schema: `app/schemas/anisakis_support_protocol.py`.
+  - Servicio: `app/services/anisakis_support_protocol_service.py` (disparo de sospecha alergica, diferencial digestivo/alergico, solicitud de IgE y prevencion termica al alta).
+  - Workflow: `AgentRunService.run_anisakis_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/anisakis/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `anisakis_support_runs_total`, `anisakis_support_runs_completed_total`, `anisakis_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_anisakis_support_returns_recommendation_and_trace`
+    - `test_run_anisakis_support_handles_digestive_profile_without_anaphylaxis`
+    - `test_run_anisakis_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_anisakis_support_metrics`
+  - Documentacion:
+    - `docs/80_motor_operativo_anisakis_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0061-soporte-operativo-anisakis-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/anisakis_support_protocol.py app/services/anisakis_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/anisakis_support_protocol.py app/services/anisakis_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k anisakis_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k anisakis_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`145 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion clinica/alergologica presencial.
+    - La calidad del triaje depende de la trazabilidad real de ingesta, coccion y latencia sintomatica.
+    - Las acciones terapeuticas inmediatas deben ajustarse al protocolo local de anafilaxia.
+
+- ID: TM-088
+- Objetivo: Integrar soporte operativo de epidemiologia clinica para urgencias con foco en metricas de riesgo, NNT, inferencia causal y clasificacion economica.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (incidencia acumulada vs densidad, calculo NNT en tanto por uno, interpretacion condicional del RR causal, criterios de Bradford Hill y coste-utilidad por QALY), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-087.
+- Evidencia:
+  - Schema: `app/schemas/epidemiology_support_protocol.py`.
+  - Servicio: `app/services/epidemiology_support_protocol_service.py` (incidencia/prevalencia/densidad, NNT, RR causal condicional, Bradford Hill y coste-utilidad).
+  - Workflow: `AgentRunService.run_epidemiology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/epidemiology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `epidemiology_support_runs_total`, `epidemiology_support_runs_completed_total`, `epidemiology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_epidemiology_support_returns_recommendation_and_trace`
+    - `test_run_epidemiology_support_flags_rr_and_nnt_safety_blocks`
+    - `test_run_epidemiology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_epidemiology_support_metrics`
+  - Documentacion:
+    - `docs/81_motor_operativo_epidemiologia_clinica_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0062-soporte-operativo-epidemiologia-clinica-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/epidemiology_support_protocol.py app/services/epidemiology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/epidemiology_support_protocol.py app/services/epidemiology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k epidemiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k epidemiology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`149 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza analisis epidemiologico formal.
+    - La inferencia causal depende de validez metodologica y control de sesgos del estudio real.
+    - La interpretacion de coste-utilidad requiere contexto institucional de costos y utilidades.
+
+- ID: TM-089
+- Objetivo: Integrar soporte operativo de oftalmologia para urgencias con foco en triaje vascular retiniano, neuroftalmologia pupilar, superficie ocular, riesgo IFIS y clasificacion DMAE.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (OVCR/OACR por fondo de ojo, anisocoria simpatico/parasimpatico, reflejo aferente relativo, alerta farmacologica por tamsulosina e IFIS, y diferenciacion DMAE seca/humeda), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-088.
+- Evidencia:
+  - Schema: `app/schemas/ophthalmology_support_protocol.py`.
+  - Servicio: `app/services/ophthalmology_support_protocol_service.py` (triaje vascular OVCR/OACR, neuroftalmologia pupilar, superficie ocular, IFIS y DMAE).
+  - Workflow: `AgentRunService.run_ophthalmology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/ophthalmology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `ophthalmology_support_runs_total`, `ophthalmology_support_runs_completed_total`, `ophthalmology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_ophthalmology_support_returns_recommendation_and_trace`
+    - `test_run_ophthalmology_support_flags_neuro_and_anisocoria_logic`
+    - `test_run_ophthalmology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_ophthalmology_support_metrics`
+  - Documentacion:
+    - `docs/82_motor_operativo_oftalmologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0063-soporte-operativo-oftalmologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/ophthalmology_support_protocol.py app/services/ophthalmology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/ophthalmology_support_protocol.py app/services/ophthalmology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k ophthalmology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k ophthalmology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`153 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion oftalmologica presencial.
+    - La regla OVCR/OACR depende de calidad descriptiva del fondo de ojo reportado en urgencias.
+    - El endpoint no sustituye protocolizacion institucional de anti-VEGF, antiarritmicos o ruta neurovascular.
+
+- ID: TM-090
+- Objetivo: Integrar soporte operativo de inmunologia para urgencias con foco en inmunodeficiencias humorales, defensa innata pulmonar y diferencial Bruton/IgA/Hiper-IgM/CVID.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (perfil BTK/X-linked, ausencia CD19/CD20, patron de inmunoglobulinas, ventana de IgG materna, rol de macrofago alveolar y diferenciales humorales), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-089.
+- Evidencia:
+  - Schema: `app/schemas/immunology_support_protocol.py`.
+  - Servicio: `app/services/immunology_support_protocol_service.py` (Bruton/BTK, defensa innata pulmonar y diferenciales humorales).
+  - Workflow: `AgentRunService.run_immunology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/immunology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `immunology_support_runs_total`, `immunology_support_runs_completed_total`, `immunology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_immunology_support_returns_recommendation_and_trace`
+    - `test_run_immunology_support_differential_profiles_and_safety_blocks`
+    - `test_run_immunology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_immunology_support_metrics`
+  - Documentacion:
+    - `docs/83_motor_operativo_inmunologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0064-soporte-operativo-inmunologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/immunology_support_protocol.py app/services/immunology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/immunology_support_protocol.py app/services/immunology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/services/agent_run_service.py app/api/care_tasks.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k immunology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k immunology_support`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`157 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion inmunologica presencial.
+    - La calidad del triaje depende de disponibilidad y consistencia del perfil inmunologico de entrada.
+    - El endpoint no sustituye protocolizacion institucional de inmunoglobulinas y manejo infeccioso.
+
+- ID: TM-091
+- Objetivo: Integrar soporte operativo de recurrencia genetica en osteogenesis imperfecta para priorizar alerta de mosaicismo germinal.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (dominancia COL1A1/COL1A2, recurrencia en progenitores sanos, descarte de de novo aislado, diferencial recesivo/penetrancia y trazabilidad de riesgo por fraccion germinal mutada), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-090.
+- Evidencia:
+  - Schema: `app/schemas/genetic_recurrence_support_protocol.py`.
+  - Servicio: `app/services/genetic_recurrence_support_protocol_service.py` (priorizacion de mosaicismo germinal en recurrencia dominante y bloqueos de consistencia).
+  - Workflow: `AgentRunService.run_genetic_recurrence_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/genetic-recurrence/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `genetic_recurrence_support_runs_total`, `genetic_recurrence_support_runs_completed_total`, `genetic_recurrence_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_genetic_recurrence_support_returns_recommendation_and_trace`
+    - `test_run_genetic_recurrence_support_handles_mosaicism_fraction_and_consistency`
+    - `test_run_genetic_recurrence_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_genetic_recurrence_support_metrics`
+  - Documentacion:
+    - `docs/84_motor_operativo_recurrencia_genetica_oi_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0065-soporte-operativo-recurrencia-genetica-oi-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/genetic_recurrence_support_protocol.py app/services/genetic_recurrence_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/genetic_recurrence_support_protocol.py app/services/genetic_recurrence_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k genetic_recurrence`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k genetic_recurrence`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`161 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza diagnostico genetico formal.
+    - La estimacion de riesgo de recurrencia depende de calidad de datos moleculares y contexto familiar.
+    - La decision final requiere validacion por genetica clinica y obstetricia.
+
+- ID: TM-092
+- Objetivo: Integrar soporte operativo de ginecologia y obstetricia para urgencias con foco en oncogenetica hereditaria, ectopico, preeclampsia severa y seguridad farmacologica.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (Lynch/Amsterdam II, embarazo ectopico y ruptura, datacion CRL/CIR/STFF, varicela gestacional, preeclampsia posparto grave, anticoncepcion/diabetes gestacional y bloqueo de diureticos en linfedema cronico), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-091.
+- Evidencia:
+  - Schema: `app/schemas/gynecology_obstetrics_support_protocol.py`.
+  - Servicio: `app/services/gynecology_obstetrics_support_protocol_service.py` (oncogenetica hereditaria, ectopico/rotura, datacion obstetrica y bloqueos de seguridad terapeutica).
+  - Workflow: `AgentRunService.run_gynecology_obstetrics_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/gynecology-obstetrics/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `gynecology_obstetrics_support_runs_total`, `gynecology_obstetrics_support_runs_completed_total`, `gynecology_obstetrics_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_gynecology_obstetrics_support_returns_recommendation_and_trace`
+    - `test_run_gynecology_obstetrics_support_blocks_unsafe_pharmacology`
+    - `test_run_gynecology_obstetrics_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_gynecology_obstetrics_support_metrics`
+  - Documentacion:
+    - `docs/85_motor_operativo_ginecologia_obstetricia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0066-soporte-operativo-ginecologia-obstetricia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/gynecology_obstetrics_support_protocol.py app/services/gynecology_obstetrics_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/gynecology_obstetrics_support_protocol.py app/services/gynecology_obstetrics_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k gynecology_obstetrics`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k gynecology_obstetrics`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`165 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion ginecologica/obstetrica presencial.
+    - El rendimiento del triaje depende de calidad de la ecografia y antecedentes familiares registrados.
+    - Las decisiones de alto impacto (preeclampsia grave, ectopico roto, profilaxis infecciosa) requieren validacion humana obligatoria y protocolo local.
+
+- ID: TM-093
+- Objetivo: Integrar soporte operativo de pediatria y neonatologia para urgencias con foco en sarampion, reanimacion neonatal, tosferina, invaginacion y sifilis congenita.
+- Alcance: nuevo endpoint por CareTask con reglas interpretables (triada de sarampion y Koplik, validacion vacunal por edad, aislamiento respiratorio, objetivos SatO2 neonatal por minuto y CPAP 21%, profilaxis de contactos de tosferina, alertas de invaginacion y estigmas tardios de sifilis congenita), trazas de AgentRun y metricas operativas.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-092.
+- Evidencia:
+  - Schema: `app/schemas/pediatrics_neonatology_support_protocol.py`.
+  - Servicio: `app/services/pediatrics_neonatology_support_protocol_service.py` (sarampion, reanimacion neonatal, tosferina, invaginacion y sifilis congenita tardia).
+  - Workflow: `AgentRunService.run_pediatrics_neonatology_support_workflow` en `app/services/agent_run_service.py`.
+  - Endpoint: `POST /api/v1/care-tasks/{id}/pediatrics-neonatology/recommendation` en `app/api/care_tasks.py`.
+  - Metricas: `pediatrics_neonatology_support_runs_total`, `pediatrics_neonatology_support_runs_completed_total`, `pediatrics_neonatology_support_critical_alerts_total` en `app/metrics/agent_metrics.py`.
+  - Pruebas nuevas:
+    - `test_run_pediatrics_neonatology_support_returns_recommendation_and_trace`
+    - `test_run_pediatrics_neonatology_support_flags_critical_branches`
+    - `test_run_pediatrics_neonatology_support_returns_404_when_task_not_found`
+    - `test_metrics_endpoint_contains_pediatrics_neonatology_support_metrics`
+  - Documentacion:
+    - `docs/86_motor_operativo_pediatria_neonatologia_urgencias.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0067-soporte-operativo-pediatria-neonatologia-urgencias.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/schemas/pediatrics_neonatology_support_protocol.py app/services/pediatrics_neonatology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/schemas/pediatrics_neonatology_support_protocol.py app/services/pediatrics_neonatology_support_protocol_service.py app/schemas/__init__.py app/services/__init__.py app/api/care_tasks.py app/services/agent_run_service.py app/metrics/agent_metrics.py app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k pediatrics_neonatology`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_metrics_endpoint.py -k pediatrics_neonatology`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py app/tests/test_metrics_endpoint.py` (`169 passed`)
+  - Riesgos pendientes identificados:
+    - El motor es soporte operativo y no reemplaza valoracion pediatrica/neonatal presencial.
+    - La calidad del triaje depende de la consistencia temporal de signos y saturaciones registradas.
+    - Las decisiones de aislamiento, reanimacion y urgencia quirurgica requieren validacion humana obligatoria y protocolo local.
+
+- ID: TM-094
+- Objetivo: Integrar chat clinico-operativo persistente para profesionales sobre `CareTask` con memoria de sesion y trazabilidad.
+- Alcance: nuevos endpoints de chat (`POST/GET /care-tasks/{id}/chat/*`), nueva tabla de memoria conversacional, workflow trazable en `agent_runs/agent_steps`, pruebas API y documentacion/contratos.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-093.
+- Evidencia:
+  - Modelo: `app/models/care_task_chat_message.py`.
+  - Migracion: `alembic/versions/d4f6a9c8e221_add_care_task_chat_messages_table.py`.
+  - Schema: `app/schemas/clinical_chat.py`.
+  - Servicio: `app/services/clinical_chat_service.py`.
+  - Workflow: `AgentRunService.run_care_task_clinical_chat_workflow` en `app/services/agent_run_service.py`.
+  - Endpoints:
+    - `POST /api/v1/care-tasks/{id}/chat/messages`
+    - `GET /api/v1/care-tasks/{id}/chat/messages`
+    - `GET /api/v1/care-tasks/{id}/chat/memory`
+  - Pruebas nuevas:
+    - `test_create_care_task_chat_message_persists_message_and_trace`
+    - `test_list_care_task_chat_messages_and_memory_summary`
+    - `test_create_care_task_chat_message_returns_404_when_task_not_found`
+  - Documentacion:
+    - `docs/87_chat_clinico_operativo_profesional.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+    - `docs/05_roadmap.md`
+  - Decision:
+    - `docs/decisions/ADR-0068-chat-clinico-operativo-memory-caretask.md`
+  - Contratos actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/deploy_notes.md`
+    - `agents/shared/test_plan.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/models/care_task_chat_message.py app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/services/agent_run_service.py app/api/care_tasks.py app/tests/test_care_tasks_api.py alembic/versions/d4f6a9c8e221_add_care_task_chat_messages_table.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/models/care_task_chat_message.py app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/services/agent_run_service.py app/api/care_tasks.py app/tests/test_care_tasks_api.py alembic/versions/d4f6a9c8e221_add_care_task_chat_messages_table.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat_message` (`3 passed, 126 deselected`)
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py` (`129 passed`)
+    - `.\venv\Scripts\python.exe -m pytest -q` (`234 passed`)
+  - Riesgos pendientes identificados:
+    - El matching semantico inicial usa reglas por keywords y puede omitir sinonimos complejos.
+    - La memoria de sesion puede heredar ruido si se registran consultas ambiguas.
+    - El chat no diagnostica y requiere validacion clinica humana en cada decision.
+
+- ID: TM-095
+- Objetivo: Evolucionar chat clinico con modo por especialidad autenticada, contexto longitudinal por paciente y fuentes internas/web trazables.
+- Alcance: `auth`, `care_tasks`, `clinical_chat`, migracion Alembic, pruebas API y actualizacion documental/contratos.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-094.
+- Evidencia:
+  - Migracion: `alembic/versions/e8a1c4b7d552_add_chat_specialty_patient_context_fields.py`.
+  - Decision: `docs/decisions/ADR-0069-chat-clinico-especialidad-contexto-longitudinal-fuentes.md`.
+  - Modelo usuario:
+    - `users.specialty` en `app/models/user.py`.
+  - Modelo caso:
+    - `care_tasks.patient_reference` en `app/models/care_task.py`.
+  - Modelo chat:
+    - `effective_specialty`, `knowledge_sources`, `web_sources`, `patient_history_facts_used` en `app/models/care_task_chat_message.py`.
+  - Endpoint/auth:
+    - Chat de `care-tasks` ahora requiere usuario autenticado y usa especialidad de credencial por defecto.
+    - Filtros por `patient_reference` en listado/estadisticas de `care-tasks`.
+  - Servicio:
+    - `app/services/clinical_chat_service.py` con:
+      - especialidad efectiva por credencial,
+      - resumen longitudinal por `patient_reference`,
+      - indexado de fuentes internas en `docs/`,
+      - consulta web opcional bajo demanda.
+  - Pruebas nuevas/actualizadas:
+    - `app/tests/test_auth_api.py`
+    - `app/tests/test_care_tasks_api.py`
+      - `test_chat_endpoints_require_authentication`
+      - `test_chat_memory_aggregates_patient_history_across_tasks`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m py_compile app/models/user.py app/models/care_task.py app/models/care_task_chat_message.py app/schemas/auth.py app/schemas/care_task.py app/schemas/clinical_chat.py app/services/auth_service.py app/services/care_task_service.py app/services/clinical_chat_service.py app/api/auth.py app/api/care_tasks.py app/tests/test_auth_api.py app/tests/test_care_tasks_api.py alembic/versions/e8a1c4b7d552_add_chat_specialty_patient_context_fields.py`
+    - `.\venv\Scripts\python.exe -m ruff check app/models/user.py app/models/care_task.py app/models/care_task_chat_message.py app/schemas/auth.py app/schemas/care_task.py app/schemas/clinical_chat.py app/services/auth_service.py app/services/care_task_service.py app/services/clinical_chat_service.py app/api/auth.py app/api/care_tasks.py app/core/config.py app/tests/test_auth_api.py app/tests/test_care_tasks_api.py alembic/versions/e8a1c4b7d552_add_chat_specialty_patient_context_fields.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_auth_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q`
+    - `.\venv\Scripts\python.exe -m alembic upgrade head`
+    - `.\venv\Scripts\python.exe -m alembic current`
+  - Riesgos pendientes identificados:
+    - El indexado interno es lexical/rules-first; no sustituye embedding semantico ni RAG medico validado.
+    - La busqueda web depende de disponibilidad externa y puede devolver fuentes no clinicas si no hay filtro institucional.
+    - El contexto longitudinal depende de calidad de `patient_reference` y de la consistencia narrativa del registro.
+
+- ID: TM-096
+- Objetivo: Endurecer seguridad de informacion del chat con whitelist web estricta y sellado profesional de fuentes internas.
+- Alcance: `clinical_chat`, nuevo modulo `knowledge_sources`, nuevas tablas de curacion y documentacion/contratos.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-095.
+- Evidencia:
+  - Migracion: `alembic/versions/c2f4a9e1b771_add_clinical_knowledge_sources_tables.py`.
+  - Nuevos modelos:
+    - `app/models/clinical_knowledge_source.py`
+    - `app/models/clinical_knowledge_source_validation.py`
+  - Nueva API:
+    - `app/api/knowledge_sources.py`
+      - `POST /api/v1/knowledge-sources/`
+      - `GET /api/v1/knowledge-sources/`
+      - `POST /api/v1/knowledge-sources/{id}/seal`
+      - `GET /api/v1/knowledge-sources/{id}/validations`
+      - `GET /api/v1/knowledge-sources/trusted-domains`
+  - Endurecimiento chat:
+    - `app/services/clinical_chat_service.py` filtra web por whitelist y prioriza fuentes internas validadas.
+  - Politicas de confianza:
+    - `app/core/config.py` + `.env.example` + `.env.docker` con settings de whitelist y validacion obligatoria.
+  - Documentacion:
+    - `docs/89_chat_fuentes_confiables_whitelist_sellado.md`
+    - `docs/decisions/ADR-0070-chat-clinico-whitelist-y-sellado-fuentes.md`
+  - Validacion:
+    - `.\venv\Scripts\python.exe -m ruff check app/models/clinical_knowledge_source.py app/models/clinical_knowledge_source_validation.py app/models/__init__.py app/core/database.py app/services/knowledge_source_service.py app/services/clinical_chat_service.py app/api/knowledge_sources.py app/api/__init__.py app/main.py app/core/config.py app/tests/test_knowledge_sources_api.py app/tests/test_care_tasks_api.py alembic/versions/c2f4a9e1b771_add_clinical_knowledge_sources_tables.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_knowledge_sources_api.py`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat`
+    - `.\venv\Scripts\python.exe -m pytest -q`
+    - `.\venv\Scripts\python.exe -m alembic upgrade head`
+    - `.\venv\Scripts\python.exe -m alembic current`
+  - Resultado:
+    - `241 passed`, head Alembic `c2f4a9e1b771`.
+  - Riesgos pendientes identificados:
+    - El sellado inicial depende de capacidad operativa de revisores clinicos.
+    - El ranking de evidencia interna sigue siendo lexical; pendiente retrieval semantico validado.
+    - La whitelist requiere mantenimiento continuo de dominios autorizados.
+
+- ID: TM-097
+- Objetivo: Definir playbook operativo de curacion/sellado de fuentes clinicas para uso por profesionales.
+- Alcance: documentacion operativa y alineacion de runbook de despliegue.
+- Agentes involucrados: orchestrator, qa-agent.
+- Estado: completado
+- Dependencias: TM-096.
+- Evidencia:
+  - Documento nuevo:
+    - `docs/90_playbook_curacion_fuentes_clinicas.md`
+  - Indices y estado actualizados:
+    - `docs/README.md`
+    - `docs/01_current_state.md`
+    - `agents/shared/deploy_notes.md`
+  - Riesgos pendientes identificados:
+    - La adopcion del playbook depende de disciplina operativa del equipo.
+    - Se requiere asignar responsables claros por especialidad para evitar backlog de sellado.
+
+- ID: TM-098
+- Objetivo: Implementar frontend MVP de chat clinico con interfaz moderna para simulacion de uso profesional.
+- Alcance: nuevo workspace `frontend/` (Vite + React + TS), consumo de auth/care-tasks/chat, y documentacion de ejecucion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-095, TM-096.
+- Entregables:
+  - Frontend MVP en `frontend/` con login, casos, chat, memoria y trazabilidad.
+  - Documento funcional `docs/91_frontend_chat_clinico_mvp.md`.
+  - Decision estructural `docs/decisions/ADR-0071-frontend-mvp-chat-vite-react.md`.
+  - Ajuste CORS para desarrollo local (`localhost:5173` y `127.0.0.1:5173`).
+- Evidencia:
+  - `cd frontend && npm install`
+  - `cd frontend && npm run build` (`built in ...`)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_settings_security.py` (`4 passed`)
+- Riesgos pendientes identificados:
+  - El MVP no incluye streaming ni panel de sellado de fuentes.
+  - Si se altera contrato de `chat/messages` o `chat/memory`, hay que sincronizar frontend.
+
+- ID: TM-099
+- Objetivo: Evolucionar chat a experiencia tipo assistant con herramientas y modo hibrido general/clinico.
+- Alcance: `frontend/src/App.tsx`, `frontend/src/styles.css`, `app/schemas/clinical_chat.py`, `app/services/clinical_chat_service.py`, `app/api/care_tasks.py` y documentacion de contratos.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-098.
+- Entregables:
+  - Frontend v2 tipo assistant con barra de herramientas y controles de modo conversacional.
+  - Chat backend hibrido (`general`/`clinical`) con deteccion por senales clinicas y herramienta elegida.
+  - Contrato de chat actualizado (`conversation_mode`, `tool_mode`, `response_mode`).
+  - Documentacion y ADR de la evolucion (`docs/92_*`, `ADR-0072`).
+- Evidencia:
+  - `cd frontend && npm run build` (`built in ...`)
+  - `.\venv\Scripts\python.exe -m ruff check app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/api/care_tasks.py app/tests/test_care_tasks_api.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`7 passed, 126 deselected`)
+- Riesgos pendientes identificados:
+  - El modo general sigue siendo rule-based; no hay modelo generativo dedicado en local.
+  - El modo `images` funciona como selector de flujo, no como pipeline multimodal completo.
+
+- ID: TM-100
+- Objetivo: Integrar motor conversacional neuronal local de baja latencia con fallback seguro.
+- Alcance: `app/services/llm_chat_provider.py`, `app/services/clinical_chat_service.py`, configuracion LLM en settings/env y documentacion operativa.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-099.
+- Entregables:
+  - Proveedor LLM local `Ollama` integrado en chat sin romper contratos existentes.
+  - Trazabilidad de uso y latencia del LLM en `interpretability_trace`.
+  - Documento tecnico `docs/93_motor_conversacional_neuronal_open_source.md`.
+  - Decision estructural `docs/decisions/ADR-0073-motor-conversacional-neuronal-local.md`.
+- Evidencia:
+  - `cd frontend && npm run build` (`built in ...`)
+  - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/schemas/clinical_chat.py app/api/care_tasks.py app/tests/test_care_tasks_api.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`7 passed, 126 deselected`)
+- Riesgos pendientes identificados:
+  - El rendimiento final depende del modelo local seleccionado y hardware disponible.
+  - Requiere operacion de runtime Ollama en entornos donde se active `CLINICAL_CHAT_LLM_ENABLED=true`.
+
+- ID: TM-101
+- Objetivo: Corregir continuidad conversacional del chat para mantener hilo entre turnos.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/tests/test_care_tasks_api.py`.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-099, TM-100.
+- Entregables:
+  - Reutilizacion de contexto real de dialogo previo en el prompt LLM.
+  - Filtro de hechos de control (`modo_respuesta`, `herramienta`) fuera de memoria reutilizable.
+  - Fallback rule-based con referencia explicita al turno previo para mantener continuidad.
+  - Test de regresion para verificar que memoria de sesion no reutiliza hechos de control.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_care_tasks_api.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_continuity_filters_control_facts_from_memory or chat_message"` (`6 passed`)
+- Riesgos pendientes identificados:
+  - La continuidad semantica fuerte sigue dependiendo de la calidad del modelo local configurado.
+  - Si el usuario cambia `session_id`, el hilo se reinicia por diseno.
+
+- ID: TM-102
+- Objetivo: Elevar calidad conversacional local (100% gratis) para equipos de 16GB RAM.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/core/config.py`, `.env.example`, `.env.docker`, `app/tests/test_care_tasks_api.py`, documentacion de contratos y despliegue.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-100, TM-101.
+- Entregables:
+  - Continuidad contextual en consultas de seguimiento (`query_expanded`) para mejorar matching de dominio.
+  - Uso preferente de `POST /api/chat` de Ollama con historial corto por sesion y fallback a `POST /api/generate`.
+  - Fallback clinico reestructurado a formato operativo accionable (menos plantilla fija, mas plan por pasos).
+  - Ajustes de configuracion LLM para perfil local (`num_ctx`, `top_p`) compatibles con 16GB RAM.
+  - Test de regresion para seguimiento contextual.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/core/config.py app/tests/test_care_tasks_api.py`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_continuity_filters_control_facts_from_memory or chat_follow_up_query_reuses_previous_context_for_domain_matching or chat_message"` (`7 passed`)
+- Riesgos pendientes identificados:
+  - Calidad final depende del modelo local elegido y de la disponibilidad de Ollama en runtime.
+  - Con 16GB RAM, modelos >14B pueden degradar latencia y experiencia de guardia.
