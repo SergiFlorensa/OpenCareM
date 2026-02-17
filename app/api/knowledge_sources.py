@@ -44,8 +44,7 @@ def list_knowledge_sources(
         limit=limit,
     )
     return [
-        KnowledgeSourceResponse.model_validate(source, from_attributes=True)
-        for source in sources
+        KnowledgeSourceResponse.model_validate(source, from_attributes=True) for source in sources
     ]
 
 

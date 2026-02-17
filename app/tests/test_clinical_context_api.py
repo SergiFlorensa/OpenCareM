@@ -47,10 +47,7 @@ def test_contexto_clinico_procedimiento_por_clave(client):
 
     not_found_response = client.get("/api/v1/clinical-context/procedimientos/no-existe")
     assert not_found_response.status_code == 404
-    assert (
-        not_found_response.json()["detail"]
-        == "Procedimiento no encontrado en contexto clinico."
-    )
+    assert not_found_response.json()["detail"] == "Procedimiento no encontrado en contexto clinico."
 
 
 def test_triage_levels_manchester_contiene_5_niveles_y_slas(client):

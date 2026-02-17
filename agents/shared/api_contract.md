@@ -438,3 +438,14 @@
     - `llm_input_tokens_budget`, `llm_input_tokens_estimated`, `llm_prompt_truncated`
 - Riesgos de contrato:
   - clientes con deserializacion estricta del schema anterior deben aceptar `quality_metrics`.
+
+## TM-109 (adaptacion blueprint OSS interno)
+
+- No se agregan endpoints nuevos ni se eliminan endpoints existentes.
+- No se cambian schemas de request/response de recursos API.
+- Impacto acotado a estandarizacion operativa de desarrollo:
+  - scripts de flujo local (`scripts/dev_workflow.ps1`)
+  - hooks staged (`.pre-commit-config.yaml`)
+  - guia de adopcion (`docs/96_adaptacion_blueprint_agentes_oss_interno.md`)
+- Compatibilidad:
+  - contrato publico de API se mantiene estable y backward compatible.

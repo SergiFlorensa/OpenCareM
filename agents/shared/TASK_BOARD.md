@@ -2271,3 +2271,97 @@
 - Riesgos pendientes identificados:
   - Las metricas iniciales son heuristicas lexicales y requieren calibracion progresiva con casos asistenciales reales.
   - La sanitizacion reduce superficie de inyeccion, pero no sustituye auditoria clinica ni validacion humana.
+
+- ID: TM-109
+- Objetivo: Adaptar el blueprint OSS de agentes a utilidad interna (sin suscripciones, sin movil y sin canales externos) con scripts operativos y guias alineadas al repo.
+- Alcance: `docs/94_chat_clinico_operativo_ollama_local_runbook.md`, nuevo playbook de adaptacion OSS, `agents/shared/*_contract.md`, `agents/shared/test_plan.md`, `agents/shared/deploy_notes.md`, `docs/decisions/`.
+- Agentes involucrados: orchestrator, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-108.
+- Entregables:
+  - Documento de adaptacion interna con alcance incluido/excluido.
+  - Flujo base de comandos (`dev`, `build`, `check`, `test`, `test-e2e`) adaptado al stack actual.
+  - Politica de pre-commit sobre staged files y setup de onboarding reproducible.
+  - Decision estructural ADR sobre recorte de alcance (sin pagos ni canales moviles/mensajeria).
+- Evidencia:
+  - Nuevos archivos:
+    - `.pre-commit-config.yaml`
+    - `scripts/dev_workflow.ps1`
+    - `scripts/setup_hooks.ps1`
+    - `docs/96_adaptacion_blueprint_agentes_oss_interno.md`
+    - `docs/decisions/ADR-0080-adaptacion-blueprint-agentes-oss-interno-sin-canales-externos.md`
+  - Documentacion actualizada:
+    - `docs/94_chat_clinico_operativo_ollama_local_runbook.md`
+    - `docs/06_quality_workflow.md`
+    - `docs/05_roadmap.md`
+    - `docs/01_current_state.md`
+    - `docs/README.md`
+  - Contratos/handoffs actualizados:
+    - `agents/shared/api_contract.md`
+    - `agents/shared/data_contract.md`
+    - `agents/shared/mcp_contract.md`
+    - `agents/shared/test_plan.md`
+    - `agents/shared/deploy_notes.md`
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m pre_commit validate-config` (OK)
+    - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action check` (falla por deuda previa E501 fuera de TM-109)
+    - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test-e2e` (`18 passed, 126 deselected`)
+    - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup_hooks.ps1` (OK)
+- Riesgos pendientes identificados:
+  - Existe deuda previa de lint (`E501`) en archivos historicos; `-Action check` seguira fallando hasta sanearla.
+  - Riesgo de deriva documental si no se mantiene sincronia entre runbook, contratos y estado actual.
+  - Riesgo de friccion inicial del equipo hasta adoptar hooks y flujo de calidad automatizado.
+
+- ID: TM-110
+- Objetivo: Sanear deuda de lint `E501` para dejar `scripts/dev_workflow.ps1 -Action check` en verde.
+- Alcance: `app/api/agents.py`, `app/schemas/ai.py`, `app/scripts/bootstrap_admin.py`, `app/scripts/simulate_global_quality_alerts.py`, `app/scripts/simulate_scasest_alerts.py`, `app/services/ai_triage_service.py`, `mcp_server/smoke.py`, contratos QA/TASK_BOARD.
+- Agentes involucrados: orchestrator, qa-agent.
+- Estado: completado
+- Dependencias: TM-109.
+- Entregables:
+  - Correccion de lineas largas sin cambiar comportamiento.
+  - Validacion de lint/formato (`ruff` + `black --check`) en verde.
+- Evidencia:
+  - Correcciones E501 aplicadas en archivos objetivo.
+  - `.\venv\Scripts\python.exe -m ruff check app mcp_server` (OK).
+  - `.\venv\Scripts\python.exe -m black --check app mcp_server` (OK, 153 files unchanged).
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action check`:
+    - `ruff check` OK
+    - `black --check` OK
+    - falla en `mypy` por deuda historica de tipado (459 errores) no introducida en TM-110.
+- Riesgos pendientes identificados:
+  - `-Action check` no queda totalmente verde hasta definir estrategia de saneamiento mypy.
+  - Riesgo bajo de regresion por formateo accidental en bloques sensibles de logs/mensajes.
+
+- ID: TM-111
+- Objetivo: Mejorar UX del fallback clinico para evitar salida tecnica (JSON crudo y continuidad social no relevante).
+- Alcance: `app/services/clinical_chat_service.py`, `app/tests/test_clinical_chat_operational.py`.
+- Agentes involucrados: orchestrator, qa-agent.
+- Estado: completado
+- Dependencias: TM-109, TM-110.
+- Entregables:
+  - Fallback clinico sin volcado de snippets JSON crudos en la respuesta al usuario.
+  - Continuidad clinica solo cuando el ultimo turno previo tiene senal clinica.
+  - Hechos tecnicos con prefijo (`termino:`, `umbral:`) fuera de la narrativa visible.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py` (OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "clinical_fallback or general_answer or follow_up_query_expansion"` (`5 passed, 6 deselected`).
+- Riesgos pendientes identificados:
+  - Al ocultar detalles tecnicos en la respuesta, el usuario depende mas de `interpretability_trace` para auditoria fina.
+
+- ID: TM-112
+- Objetivo: Implementar hardening v2 de chat clinico con aislamiento de contenido externo, pipeline de politicas de herramientas y auditoria de seguridad accionable.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, nuevos modulos `app/security/*` y `app/agents/*`, esquemas de chat, pruebas de API/servicio, contratos compartidos y ADR.
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+- Estado: en curso
+- Dependencias: TM-108, TM-111.
+- Entregables:
+  - Aislamiento de contenido no confiable (marcadores y saneo anti-breakout).
+  - Catalogo de herramientas peligrosas con deny-by-default para superficies de mayor riesgo.
+  - Pipeline de politicas por capas (global/perfil/agente/contexto) con traza de decision.
+  - Auditoria de seguridad por turno con findings y remediaciones.
+- Evidencia:
+  - Pendiente al cierre de implementacion.
+- Riesgos pendientes identificados:
+  - El lock de escritura de sesion en proceso local no coordina procesos distribuidos sin backend compartido.
+  - Las politicas iniciales requeriran calibracion con feedback real de uso clinico.

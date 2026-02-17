@@ -1389,3 +1389,54 @@ Resultados:
   - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/schemas/clinical_chat.py app/api/care_tasks.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py`
   - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
   - `python -m pytest -q app/tests/test_care_tasks_api.py -k chat`
+
+
+## TM-109 - Plan de validacion ejecutado
+
+- Validar sintaxis/configuracion de hooks staged (`pre-commit`).
+- Validar ejecucion real del nuevo workflow `check`.
+- Validar flujo focalizado `test-e2e` del nuevo workflow.
+- Validar script de onboarding de hooks.
+
+Resultados:
+- Comandos ejecutados:
+  - `.\venv\Scripts\python.exe -m pre_commit validate-config` (OK).
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action check` (falla por deuda previa de lint E501 fuera de TM-109; script valida correctamente el fallo).
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test-e2e` (`18 passed, 126 deselected`).
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup_hooks.ps1` (OK; hook instalado y config validada).
+- Observaciones:
+  - `test-e2e` emite warnings deprecados de `datetime.utcnow()` en dependencia `python-jose`, sin romper ejecucion.
+
+
+## TM-110 - Plan de validacion ejecutado
+
+- Corregir deuda `E501` detectada por `ruff` en archivos historicos.
+- Validar que lint y formato queden estables tras el saneamiento.
+- Re-ejecutar `scripts/dev_workflow.ps1 -Action check` para identificar bloqueos residuales.
+
+Resultados:
+- Comandos ejecutados:
+  - `.\venv\Scripts\python.exe -m ruff check app mcp_server` (OK).
+  - `.\venv\Scripts\python.exe -m black app mcp_server` (aplica formato global necesario).
+  - `.\venv\Scripts\python.exe -m black --check app mcp_server` (OK).
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action check`:
+    - `ruff check` OK
+    - `black --check` OK
+    - `mypy` falla por deuda historica de tipado (459 errores en modulos legacy).
+- Observaciones:
+  - TM-110 deja saneado lint/formato, pero no cierra aun la deuda de `mypy`.
+
+
+## TM-111 - Plan de validacion ejecutado
+
+- Verificar que fallback clinico no imprima JSON crudo de recomendaciones internas.
+- Verificar que continuidad clinica no se ancle a turno social.
+- Validar no regresion de respuestas generales/follow-up.
+
+Resultados:
+- Tests nuevos:
+  - `test_clinical_fallback_does_not_dump_json_or_internal_fact_tags`
+  - `test_clinical_fallback_ignores_social_turn_for_continuity`
+- Comandos ejecutados:
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py` (OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "clinical_fallback or general_answer or follow_up_query_expansion"` (`5 passed, 6 deselected`).

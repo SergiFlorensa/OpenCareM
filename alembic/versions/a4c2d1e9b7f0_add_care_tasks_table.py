@@ -25,7 +25,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("title", sa.String(length=200), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("clinical_priority", sa.String(length=20), nullable=False, server_default="medium"),
+        sa.Column(
+            "clinical_priority", sa.String(length=20), nullable=False, server_default="medium"
+        ),
         sa.Column("specialty", sa.String(length=80), nullable=False, server_default="general"),
         sa.Column("sla_target_minutes", sa.Integer(), nullable=False, server_default="240"),
         sa.Column("human_review_required", sa.Boolean(), nullable=False, server_default=sa.true()),

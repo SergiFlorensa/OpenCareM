@@ -27,9 +27,7 @@ class HumanizationProtocolRequest(BaseModel):
     needs_spiritual_support: bool = False
     multidisciplinary_team: list[str] = Field(default_factory=list)
     has_clinical_trial_option: bool = False
-    informed_consent_status: Literal["pendiente", "explicado", "firmado", "rechazado"] = (
-        "pendiente"
-    )
+    informed_consent_status: Literal["pendiente", "explicado", "firmado", "rechazado"] = "pendiente"
     professional_burnout_risk: Literal["low", "medium", "high"] = "low"
     notes: str | None = Field(default=None, max_length=3000)
 

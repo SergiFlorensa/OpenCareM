@@ -107,9 +107,7 @@ class PityriasisProtocolService:
                 "Perdida de sensibilidad en lesion: descartar lepra tuberculoide con prioridad."
             )
         if payload.deep_erythema_warmth_pain:
-            red_flags.append(
-                "Eritema doloroso/caliente profundo: descartar celulitis o erisipela."
-            )
+            red_flags.append("Eritema doloroso/caliente profundo: descartar celulitis o erisipela.")
         if payload.systemic_signs and payload.deep_erythema_warmth_pain:
             red_flags.append(
                 "Signos sistemicos con foco cutaneo doloroso: "
@@ -144,9 +142,7 @@ class PityriasisProtocolService:
                 tests.append("Completar evaluacion con luz de Wood en consulta.")
         elif most_likely_condition == "pitiriasis_rosada":
             if payload.koh_result == "no_realizado":
-                tests.append(
-                    "Si hay duda morfologica, realizar KOH para descartar tinea corporis."
-                )
+                tests.append("Si hay duda morfologica, realizar KOH para descartar tinea corporis.")
         elif most_likely_condition == "indeterminado":
             tests.extend(
                 [
@@ -247,11 +243,9 @@ class PityriasisProtocolService:
         red_flags = PityriasisProtocolService._build_urgent_red_flags(payload)
 
         all_differentials = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-        differential_labels = [
-            name
-            for name, score_value in all_differentials
-            if score_value >= 1
-        ][:3]
+        differential_labels = [name for name, score_value in all_differentials if score_value >= 1][
+            :3
+        ]
         if "indeterminado" == most_likely and not differential_labels:
             differential_labels = ["pitiriasis_versicolor", "pitiriasis_rosada", "pitiriasis_alba"]
 

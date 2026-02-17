@@ -42,10 +42,7 @@ class AdvancedScreeningService:
             risk_score += 2
         if payload.can_walk_independently is False:
             risk_score += 1
-        if (
-            payload.oxygen_saturation_percent is not None
-            and payload.oxygen_saturation_percent < 92
-        ):
+        if payload.oxygen_saturation_percent is not None and payload.oxygen_saturation_percent < 92:
             risk_score += 1
         if payload.heart_rate_bpm is not None and payload.heart_rate_bpm > 110:
             risk_score += 1
@@ -150,10 +147,7 @@ class AdvancedScreeningService:
                     "No deambula independientemente: elevar vigilancia funcional.",
                 )
             )
-        if (
-            payload.oxygen_saturation_percent is not None
-            and payload.oxygen_saturation_percent < 92
-        ):
+        if payload.oxygen_saturation_percent is not None and payload.oxygen_saturation_percent < 92:
             alerts.append(
                 (
                     "spo2_low",
@@ -207,12 +201,14 @@ class AdvancedScreeningService:
         """Genera recomendacion operativa con reglas de screening interpretables."""
         geriatric_risk = AdvancedScreeningService._geriatric_risk_level(payload)
         screening_actions = AdvancedScreeningService._build_screening_actions(payload)
-        long_acting_candidate, long_acting_rationale = (
-            AdvancedScreeningService._evaluate_long_acting_candidate(payload)
-        )
-        persistent_covid_suspected, persistent_covid_actions = (
-            AdvancedScreeningService._evaluate_persistent_covid(payload)
-        )
+        (
+            long_acting_candidate,
+            long_acting_rationale,
+        ) = AdvancedScreeningService._evaluate_long_acting_candidate(payload)
+        (
+            persistent_covid_suspected,
+            persistent_covid_actions,
+        ) = AdvancedScreeningService._evaluate_persistent_covid(payload)
         alert_pool = AdvancedScreeningService._build_alert_pool(
             payload=payload,
             geriatric_risk_level=geriatric_risk,

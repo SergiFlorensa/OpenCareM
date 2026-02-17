@@ -84,9 +84,7 @@ class GeriatricsSupportProtocolService:
                 )
                 trace.append("Regla de fragilidad metabolica por inmovilidad activada.")
                 if not payload.high_protein_support_plan_active:
-                    safety_blocks.append(
-                        "Falta plan proteico pese a balance nitrogenado negativo."
-                    )
+                    safety_blocks.append("Falta plan proteico pese a balance nitrogenado negativo.")
                 else:
                     therapeutic_actions.append(
                         "Mantener/reforzar aporte proteico para frenar catabolismo."
@@ -171,10 +169,7 @@ class GeriatricsSupportProtocolService:
         safety_blocks: list[str] = []
         diagnostic_actions: list[str] = []
 
-        if (
-            payload.symptomatic_atrophic_vaginitis
-            and not payload.topical_vaginal_estrogen_active
-        ):
+        if payload.symptomatic_atrophic_vaginitis and not payload.topical_vaginal_estrogen_active:
             optimization_actions.append(
                 "START v3: valorar estrogenos topicos vaginales en vaginitis atrofica sintomatica."
             )
@@ -230,12 +225,17 @@ class GeriatricsSupportProtocolService:
         payload: GeriatricsSupportProtocolRequest,
     ) -> GeriatricsSupportProtocolRecommendation:
         """Genera recomendacion operativa geriatrica para validacion humana."""
-        aging_interpretation, diagnostic_aging, trace_aging = (
-            GeriatricsSupportProtocolService._aging_morphology_pathway(payload)
-        )
-        critical_immob, therapeutic_immob, safety_immob, trace_immob = (
-            GeriatricsSupportProtocolService._immobility_pathway(payload)
-        )
+        (
+            aging_interpretation,
+            diagnostic_aging,
+            trace_aging,
+        ) = GeriatricsSupportProtocolService._aging_morphology_pathway(payload)
+        (
+            critical_immob,
+            therapeutic_immob,
+            safety_immob,
+            trace_immob,
+        ) = GeriatricsSupportProtocolService._immobility_pathway(payload)
         (
             critical_delirium,
             diagnostic_delirium,
@@ -243,9 +243,11 @@ class GeriatricsSupportProtocolService:
             safety_delirium,
             trace_delirium,
         ) = GeriatricsSupportProtocolService._delirium_pathway(payload)
-        optimization_start, safety_start, diagnostic_start = (
-            GeriatricsSupportProtocolService._start_v3_pathway(payload)
-        )
+        (
+            optimization_start,
+            safety_start,
+            diagnostic_start,
+        ) = GeriatricsSupportProtocolService._start_v3_pathway(payload)
 
         critical_alerts = critical_immob + critical_delirium
         diagnostic_actions = diagnostic_aging + diagnostic_delirium + diagnostic_start

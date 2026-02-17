@@ -34,9 +34,8 @@ class RespiratoryProtocolService:
         if payload.antigen_result == "no_realizado":
             plan.append("Realizar test de antigeno respiratorio en triaje.")
 
-        need_pcr = (
-            payload.antigen_result == "negativo"
-            and (vulnerable or payload.immunosuppressed or payload.needs_oxygen)
+        need_pcr = payload.antigen_result == "negativo" and (
+            vulnerable or payload.immunosuppressed or payload.needs_oxygen
         )
         if need_pcr:
             plan.append("Escalar a PCR / tecnica molecular multiple por alto riesgo.")
@@ -60,9 +59,7 @@ class RespiratoryProtocolService:
                         "Valorar Remdesivir IV 3 dias por contraindicación de antiviral oral."
                     )
                 else:
-                    plan.append(
-                        "Valorar Nirmatrelvir/Ritonavir VO 5 dias (<5 dias de inicio)."
-                    )
+                    plan.append("Valorar Nirmatrelvir/Ritonavir VO 5 dias (<5 dias de inicio).")
             elif vulnerable and onset_hours is not None and onset_hours <= 7 * 24:
                 plan.append("Valorar Remdesivir IV 3 dias (<7 dias de inicio).")
 

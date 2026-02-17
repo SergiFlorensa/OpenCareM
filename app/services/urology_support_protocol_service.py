@@ -39,8 +39,7 @@ class UrologySupportProtocolService:
                     "Sospecha de pielonefritis enfisematosa en paciente de alto riesgo metabolico."
                 )
                 trace.append(
-                    "Regla de PFE por gas en via urinaria + "
-                    "riesgo metabolico activada."
+                    "Regla de PFE por gas en via urinaria + " "riesgo metabolico activada."
                 )
             else:
                 critical_alerts.append(
@@ -70,9 +69,8 @@ class UrologySupportProtocolService:
         safety_blocks: list[str] = []
 
         renal_severity = (
-            (payload.creatinine_mg_dl is not None and payload.creatinine_mg_dl > 7)
-            or (payload.egfr_ml_min is not None and payload.egfr_ml_min < 15)
-        )
+            payload.creatinine_mg_dl is not None and payload.creatinine_mg_dl > 7
+        ) or (payload.egfr_ml_min is not None and payload.egfr_ml_min < 15)
         colic_context = payload.colicky_flank_pain_present or payload.vomiting_present
         triad_obstructive_aki = (
             colic_context
@@ -89,9 +87,7 @@ class UrologySupportProtocolService:
                 "Prioridad absoluta: derivacion urinaria urgente antes de TAC avanzado."
             )
             if not payload.urgent_urinary_diversion_planned:
-                critical_alerts.append(
-                    "FRA obstructivo sin derivacion urgente documentada."
-                )
+                critical_alerts.append("FRA obstructivo sin derivacion urgente documentada.")
             if payload.urgent_ct_planned_before_diversion:
                 safety_blocks.append(
                     "Bloquear secuencia TAC previo: primero derivacion urinaria en FRA obstructivo."
@@ -194,14 +190,11 @@ class UrologySupportProtocolService:
                     "priorizar via transperineal."
                 )
 
-        high_volume_inferred = (
-            payload.prostate_metastatic_high_volume
-            or (
-                payload.gleason_score is not None
-                and payload.gleason_score >= 9
-                and payload.bone_metastases_present
-                and payload.liver_metastases_present
-            )
+        high_volume_inferred = payload.prostate_metastatic_high_volume or (
+            payload.gleason_score is not None
+            and payload.gleason_score >= 9
+            and payload.bone_metastases_present
+            and payload.liver_metastases_present
         )
         if high_volume_inferred:
             oncologic_actions.append(
@@ -231,10 +224,7 @@ class UrologySupportProtocolService:
                 safety_blocks.append(
                     "Bloquear tratamiento local curativo en enfermedad metastasica de alto volumen."
                 )
-            if (
-                payload.radiotherapy_planned
-                and not payload.low_volume_metastatic_profile
-            ):
+            if payload.radiotherapy_planned and not payload.low_volume_metastatic_profile:
                 safety_blocks.append(
                     "Radioterapia local suele reservarse para enfermedad "
                     "metastasica de bajo volumen."
@@ -262,18 +252,27 @@ class UrologySupportProtocolService:
         payload: UrologySupportProtocolRequest,
     ) -> UrologySupportProtocolRecommendation:
         """Genera recomendacion operativa urologica para validacion humana."""
-        critical_inf, infection_actions, trace_inf = (
-            UrologySupportProtocolService._emphysematous_pyelonephritis_pathway(payload)
-        )
-        critical_obs, obstruction_actions, safety_obs = (
-            UrologySupportProtocolService._obstructive_aki_pathway(payload)
-        )
-        critical_trauma, trauma_actions, safety_trauma, trace_trauma = (
-            UrologySupportProtocolService._penile_trauma_pathway(payload)
-        )
-        critical_onco, oncologic_actions, safety_onco = (
-            UrologySupportProtocolService._oncology_pathway(payload)
-        )
+        (
+            critical_inf,
+            infection_actions,
+            trace_inf,
+        ) = UrologySupportProtocolService._emphysematous_pyelonephritis_pathway(payload)
+        (
+            critical_obs,
+            obstruction_actions,
+            safety_obs,
+        ) = UrologySupportProtocolService._obstructive_aki_pathway(payload)
+        (
+            critical_trauma,
+            trauma_actions,
+            safety_trauma,
+            trace_trauma,
+        ) = UrologySupportProtocolService._penile_trauma_pathway(payload)
+        (
+            critical_onco,
+            oncologic_actions,
+            safety_onco,
+        ) = UrologySupportProtocolService._oncology_pathway(payload)
 
         critical_alerts = critical_inf + critical_obs + critical_trauma + critical_onco
         safety_blocks = safety_obs + safety_trauma + safety_onco

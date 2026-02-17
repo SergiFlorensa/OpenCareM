@@ -1620,8 +1620,7 @@ def test_run_gastro_hepato_support_returns_recommendation_and_trace(client, db_s
         for item in payload["recommendation"]["critical_alerts"]
     )
     assert any(
-        "somatostatina" in item.lower()
-        for item in payload["recommendation"]["critical_alerts"]
+        "somatostatina" in item.lower() for item in payload["recommendation"]["critical_alerts"]
     )
 
     from app.models.agent_run import AgentRun, AgentStep
@@ -1673,12 +1672,9 @@ def test_run_gastro_hepato_support_flags_surgery_and_pharmacology(client):
         "vesicula en porcelana" in item.lower()
         for item in recommendation["surgical_decision_support"]
     )
+    assert any("shouldice" in item.lower() for item in recommendation["surgical_decision_support"])
     assert any(
-        "shouldice" in item.lower() for item in recommendation["surgical_decision_support"]
-    )
-    assert any(
-        "no melanocitico" in item.lower()
-        for item in recommendation["pharmacology_safety_alerts"]
+        "no melanocitico" in item.lower() for item in recommendation["pharmacology_safety_alerts"]
     )
     assert any("melanoma" in item.lower() for item in recommendation["pharmacology_safety_alerts"])
     assert any(
@@ -1790,15 +1786,10 @@ def test_run_rheum_immuno_support_flags_safety_maternal_and_data_domains(client)
     recommendation = response.json()["recommendation"]
     assert any("ciclosporina" in item.lower() for item in recommendation["safety_alerts"])
     assert any(
-        "corticoides fluorados" in item.lower()
-        for item in recommendation["critical_alerts"]
+        "corticoides fluorados" in item.lower() for item in recommendation["critical_alerts"]
     )
-    assert any(
-        "igg4" in item.lower() for item in recommendation["data_model_flags"]
-    )
-    assert any(
-        "aines" in item.lower() for item in recommendation["therapeutic_actions"]
-    )
+    assert any("igg4" in item.lower() for item in recommendation["data_model_flags"])
+    assert any("aines" in item.lower() for item in recommendation["therapeutic_actions"])
 
 
 def test_run_rheum_immuno_support_returns_404_when_task_not_found(client):
@@ -1895,12 +1886,10 @@ def test_run_psychiatry_support_enforces_elderly_insomnia_safety_flow(client):
     recommendation = response.json()["recommendation"]
     assert recommendation["severity_level"] == "high"
     assert any(
-        "causas secundarias de dolor" in item.lower()
-        for item in recommendation["triage_actions"]
+        "causas secundarias de dolor" in item.lower() for item in recommendation["triage_actions"]
     )
     assert any(
-        "benzodiacepinas" in item.lower()
-        for item in recommendation["pharmacologic_safety_alerts"]
+        "benzodiacepinas" in item.lower() for item in recommendation["pharmacologic_safety_alerts"]
     )
 
 
@@ -1940,21 +1929,11 @@ def test_run_psychiatry_support_flags_pregnancy_and_metabolic_risk(client):
     )
     assert response.status_code == 200
     recommendation = response.json()["recommendation"]
-    assert any(
-        "valproato" in item.lower() for item in recommendation["critical_alerts"]
-    )
-    assert any(
-        "lamotrigina" in item.lower() for item in recommendation["maternal_fetal_actions"]
-    )
-    assert any(
-        "metabolica" in item.lower() for item in recommendation["critical_alerts"]
-    )
-    assert any(
-        "lanugo" in item.lower() for item in recommendation["internal_medicine_alerts"]
-    )
-    assert any(
-        "proyeccion" in item.lower() for item in recommendation["psychodynamic_flags"]
-    )
+    assert any("valproato" in item.lower() for item in recommendation["critical_alerts"])
+    assert any("lamotrigina" in item.lower() for item in recommendation["maternal_fetal_actions"])
+    assert any("metabolica" in item.lower() for item in recommendation["critical_alerts"])
+    assert any("lanugo" in item.lower() for item in recommendation["internal_medicine_alerts"])
+    assert any("proyeccion" in item.lower() for item in recommendation["psychodynamic_flags"])
 
 
 def test_run_psychiatry_support_returns_404_when_task_not_found(client):
@@ -2017,17 +1996,12 @@ def test_run_hematology_support_returns_recommendation_and_trace(client, db_sess
         for item in payload["recommendation"]["therapeutic_actions"]
     )
     assert any(
-        "argatroban" in item.lower()
-        for item in payload["recommendation"]["therapeutic_actions"]
+        "argatroban" in item.lower() for item in payload["recommendation"]["therapeutic_actions"]
     )
 
     from app.models.agent_run import AgentRun, AgentStep
 
-    run = (
-        db_session.query(AgentRun)
-        .filter(AgentRun.id == payload["agent_run_id"])
-        .first()
-    )
+    run = db_session.query(AgentRun).filter(AgentRun.id == payload["agent_run_id"]).first()
     assert run is not None
     assert run.workflow_name == "hematology_support_v1"
     step = db_session.query(AgentStep).filter(AgentStep.run_id == run.id).first()
@@ -2069,16 +2043,11 @@ def test_run_hematology_support_flags_hemophilia_and_splenectomy_safety(client):
     assert response.status_code == 200
     recommendation = response.json()["recommendation"]
     assert any(
-        "emicizumab" in item.lower()
-        for item in recommendation["pharmacologic_safety_alerts"]
+        "emicizumab" in item.lower() for item in recommendation["pharmacologic_safety_alerts"]
     )
     assert any("mat" in item.lower() for item in recommendation["critical_alerts"])
-    assert any(
-        "encapsulados" in item.lower() for item in recommendation["critical_alerts"]
-    )
-    assert any(
-        "tromboprofilaxis" in item.lower() for item in recommendation["critical_alerts"]
-    )
+    assert any("encapsulados" in item.lower() for item in recommendation["critical_alerts"])
+    assert any("tromboprofilaxis" in item.lower() for item in recommendation["critical_alerts"])
 
 
 def test_run_hematology_support_flags_oncology_fanconi_and_transplant(client):
@@ -2130,15 +2099,12 @@ def test_run_hematology_support_flags_oncology_fanconi_and_transplant(client):
     assert any(
         "biopsia histologica" in item.lower() for item in recommendation["diagnostic_actions"]
     )
-    assert any(
-        "lbdcg" in item.lower() for item in recommendation["oncology_immunophenotype_notes"]
-    )
+    assert any("lbdcg" in item.lower() for item in recommendation["oncology_immunophenotype_notes"])
     assert any(
         "hodgkin" in item.lower() for item in recommendation["oncology_immunophenotype_notes"]
     )
     assert any(
-        "fanconi" in item.lower()
-        for item in recommendation["inherited_bone_marrow_failure_flags"]
+        "fanconi" in item.lower() for item in recommendation["inherited_bone_marrow_failure_flags"]
     )
     assert any("klinefelter" in item.lower() for item in recommendation["transplant_flags"])
 
@@ -2194,25 +2160,19 @@ def test_run_endocrinology_support_returns_recommendation_and_trace(client, db_s
         for item in payload["recommendation"]["critical_alerts"]
     )
     assert any(
-        "triada bioquimica" in item.lower()
-        for item in payload["recommendation"]["critical_alerts"]
+        "triada bioquimica" in item.lower() for item in payload["recommendation"]["critical_alerts"]
     )
     assert any(
         "cortisol serico aislado" in item.lower()
         for item in payload["recommendation"]["critical_alerts"]
     )
     assert any(
-        "dicarboxilicos" in item.lower()
-        for item in payload["recommendation"]["diagnostic_actions"]
+        "dicarboxilicos" in item.lower() for item in payload["recommendation"]["diagnostic_actions"]
     )
 
     from app.models.agent_run import AgentRun, AgentStep
 
-    run = (
-        db_session.query(AgentRun)
-        .filter(AgentRun.id == payload["agent_run_id"])
-        .first()
-    )
+    run = db_session.query(AgentRun).filter(AgentRun.id == payload["agent_run_id"]).first()
     assert run is not None
     assert run.workflow_name == "endocrinology_support_v1"
     step = db_session.query(AgentStep).filter(AgentStep.run_id == run.id).first()
@@ -2263,16 +2223,13 @@ def test_run_endocrinology_support_flags_thyroid_and_siadh_safety(client):
         "metanefrinas urinarias preoperatorias" in item.lower()
         for item in recommendation["critical_alerts"]
     )
-    assert any(
-        "siadh grave" in item.lower() for item in recommendation["critical_alerts"]
-    )
+    assert any("siadh grave" in item.lower() for item in recommendation["critical_alerts"])
     assert any(
         "tiroglobulina no es marcador" in item.lower()
         for item in recommendation["pharmacologic_safety_alerts"]
     )
     assert any(
-        "tolvaptan" in item.lower()
-        for item in recommendation["pharmacologic_safety_alerts"]
+        "tolvaptan" in item.lower() for item in recommendation["pharmacologic_safety_alerts"]
     )
 
 
@@ -2321,24 +2278,16 @@ def test_run_endocrinology_support_flags_diabetes_and_confounders(client):
     )
     assert response.status_code == 200
     recommendation = response.json()["recommendation"]
-    assert any(
-        "estadio 2" in item.lower() for item in recommendation["diabetes_staging_support"]
-    )
+    assert any("estadio 2" in item.lower() for item in recommendation["diabetes_staging_support"])
     assert any("glp-1" in item.lower() for item in recommendation["therapeutic_actions"])
     assert any(
-        "pioglitazona" in item.lower()
-        for item in recommendation["pharmacologic_safety_alerts"]
+        "pioglitazona" in item.lower() for item in recommendation["pharmacologic_safety_alerts"]
     )
     assert any(
-        "sulfonilureas" in item.lower()
-        for item in recommendation["pharmacologic_safety_alerts"]
+        "sulfonilureas" in item.lower() for item in recommendation["pharmacologic_safety_alerts"]
     )
-    assert any(
-        "tiazidas" in item.lower() for item in recommendation["metabolic_context_flags"]
-    )
-    assert any(
-        "alcohol" in item.lower() for item in recommendation["metabolic_context_flags"]
-    )
+    assert any("tiazidas" in item.lower() for item in recommendation["metabolic_context_flags"])
+    assert any("alcohol" in item.lower() for item in recommendation["metabolic_context_flags"])
 
 
 def test_run_endocrinology_support_returns_404_when_task_not_found(client):
@@ -2387,8 +2336,7 @@ def test_run_nephrology_support_returns_recommendation_and_trace(client, db_sess
     assert payload["recommendation"]["severity_level"] == "critical"
     assert payload["recommendation"]["aki_classification"] == "parenchymal"
     assert any(
-        "renopulmonar" in item.lower()
-        for item in payload["recommendation"]["critical_alerts"]
+        "renopulmonar" in item.lower() for item in payload["recommendation"]["critical_alerts"]
     )
     assert any(
         "plasmaferesis obligatoria" in item.lower()
@@ -2401,11 +2349,7 @@ def test_run_nephrology_support_returns_recommendation_and_trace(client, db_sess
 
     from app.models.agent_run import AgentRun, AgentStep
 
-    run = (
-        db_session.query(AgentRun)
-        .filter(AgentRun.id == payload["agent_run_id"])
-        .first()
-    )
+    run = db_session.query(AgentRun).filter(AgentRun.id == payload["agent_run_id"]).first()
     assert run is not None
     assert run.workflow_name == "nephrology_support_v1"
     step = db_session.query(AgentStep).filter(AgentStep.run_id == run.id).first()
@@ -2443,18 +2387,13 @@ def test_run_nephrology_support_flags_acid_base_and_aeiou(client):
     )
     assert response.status_code == 200
     recommendation = response.json()["recommendation"]
+    assert any("trastorno mixto" in item.lower() for item in recommendation["critical_alerts"])
     assert any(
-        "trastorno mixto" in item.lower() for item in recommendation["critical_alerts"]
-    )
-    assert any(
-        "acidosis metabolica" in item.lower()
-        for item in recommendation["acid_base_assessment"]
+        "acidosis metabolica" in item.lower() for item in recommendation["acid_base_assessment"]
     )
     assert any("a:" in item.lower() for item in recommendation["dialysis_alerts"])
     assert any("i:" in item.lower() for item in recommendation["dialysis_alerts"])
-    assert any(
-        "dialisis urgente" in item.lower() for item in recommendation["critical_alerts"]
-    )
+    assert any("dialisis urgente" in item.lower() for item in recommendation["critical_alerts"])
 
 
 def test_run_nephrology_support_flags_nephroprotection_and_interstitial_safety(client):
@@ -2502,19 +2441,15 @@ def test_run_nephrology_support_flags_nephroprotection_and_interstitial_safety(c
     recommendation = response.json()["recommendation"]
     assert recommendation["aki_classification"] == "prerenal"
     assert any(
-        "nefropatia iga" in item.lower()
-        for item in recommendation["glomerular_interstitial_flags"]
+        "nefropatia iga" in item.lower() for item in recommendation["glomerular_interstitial_flags"]
     )
     assert any(
         "intersticial aguda" in item.lower()
         for item in recommendation["glomerular_interstitial_flags"]
     )
+    assert any("isglt2" in item.lower() for item in recommendation["nephroprotection_actions"])
     assert any(
-        "isglt2" in item.lower() for item in recommendation["nephroprotection_actions"]
-    )
-    assert any(
-        "doble bloqueo" in item.lower()
-        for item in recommendation["pharmacologic_safety_alerts"]
+        "doble bloqueo" in item.lower() for item in recommendation["pharmacologic_safety_alerts"]
     )
 
 
@@ -2570,12 +2505,8 @@ def test_run_pneumology_support_returns_recommendation_and_trace(client, db_sess
     payload = response.json()
     assert payload["workflow_name"] == "pneumology_support_v1"
     assert payload["recommendation"]["severity_level"] == "critical"
-    assert any(
-        "noc" in item.lower() for item in payload["recommendation"]["imaging_assessment"]
-    )
-    assert any(
-        "bipap" in item.lower() for item in payload["recommendation"]["therapeutic_actions"]
-    )
+    assert any("noc" in item.lower() for item in payload["recommendation"]["imaging_assessment"])
+    assert any("bipap" in item.lower() for item in payload["recommendation"]["therapeutic_actions"])
     assert any(
         "triple terapia" in item.lower()
         for item in payload["recommendation"]["therapeutic_actions"]
@@ -2589,11 +2520,7 @@ def test_run_pneumology_support_returns_recommendation_and_trace(client, db_sess
 
     from app.models.agent_run import AgentRun, AgentStep
 
-    run = (
-        db_session.query(AgentRun)
-        .filter(AgentRun.id == payload["agent_run_id"])
-        .first()
-    )
+    run = db_session.query(AgentRun).filter(AgentRun.id == payload["agent_run_id"]).first()
     assert run is not None
     assert run.workflow_name == "pneumology_support_v1"
     step = db_session.query(AgentStep).filter(AgentStep.run_id == run.id).first()
@@ -2634,8 +2561,7 @@ def test_run_pneumology_support_flags_safety_and_lba_context(client):
     recommendation = response.json()["recommendation"]
     assert recommendation["severity_level"] == "high"
     assert any(
-        "laba+corticoide" in item.lower()
-        for item in recommendation["procedural_safety_alerts"]
+        "laba+corticoide" in item.lower() for item in recommendation["procedural_safety_alerts"]
     )
     assert any("sibilancias" in item.lower() for item in recommendation["procedural_safety_alerts"])
     assert any("sarcoidosis" in item.lower() for item in recommendation["diagnostic_actions"])
@@ -2701,11 +2627,7 @@ def test_run_geriatrics_support_returns_recommendation_and_trace(client, db_sess
 
     from app.models.agent_run import AgentRun, AgentStep
 
-    run = (
-        db_session.query(AgentRun)
-        .filter(AgentRun.id == payload["agent_run_id"])
-        .first()
-    )
+    run = db_session.query(AgentRun).filter(AgentRun.id == payload["agent_run_id"]).first()
     assert run is not None
     assert run.workflow_name == "geriatrics_support_v1"
     step = db_session.query(AgentStep).filter(AgentStep.run_id == run.id).first()
@@ -2815,20 +2737,14 @@ def test_run_oncology_support_returns_recommendation_and_trace(client, db_sessio
     assert recommendation["severity_level"] == "critical"
     assert any("pd-1" in item.lower() for item in recommendation["immunotherapy_mechanism_notes"])
     assert any("dmmr/msi-high" in item.lower() for item in recommendation["biomarker_strategy"])
-    assert any(
-        "neutropenia febril" in item.lower() for item in recommendation["critical_alerts"]
-    )
+    assert any("neutropenia febril" in item.lower() for item in recommendation["critical_alerts"])
     assert any("fevi basal" in item.lower() for item in recommendation["critical_alerts"])
     assert any("necrosis" in item.lower() for item in recommendation["sarcoma_response_actions"])
     assert any("ewsr1" in item.lower() for item in recommendation["sarcoma_response_actions"])
 
     from app.models.agent_run import AgentRun, AgentStep
 
-    run = (
-        db_session.query(AgentRun)
-        .filter(AgentRun.id == payload["agent_run_id"])
-        .first()
-    )
+    run = db_session.query(AgentRun).filter(AgentRun.id == payload["agent_run_id"]).first()
     assert run is not None
     assert run.workflow_name == "oncology_support_v1"
     step = db_session.query(AgentStep).filter(AgentStep.run_id == run.id).first()
@@ -2958,11 +2874,7 @@ def test_run_anesthesiology_support_returns_recommendation_and_trace(client, db_
 
     from app.models.agent_run import AgentRun, AgentStep
 
-    run = (
-        db_session.query(AgentRun)
-        .filter(AgentRun.id == payload["agent_run_id"])
-        .first()
-    )
+    run = db_session.query(AgentRun).filter(AgentRun.id == payload["agent_run_id"]).first()
     assert run is not None
     assert run.workflow_name == "anesthesiology_support_v1"
     step = db_session.query(AgentStep).filter(AgentStep.run_id == run.id).first()
@@ -3015,8 +2927,7 @@ def test_run_anesthesiology_support_differential_blocks_and_safety(client):
         for item in recommendation["differential_block_recommendations"]
     )
     assert any(
-        "pudendos" in item.lower()
-        for item in recommendation["differential_block_recommendations"]
+        "pudendos" in item.lower() for item in recommendation["differential_block_recommendations"]
     )
     assert any("3 minutos" in item.lower() for item in recommendation["airway_safety_blocks"])
     assert any("45-60" in item.lower() for item in recommendation["airway_safety_blocks"])
@@ -3218,8 +3129,7 @@ def test_run_urology_support_returns_recommendation_and_trace(client, db_session
     assert payload["workflow_name"] == "urology_support_v1"
     assert recommendation["severity_level"] == "critical"
     assert any(
-        "pielonefritis enfisematosa" in item.lower()
-        for item in recommendation["critical_alerts"]
+        "pielonefritis enfisematosa" in item.lower() for item in recommendation["critical_alerts"]
     )
     assert any(
         "derivacion urinaria urgente antes de tac" in item.lower()
@@ -3230,12 +3140,10 @@ def test_run_urology_support_returns_recommendation_and_trace(client, db_session
         for item in recommendation["safety_blocks"]
     )
     assert any(
-        "nefrectomia parcial" in item.lower()
-        for item in recommendation["oncologic_actions"]
+        "nefrectomia parcial" in item.lower() for item in recommendation["oncologic_actions"]
     )
     assert any(
-        "biopsia transperineal" in item.lower()
-        for item in recommendation["oncologic_actions"]
+        "biopsia transperineal" in item.lower() for item in recommendation["oncologic_actions"]
     )
 
     from app.models.agent_run import AgentRun, AgentStep
@@ -3289,12 +3197,8 @@ def test_run_urology_support_prioritizes_diversion_and_triple_therapy_safety(cli
     recommendation = response.json()["recommendation"]
 
     assert recommendation["severity_level"] == "critical"
-    assert any(
-        "falta analogo lhrh" in item.lower() for item in recommendation["critical_alerts"]
-    )
-    assert any(
-        "antiandrogeno" in item.lower() for item in recommendation["critical_alerts"]
-    )
+    assert any("falta analogo lhrh" in item.lower() for item in recommendation["critical_alerts"])
+    assert any("antiandrogeno" in item.lower() for item in recommendation["critical_alerts"])
     assert any(
         "bloquear secuencia tac previo" in item.lower() for item in recommendation["safety_blocks"]
     )
@@ -3302,9 +3206,7 @@ def test_run_urology_support_prioritizes_diversion_and_triple_therapy_safety(cli
         "bloquear tratamiento local curativo" in item.lower()
         for item in recommendation["safety_blocks"]
     )
-    assert any(
-        "docetaxel-enzalutamida" in item.lower() for item in recommendation["safety_blocks"]
-    )
+    assert any("docetaxel-enzalutamida" in item.lower() for item in recommendation["safety_blocks"])
 
 
 def test_run_urology_support_returns_404_when_task_not_found(client):
@@ -3477,8 +3379,7 @@ def test_run_ophthalmology_support_returns_recommendation_and_trace(client, db_s
     assert any("ovcr" in item.lower() for item in recommendation["critical_alerts"])
     assert any("ifis" in item.lower() for item in recommendation["critical_alerts"])
     assert any(
-        "fenilefrina intracamerular" in item.lower()
-        for item in recommendation["safety_blocks"]
+        "fenilefrina intracamerular" in item.lower() for item in recommendation["safety_blocks"]
     )
     assert any("dmae humeda" in item.lower() for item in recommendation["critical_alerts"])
 
@@ -3634,12 +3535,10 @@ def test_run_immunology_support_differential_profiles_and_safety_blocks(client):
     assert recommendation["severity_level"] == "critical"
     assert any("hiper-igm" in item.lower() for item in recommendation["critical_alerts"])
     assert any(
-        "igm marcada simultaneamente" in item.lower()
-        for item in recommendation["safety_blocks"]
+        "igm marcada simultaneamente" in item.lower() for item in recommendation["safety_blocks"]
     )
     assert any(
-        "multiples perfiles humorales" in item.lower()
-        for item in recommendation["safety_blocks"]
+        "multiples perfiles humorales" in item.lower() for item in recommendation["safety_blocks"]
     )
 
 
@@ -3736,22 +3635,17 @@ def test_run_genetic_recurrence_support_handles_mosaicism_fraction_and_consisten
     recommendation = response.json()["recommendation"]
 
     assert recommendation["mosaicism_alert_active"] is True
-    assert (
-        recommendation["prioritized_recurrence_mechanism"]
-        == "mosaicismo_germinal_confirmado"
-    )
+    assert recommendation["prioritized_recurrence_mechanism"] == "mosaicismo_germinal_confirmado"
     assert recommendation["estimated_recurrence_risk_percent"] == 40
     assert any(
         "inconsistencia fenotipica parental" in item.lower()
         for item in recommendation["safety_blocks"]
     )
     assert any(
-        "sin confirmacion molecular" in item.lower()
-        for item in recommendation["safety_blocks"]
+        "sin confirmacion molecular" in item.lower() for item in recommendation["safety_blocks"]
     )
     assert any(
-        "normalizar clasificacion" in item.lower()
-        for item in recommendation["safety_blocks"]
+        "normalizar clasificacion" in item.lower() for item in recommendation["safety_blocks"]
     )
 
 
@@ -3764,9 +3658,7 @@ def test_run_genetic_recurrence_support_returns_404_when_task_not_found(client):
     assert response.json()["detail"] == "CareTask no encontrado"
 
 
-def test_run_gynecology_obstetrics_support_returns_recommendation_and_trace(
-    client, db_session
-):
+def test_run_gynecology_obstetrics_support_returns_recommendation_and_trace(client, db_session):
     create_response = client.post(
         "/api/v1/care-tasks/",
         json={
@@ -3857,10 +3749,7 @@ def test_run_gynecology_obstetrics_support_blocks_unsafe_pharmacology(client):
     recommendation = response.json()["recommendation"]
 
     assert recommendation["severity_level"] == "high"
-    assert any(
-        "bloqueo de diureticos" in item.lower()
-        for item in recommendation["safety_blocks"]
-    )
+    assert any("bloqueo de diureticos" in item.lower() for item in recommendation["safety_blocks"])
     assert any(
         "fisioterapia descongestiva" in item.lower()
         for item in recommendation["pharmacology_prevention_actions"]
@@ -3879,9 +3768,7 @@ def test_run_gynecology_obstetrics_support_returns_404_when_task_not_found(clien
     assert response.json()["detail"] == "CareTask no encontrado"
 
 
-def test_run_pediatrics_neonatology_support_returns_recommendation_and_trace(
-    client, db_session
-):
+def test_run_pediatrics_neonatology_support_returns_recommendation_and_trace(client, db_session):
     create_response = client.post(
         "/api/v1/care-tasks/",
         json={
@@ -3929,20 +3816,13 @@ def test_run_pediatrics_neonatology_support_returns_recommendation_and_trace(
     assert recommendation["severity_level"] == "critical"
     assert any("sarampion" in item.lower() for item in recommendation["critical_alerts"])
     assert any(
-        "aislamiento respiratorio" in item.lower()
-        for item in recommendation["safety_blocks"]
+        "aislamiento respiratorio" in item.lower() for item in recommendation["safety_blocks"]
     )
+    assert any("no aumentar o2" in item.lower() for item in recommendation["safety_blocks"])
     assert any(
-        "no aumentar o2" in item.lower() for item in recommendation["safety_blocks"]
+        "susceptible" in item.lower() for item in recommendation["infectious_exanthem_actions"]
     )
-    assert any(
-        "susceptible" in item.lower()
-        for item in recommendation["infectious_exanthem_actions"]
-    )
-    assert any(
-        "cpap" in item.lower()
-        for item in recommendation["neonatal_resuscitation_actions"]
-    )
+    assert any("cpap" in item.lower() for item in recommendation["neonatal_resuscitation_actions"])
 
     from app.models.agent_run import AgentRun, AgentStep
 
@@ -3988,16 +3868,10 @@ def test_run_pediatrics_neonatology_support_flags_critical_branches(client):
 
     assert recommendation["severity_level"] == "critical"
     assert any("tosferina" in item.lower() for item in recommendation["critical_alerts"])
+    assert any("invaginacion" in item.lower() for item in recommendation["critical_alerts"])
+    assert any("sifilis congenita" in item.lower() for item in recommendation["critical_alerts"])
     assert any(
-        "invaginacion" in item.lower() for item in recommendation["critical_alerts"]
-    )
-    assert any(
-        "sifilis congenita" in item.lower()
-        for item in recommendation["critical_alerts"]
-    )
-    assert any(
-        "azitromicina" in item.lower()
-        for item in recommendation["pertussis_contact_actions"]
+        "azitromicina" in item.lower() for item in recommendation["pertussis_contact_actions"]
     )
 
 
@@ -4056,9 +3930,7 @@ def test_run_anisakis_support_returns_recommendation_and_trace(client, db_sessio
         "congelacion previa insuficiente" in item.lower()
         for item in recommendation["safety_blocks"]
     )
-    assert any(
-        "-20 c" in item.lower() for item in recommendation["discharge_prevention_actions"]
-    )
+    assert any("-20 c" in item.lower() for item in recommendation["discharge_prevention_actions"])
     assert any(
         "por encima de 60 c" in item.lower()
         for item in recommendation["discharge_prevention_actions"]
@@ -5422,14 +5294,8 @@ def test_chat_continuity_filters_control_facts_from_memory(client):
     assert second_chat.status_code == 200
     payload = second_chat.json()
 
-    assert all(
-        not fact.startswith("modo_respuesta:")
-        for fact in payload["memory_facts_used"]
-    )
-    assert all(
-        not fact.startswith("herramienta:")
-        for fact in payload["memory_facts_used"]
-    )
+    assert all(not fact.startswith("modo_respuesta:") for fact in payload["memory_facts_used"])
+    assert all(not fact.startswith("herramienta:") for fact in payload["memory_facts_used"])
     assert payload["response_mode"] == "clinical"
 
 

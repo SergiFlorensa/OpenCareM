@@ -16,6 +16,7 @@ Hoja de Ruta incremental para profesionalizar el proyecto sin saltos grandes.
 - [x] Migrar settings de Pydantic a configuracion v2 (`SettingsConfigDict`).
 - [x] Definir y validar flujo local de `ruff`, `black`, `mypy`.
 - [x] Integrar `ruff`, `black`, `mypy` en pipeline automatizado (GitHub Actions).
+- [x] Activar hooks `pre-commit` sobre staged files (`ruff --fix`, `black`, verificacion `ruff`).
 - [x] Agregar logging estructurado por request.
 - [x] Exponer metricas Prometheus en endpoint dedicado.
 - [x] Integrar Prometheus en Docker Compose para scraping local.
@@ -55,6 +56,7 @@ Hoja de Ruta incremental para profesionalizar el proyecto sin saltos grandes.
 ## Fase 6: Productividad de agentes
 
 - [x] Crear libreria de skills de proyecto para orquestacion/API/observabilidad.
+- [x] Estandarizar scripts operativos internos (`dev`, `build`, `check`, `test`, `test-e2e`) para ejecucion local consistente.
 
 ## Fase 7: Clinical Ops Copilot (nuevo foco)
 

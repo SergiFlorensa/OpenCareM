@@ -191,7 +191,9 @@ def main() -> int:
             )
             generated += 1
             print(
-                f"[ok] task_id={task_id} run_id={run_id} mode={current_mode} classification={classification}"
+                "[ok] "
+                f"task_id={task_id} run_id={run_id} "
+                f"mode={current_mode} classification={classification}"
             )
 
         print(f"\nGenerados: {generated} casos.")

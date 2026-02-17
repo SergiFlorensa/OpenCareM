@@ -87,13 +87,9 @@ class NephrologySupportProtocolService:
                 "Anti-MBG positivo: plasmaferesis obligatoria en estrategia inicial."
             )
         if payload.rapidly_progressive_gn_requires_dialysis:
-            critical_alerts.append(
-                "GNRP con necesidad de dialisis: plasmaferesis obligatoria."
-            )
+            critical_alerts.append("GNRP con necesidad de dialisis: plasmaferesis obligatoria.")
         if payload.pulmonary_hemorrhage_present:
-            critical_alerts.append(
-                "Hemorragia pulmonar asociada: plasmaferesis obligatoria."
-            )
+            critical_alerts.append("Hemorragia pulmonar asociada: plasmaferesis obligatoria.")
 
         if payload.dysmorphic_rbc_present:
             glomerular_flags.append(
@@ -109,9 +105,7 @@ class NephrologySupportProtocolService:
             glomerular_flags.append(
                 "Patron compatible con nefropatia IgA (Berger) en contexto de biopsia."
             )
-            therapeutic_actions.append(
-                "Control estricto de TA y proteinuria con IECA o ARA-II."
-            )
+            therapeutic_actions.append("Control estricto de TA y proteinuria con IECA o ARA-II.")
             if (
                 payload.proteinuria_g_24h is not None
                 and payload.proteinuria_g_24h > 1
@@ -146,9 +140,7 @@ class NephrologySupportProtocolService:
             glomerular_flags.append(
                 "Perfil compatible con nefritis intersticial aguda farmacologica."
             )
-            therapeutic_actions.append(
-                "Suspender inmediatamente el farmaco sospechoso."
-            )
+            therapeutic_actions.append("Suspender inmediatamente el farmaco sospechoso.")
             if payload.suspected_drug_name:
                 diagnostic_actions.append(
                     f"Registrar trigger farmacologico reportado: {payload.suspected_drug_name}."
@@ -174,21 +166,14 @@ class NephrologySupportProtocolService:
         acid_base_assessment: list[str] = []
         trace: list[str] = []
 
-        if (
-            payload.ph is None
-            or payload.hco3_mmol_l is None
-            or payload.pco2_mm_hg is None
-        ):
+        if payload.ph is None or payload.hco3_mmol_l is None or payload.pco2_mm_hg is None:
             return critical_alerts, acid_base_assessment, trace
 
         if payload.ph < 7.35 and payload.hco3_mmol_l < 24:
-            acid_base_assessment.append(
-                "Acidosis metabolica: pH < 7.35 con bicarbonato < 24."
-            )
+            acid_base_assessment.append("Acidosis metabolica: pH < 7.35 con bicarbonato < 24.")
             expected_pco2 = 40 - (24 - payload.hco3_mmol_l)
             acid_base_assessment.append(
-                "Compensacion esperada aproximada: "
-                f"PCO2 ~ {round(expected_pco2, 1)} mmHg."
+                "Compensacion esperada aproximada: " f"PCO2 ~ {round(expected_pco2, 1)} mmHg."
             )
             trace.append("Regla de compensacion respiratoria lineal aplicada.")
 
@@ -290,9 +275,12 @@ class NephrologySupportProtocolService:
         payload: NephrologySupportProtocolRequest,
     ) -> NephrologySupportProtocolRecommendation:
         """Genera recomendacion operativa de nefrologia para validacion humana."""
-        aki_classification, diag_aki, flags_aki, trace_aki = (
-            NephrologySupportProtocolService._aki_classification_pathway(payload)
-        )
+        (
+            aki_classification,
+            diag_aki,
+            flags_aki,
+            trace_aki,
+        ) = NephrologySupportProtocolService._aki_classification_pathway(payload)
         (
             critical_glom,
             diag_glom,
@@ -300,15 +288,21 @@ class NephrologySupportProtocolService:
             flags_glom,
             trace_glom,
         ) = NephrologySupportProtocolService._renopulmonary_and_glomerular_pathway(payload)
-        critical_ab, acid_base_assessment, trace_ab = (
-            NephrologySupportProtocolService._acid_base_pathway(payload)
-        )
-        critical_dial, dialysis_alerts, tx_dial = (
-            NephrologySupportProtocolService._aeiou_dialysis_pathway(payload)
-        )
-        nephro_actions, safety_alerts, trace_nephro = (
-            NephrologySupportProtocolService._nephroprotection_pathway(payload)
-        )
+        (
+            critical_ab,
+            acid_base_assessment,
+            trace_ab,
+        ) = NephrologySupportProtocolService._acid_base_pathway(payload)
+        (
+            critical_dial,
+            dialysis_alerts,
+            tx_dial,
+        ) = NephrologySupportProtocolService._aeiou_dialysis_pathway(payload)
+        (
+            nephro_actions,
+            safety_alerts,
+            trace_nephro,
+        ) = NephrologySupportProtocolService._nephroprotection_pathway(payload)
 
         critical_alerts = critical_glom + critical_ab + critical_dial
         diagnostic_actions = diag_aki + diag_glom

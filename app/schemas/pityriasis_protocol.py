@@ -25,21 +25,21 @@ class PityriasisDifferentialRequest(BaseModel):
             "areas_seborreicas",
         ]
     ] = Field(default_factory=list)
-    lesion_pigmentation: Literal["hipocromica", "hipercromica", "eritematosa", "mixta"] = (
-        "hipocromica"
-    )
+    lesion_pigmentation: Literal[
+        "hipocromica", "hipercromica", "eritematosa", "mixta"
+    ] = "hipocromica"
     fine_scaling_present: bool = False
     signo_unyada_positive: bool = False
     herald_patch_present: bool = False
     christmas_tree_pattern_present: bool = False
     pruritus_intensity: int = Field(default=0, ge=0, le=10)
     viral_prodrome_present: bool = False
-    wood_lamp_result: Literal["amarillo_naranja", "sin_fluorescencia", "no_realizada"] = (
-        "no_realizada"
-    )
-    koh_result: Literal["positivo_spaghetti_albondigas", "negativo", "no_realizado"] = (
-        "no_realizado"
-    )
+    wood_lamp_result: Literal[
+        "amarillo_naranja", "sin_fluorescencia", "no_realizada"
+    ] = "no_realizada"
+    koh_result: Literal[
+        "positivo_spaghetti_albondigas", "negativo", "no_realizado"
+    ] = "no_realizado"
     recurrent_course: bool = False
     atopic_background: bool = False
     sensory_loss_in_lesion: bool = False

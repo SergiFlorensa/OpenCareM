@@ -14,7 +14,14 @@ class AITriageService:
         text = f"{title} {description or ''}".lower()
 
         bug_keywords = ("bug", "error", "fix", "exception", "crash", "incident")
-        ops_keywords = ("deploy", "docker", "infra", "monitor", "prometheus", "grafana")
+        ops_keywords = (
+            "deploy",
+            "docker",
+            "infra",
+            "monitor",
+            "prometheus",
+            "grafana",
+        )
         docs_keywords = ("docs", "readme", "document", "guide", "tutorial")
         analysis_keywords = ("analyze", "investigate", "research", "spike", "poc")
         urgent_keywords = ("urgent", "asap", "critical", "blocker", "production")
@@ -58,7 +65,9 @@ class AITriageService:
             reason_parts.append("La tarea parece no bloqueante para la operacion en ejecucion.")
 
         if not reason_parts:
-            reason_parts.append("No se detectaron senales fuertes; se aplican valores conservadores.")
+            reason_parts.append(
+                "No se detectaron senales fuertes; se aplican valores conservadores."
+            )
 
         return TaskTriageResponse(
             priority=priority,
@@ -86,7 +95,6 @@ class AITriageService:
         fallback_result = AITriageService._rules_suggest_task_metadata(title, description)
         fallback_result.source = "rules_fallback"
         fallback_result.reason = (
-            f"{fallback_result.reason} "
-            "Fallback de modo hibrido: salida LLM no disponible."
+            f"{fallback_result.reason} " "Fallback de modo hibrido: salida LLM no disponible."
         )
         return fallback_result

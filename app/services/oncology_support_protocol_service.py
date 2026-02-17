@@ -170,9 +170,10 @@ class OncologySupportProtocolService:
         trace: list[str] = []
 
         fever_criterion = (
-            payload.temperature_c_single is not None
-            and payload.temperature_c_single > 38.3
-        ) or payload.fever_over_38_more_than_1h or payload.fever_three_measurements_24h
+            (payload.temperature_c_single is not None and payload.temperature_c_single > 38.3)
+            or payload.fever_over_38_more_than_1h
+            or payload.fever_three_measurements_24h
+        )
 
         neutropenia_criterion = False
         if payload.absolute_neutrophil_count_mm3 is not None:
@@ -256,18 +257,26 @@ class OncologySupportProtocolService:
         payload: OncologySupportProtocolRequest,
     ) -> OncologySupportProtocolRecommendation:
         """Genera recomendacion operativa oncológica para validacion humana."""
-        mechanism_notes, biomarker_strategy, trace_immuno = (
-            OncologySupportProtocolService._immunotherapy_and_biomarkers(payload)
-        )
-        critical_tox, toxicity_actions, trace_tox = (
-            OncologySupportProtocolService._immune_toxicity_pathway(payload)
-        )
-        critical_cardio, cardio_actions, trace_cardio = (
-            OncologySupportProtocolService._cardio_oncology_pathway(payload)
-        )
-        critical_fn, fn_actions, trace_fn = (
-            OncologySupportProtocolService._febrile_neutropenia_pathway(payload)
-        )
+        (
+            mechanism_notes,
+            biomarker_strategy,
+            trace_immuno,
+        ) = OncologySupportProtocolService._immunotherapy_and_biomarkers(payload)
+        (
+            critical_tox,
+            toxicity_actions,
+            trace_tox,
+        ) = OncologySupportProtocolService._immune_toxicity_pathway(payload)
+        (
+            critical_cardio,
+            cardio_actions,
+            trace_cardio,
+        ) = OncologySupportProtocolService._cardio_oncology_pathway(payload)
+        (
+            critical_fn,
+            fn_actions,
+            trace_fn,
+        ) = OncologySupportProtocolService._febrile_neutropenia_pathway(payload)
         sarcoma_actions, trace_sarcoma = OncologySupportProtocolService._sarcoma_response_pathway(
             payload
         )

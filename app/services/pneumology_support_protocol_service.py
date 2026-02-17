@@ -174,9 +174,7 @@ class PneumologySupportProtocolService:
                     "Fenotipo eosinofilico sin poliposis predominante: considerar benralizumab."
                 )
         if payload.severe_asthma and payload.allergic_asthma_phenotype:
-            biologic_strategy.append(
-                "Fenotipo alergico mediado por IgE: considerar omalizumab."
-            )
+            biologic_strategy.append("Fenotipo alergico mediado por IgE: considerar omalizumab.")
 
         planned = (payload.biologic_planned or "").strip().lower()
         if planned and biologic_strategy:
@@ -273,21 +271,33 @@ class PneumologySupportProtocolService:
         payload: PneumologySupportProtocolRequest,
     ) -> PneumologySupportProtocolRecommendation:
         """Genera recomendacion operativa neumologica para validacion humana."""
-        imaging_assessment, diagnostic_imaging, trace_imaging = (
-            PneumologySupportProtocolService._imaging_pathway(payload)
-        )
-        ventilatory_assessment, therapeutic_vent, trace_vent = (
-            PneumologySupportProtocolService._ventilatory_pathway(payload)
-        )
-        diagnostic_exam, safety_exam, trace_exam = (
-            PneumologySupportProtocolService._physical_exam_pathway(payload)
-        )
-        therapeutic_copd, biologic_strategy, safety_copd, trace_copd = (
-            PneumologySupportProtocolService._copd_asthma_pathway(payload)
-        )
-        critical_lba, diagnostic_lba, therapeutic_lba, safety_lba = (
-            PneumologySupportProtocolService._lba_and_interventional_pathway(payload)
-        )
+        (
+            imaging_assessment,
+            diagnostic_imaging,
+            trace_imaging,
+        ) = PneumologySupportProtocolService._imaging_pathway(payload)
+        (
+            ventilatory_assessment,
+            therapeutic_vent,
+            trace_vent,
+        ) = PneumologySupportProtocolService._ventilatory_pathway(payload)
+        (
+            diagnostic_exam,
+            safety_exam,
+            trace_exam,
+        ) = PneumologySupportProtocolService._physical_exam_pathway(payload)
+        (
+            therapeutic_copd,
+            biologic_strategy,
+            safety_copd,
+            trace_copd,
+        ) = PneumologySupportProtocolService._copd_asthma_pathway(payload)
+        (
+            critical_lba,
+            diagnostic_lba,
+            therapeutic_lba,
+            safety_lba,
+        ) = PneumologySupportProtocolService._lba_and_interventional_pathway(payload)
 
         critical_alerts = critical_lba
         diagnostic_actions = diagnostic_imaging + diagnostic_exam + diagnostic_lba

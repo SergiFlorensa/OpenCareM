@@ -28,9 +28,7 @@ class EndocrinologySupportProtocolService:
             diagnostic_actions.append(
                 "Solicitar perfil metabolico urgente con lactato, amonio y dicarboxilicos."
             )
-            trace.append(
-                "Regla de hipoglucemia hipocetosica aplicada para errores innatos."
-            )
+            trace.append("Regla de hipoglucemia hipocetosica aplicada para errores innatos.")
             if payload.fasting_context:
                 diagnostic_actions.append(
                     "Contexto de ayuno presente: aumenta sospecha de deficit "
@@ -109,9 +107,7 @@ class EndocrinologySupportProtocolService:
                     "Asegurar marcadores de seguimiento para CMT: calcitonina y CEA."
                 )
             if not payload.ret_genetic_study_completed:
-                diagnostic_actions.append(
-                    "Completar estudio genetico del protooncogen RET."
-                )
+                diagnostic_actions.append("Completar estudio genetico del protooncogen RET.")
             trace.append("Ruta operativa de carcinoma medular tiroideo aplicada.")
 
         return critical_alerts, diagnostic_actions, therapeutic_actions, safety_alerts, trace
@@ -136,8 +132,7 @@ class EndocrinologySupportProtocolService:
                 "orina inapropiadamente concentrada."
             )
             if (
-                payload.serum_sodium_mmol_l is not None
-                and payload.serum_sodium_mmol_l < 120
+                payload.serum_sodium_mmol_l is not None and payload.serum_sodium_mmol_l < 120
             ) or payload.neurologic_symptoms_present:
                 critical_alerts.append(
                     "SIADH grave/sintomatica: iniciar suero salino hipertónico a ritmo lento."
@@ -226,9 +221,7 @@ class EndocrinologySupportProtocolService:
                     "Incidentaloma sin test de supresion con 1 mg de dexametasona nocturna."
                 )
             if not payload.urinary_metanephrines_24h_completed:
-                critical_alerts.append(
-                    "Incidentaloma sin metanefrinas fraccionadas en orina 24h."
-                )
+                critical_alerts.append("Incidentaloma sin metanefrinas fraccionadas en orina 24h.")
 
         if payload.t1d_autoimmunity_positive:
             if (
@@ -236,9 +229,7 @@ class EndocrinologySupportProtocolService:
                 and not payload.prediabetes_range
                 and not payload.diabetes_criteria_present
             ):
-                staging_support.append(
-                    "DM1 estadio 1: autoinmunidad positiva con glucosa normal."
-                )
+                staging_support.append("DM1 estadio 1: autoinmunidad positiva con glucosa normal.")
             elif payload.prediabetes_range and not payload.diabetes_criteria_present:
                 staging_support.append(
                     "DM1 estadio 2: autoinmunidad positiva con disglucemia/prediabetes."
@@ -286,17 +277,11 @@ class EndocrinologySupportProtocolService:
                 "(hipertrigliceridemia y descenso de HDL)."
             )
 
-        if (
-            payload.insulin_resistance_suspected
-            and payload.hexokinase2_downregulation_reported
-        ):
+        if payload.insulin_resistance_suspected and payload.hexokinase2_downregulation_reported:
             context_flags.append(
                 "Resistencia insulinica con menor expresion de exoquinasa 2 reportada."
             )
-        if (
-            payload.insulin_resistance_suspected
-            and payload.hepatic_foxo1_activation_reported
-        ):
+        if payload.insulin_resistance_suspected and payload.hepatic_foxo1_activation_reported:
             context_flags.append(
                 "Activacion hepatica de genes gluconeogenicos mediada por FoxO1 no fosforilado."
             )
@@ -324,9 +309,12 @@ class EndocrinologySupportProtocolService:
         payload: EndocrinologySupportProtocolRequest,
     ) -> EndocrinologySupportProtocolRecommendation:
         """Genera recomendacion operativa endocrino-metabolica para validacion humana."""
-        critical_met, diagnostic_met, therapeutic_met, trace_met = (
-            EndocrinologySupportProtocolService._metabolic_emergency_pathway(payload)
-        )
+        (
+            critical_met,
+            diagnostic_met,
+            therapeutic_met,
+            trace_met,
+        ) = EndocrinologySupportProtocolService._metabolic_emergency_pathway(payload)
         (
             critical_thy,
             diagnostic_thy,
@@ -353,9 +341,7 @@ class EndocrinologySupportProtocolService:
 
         critical_alerts = critical_met + critical_thy + critical_pit + critical_misc
         diagnostic_actions = diagnostic_met + diagnostic_thy + diagnostic_pit
-        therapeutic_actions = (
-            therapeutic_met + therapeutic_thy + therapeutic_pit + therapeutic_misc
-        )
+        therapeutic_actions = therapeutic_met + therapeutic_thy + therapeutic_pit + therapeutic_misc
         safety_alerts = safety_thy + safety_pit + safety_misc
         interpretability_trace = trace_met + trace_thy
         severity = EndocrinologySupportProtocolService._severity(

@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from app.services.clinical_chat_service import ClinicalChatService
 from app.services.llm_chat_provider import LLMChatProvider
 
@@ -209,3 +211,53 @@ def test_general_answer_suggests_domains_and_next_step_for_case_discovery():
     assert "Sepsis en urgencias" in answer
     assert "SCASEST" in answer
     assert "Si me das un caso concreto" in answer
+
+
+def test_clinical_fallback_does_not_dump_json_or_internal_fact_tags():
+    answer = ClinicalChatService._render_clinical_answer(
+        care_task=SimpleNamespace(title="Caso prueba integral"),
+        query="Paciente con sepsis y lactato 4",
+        matched_domains=[{"label": "Sepsis", "summary": "Bundle de sepsis y escalado."}],
+        matched_endpoints=["/api/v1/care-tasks/1/sepsis/recommendation"],
+        effective_specialty="emergency",
+        memory_facts_used=["termino:sepsis"],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        extracted_facts=["termino:sepsis", "umbral:10min"],
+        knowledge_sources=[],
+        web_sources=[],
+        include_protocol_catalog=True,
+        tool_mode="chat",
+        recent_dialogue=[],
+        endpoint_recommendations=[
+            {
+                "title": "Recomendacion sintetizada sepsis",
+                "endpoint": "/api/v1/care-tasks/1/sepsis/recommendation",
+                "snippet": '{"qsofa_score":0,"high_sepsis_risk":false}',
+            }
+        ],
+    )
+    assert "qsofa_score" not in answer
+    assert "termino:sepsis" not in answer
+    assert "Endpoint: /api/v1/care-tasks/1/sepsis/recommendation" in answer
+
+
+def test_clinical_fallback_ignores_social_turn_for_continuity():
+    answer = ClinicalChatService._render_clinical_answer(
+        care_task=SimpleNamespace(title="Caso prueba integral"),
+        query="Paciente con sepsis y lactato 4",
+        matched_domains=[{"label": "Sepsis", "summary": "Bundle de sepsis y escalado."}],
+        matched_endpoints=["/api/v1/care-tasks/1/sepsis/recommendation"],
+        effective_specialty="emergency",
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        extracted_facts=["termino:sepsis"],
+        knowledge_sources=[],
+        web_sources=[],
+        include_protocol_catalog=True,
+        tool_mode="chat",
+        recent_dialogue=[{"user_query": "hola, tienes informacion de algunos casos?"}],
+        endpoint_recommendations=[],
+    )
+    assert "Continuidad: tomo como referencia el ultimo turno clinico" not in answer

@@ -36,9 +36,7 @@ class ImmunologySupportProtocolService:
                 "Priorizar valoracion de inmunologia clinica y ruta de reposicion "
                 "de inmunoglobulinas segun protocolo."
             )
-            trace.append(
-                "Regla Bruton activada por ausencia CD19/CD20 + panhipogammaglobulinemia."
-            )
+            trace.append("Regla Bruton activada por ausencia CD19/CD20 + panhipogammaglobulinemia.")
 
         if payload.btk_mutation_confirmed:
             actions.append(
@@ -112,9 +110,7 @@ class ImmunologySupportProtocolService:
                 "Sospecha de disfuncion de macrofago alveolar: reforzar vigilancia "
                 "de carga infecciosa distal y respuesta inflamatoria local."
             )
-            trace.append(
-                "Regla pulmonar activada por compromiso de primera linea fagocitica."
-            )
+            trace.append("Regla pulmonar activada por compromiso de primera linea fagocitica.")
             if payload.lower_respiratory_infection_active:
                 critical_alerts.append(
                     "Infeccion respiratoria con posible fallo de macrofago alveolar: "
@@ -163,9 +159,7 @@ class ImmunologySupportProtocolService:
             and not payload.igm_elevated
         )
         hyper_igm_profile = (
-            payload.igm_elevated
-            and payload.igg_low_or_absent
-            and payload.iga_low_or_absent
+            payload.igm_elevated and payload.igg_low_or_absent and payload.iga_low_or_absent
         )
         cvid_profile = (
             payload.igg_low_or_absent
@@ -182,8 +176,7 @@ class ImmunologySupportProtocolService:
 
         if hyper_igm_profile:
             critical_alerts.append(
-                "Perfil compatible con sindrome de hiper-IgM "
-                "(IgM alta con IgG/IgA bajas)."
+                "Perfil compatible con sindrome de hiper-IgM " "(IgM alta con IgG/IgA bajas)."
             )
             actions.append(
                 "Priorizar validacion inmunologica de cambio de clase y riesgo "
@@ -255,15 +248,23 @@ class ImmunologySupportProtocolService:
         payload: ImmunologySupportProtocolRequest,
     ) -> ImmunologySupportProtocolRecommendation:
         """Genera recomendacion operativa inmunologica para validacion humana."""
-        critical_pid, pid_actions, safety_pid, trace_pid = (
-            ImmunologySupportProtocolService._primary_immunodeficiency_pathway(payload)
-        )
-        critical_pulmonary, pulmonary_actions, trace_pulmonary = (
-            ImmunologySupportProtocolService._innate_pulmonary_pathway(payload)
-        )
-        critical_diff, differential_actions, safety_diff, trace_diff = (
-            ImmunologySupportProtocolService._humoral_differential_pathway(payload)
-        )
+        (
+            critical_pid,
+            pid_actions,
+            safety_pid,
+            trace_pid,
+        ) = ImmunologySupportProtocolService._primary_immunodeficiency_pathway(payload)
+        (
+            critical_pulmonary,
+            pulmonary_actions,
+            trace_pulmonary,
+        ) = ImmunologySupportProtocolService._innate_pulmonary_pathway(payload)
+        (
+            critical_diff,
+            differential_actions,
+            safety_diff,
+            trace_diff,
+        ) = ImmunologySupportProtocolService._humoral_differential_pathway(payload)
 
         critical_alerts = critical_pid + critical_pulmonary + critical_diff
         safety_blocks = safety_pid + safety_diff

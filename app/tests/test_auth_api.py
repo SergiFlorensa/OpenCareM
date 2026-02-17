@@ -255,9 +255,9 @@ def test_login_is_temporarily_blocked_after_too_many_failures(client, db_session
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert blocked_response.status_code == 429
-        assert "Demasiados intentos fallidos de inicio de sesion" in blocked_response.json()[
-            "detail"
-        ]
+        assert (
+            "Demasiados intentos fallidos de inicio de sesion" in blocked_response.json()["detail"]
+        )
     finally:
         settings.LOGIN_MAX_ATTEMPTS = original_max_attempts
         settings.LOGIN_BLOCK_MINUTES = original_block_minutes

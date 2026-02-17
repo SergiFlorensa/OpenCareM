@@ -20,14 +20,11 @@ class GastroHepatoSupportProtocolService:
         actions: list[str] = []
         trace: list[str] = []
 
-        portal_thrombosis_pattern = (
-            payload.portal_thrombosis_confirmed
-            or (
-                payload.abdominal_pain
-                and payload.jaundice
-                and payload.ascites
-                and payload.portal_doppler_no_flow_silence
-            )
+        portal_thrombosis_pattern = payload.portal_thrombosis_confirmed or (
+            payload.abdominal_pain
+            and payload.jaundice
+            and payload.ascites
+            and payload.portal_doppler_no_flow_silence
         )
         if portal_thrombosis_pattern:
             critical_alerts.append(
@@ -163,10 +160,7 @@ class GastroHepatoSupportProtocolService:
             differential_clues.append(
                 "Hernia crural/femoral: alto riesgo de incarceracion y obstruccion."
             )
-            if (
-                payload.intestinal_obstruction_signs
-                or payload.incarceration_or_strangulation_signs
-            ):
+            if payload.intestinal_obstruction_signs or payload.incarceration_or_strangulation_signs:
                 critical_alerts.append(
                     "Hernia crural complicada con datos obstructivos: "
                     "valoracion quirurgica urgente."
@@ -201,10 +195,7 @@ class GastroHepatoSupportProtocolService:
             )
 
         if payload.inguinal_hernia_repair_planned:
-            if (
-                payload.wants_non_mesh_technique
-                or payload.planned_hernia_technique == "shouldice"
-            ):
+            if payload.wants_non_mesh_technique or payload.planned_hernia_technique == "shouldice":
                 surgical_support.append(
                     "Shouldice: unica tecnica clasica sin malla para hernia inguinal."
                 )
@@ -227,9 +218,7 @@ class GastroHepatoSupportProtocolService:
                 "Azatioprina en EII: aumentar vigilancia de cancer cutaneo no melanocitico."
             )
         if payload.ibd_patient and payload.infliximab_or_biologic_active:
-            pharmacology_alerts.append(
-                "Infliximab/biologico en EII: reforzar cribado de melanoma."
-            )
+            pharmacology_alerts.append("Infliximab/biologico en EII: reforzar cribado de melanoma.")
 
         if payload.zenker_diverticulum_suspected:
             surgical_support.append(
@@ -240,13 +229,10 @@ class GastroHepatoSupportProtocolService:
 
         if payload.gerd_preop_evaluation and not payload.esophageal_manometry_done:
             genetic_guidance.append(
-                "ERGE prequirurgico: completar manometria esofagica "
-                "(gold standard funcional)."
+                "ERGE prequirurgico: completar manometria esofagica " "(gold standard funcional)."
             )
         elif payload.gerd_preop_evaluation and payload.esophageal_manometry_done:
-            genetic_guidance.append(
-                "Manometria esofagica realizada para planificacion de ERGE."
-            )
+            genetic_guidance.append("Manometria esofagica realizada para planificacion de ERGE.")
 
         if payload.fap_suspected:
             genetic_guidance.append("PAF: priorizar estudio de mutacion APC.")
@@ -280,15 +266,22 @@ class GastroHepatoSupportProtocolService:
         payload: GastroHepatoSupportProtocolRequest,
     ) -> GastroHepatoSupportProtocolRecommendation:
         """Genera recomendacion operativa gastro-hepato para validacion humana."""
-        critical_vascular, hemodynamic_actions, vascular_trace = (
-            GastroHepatoSupportProtocolService._vascular_hemodynamic_pathway(payload)
-        )
-        critical_imaging, imaging_red_flags, differential_clues = (
-            GastroHepatoSupportProtocolService._imaging_and_differential_pathway(payload)
-        )
-        surgical_support, pharmacology_alerts, genetic_guidance, surgery_trace = (
-            GastroHepatoSupportProtocolService._surgical_pharmacology_genetic_pathway(payload)
-        )
+        (
+            critical_vascular,
+            hemodynamic_actions,
+            vascular_trace,
+        ) = GastroHepatoSupportProtocolService._vascular_hemodynamic_pathway(payload)
+        (
+            critical_imaging,
+            imaging_red_flags,
+            differential_clues,
+        ) = GastroHepatoSupportProtocolService._imaging_and_differential_pathway(payload)
+        (
+            surgical_support,
+            pharmacology_alerts,
+            genetic_guidance,
+            surgery_trace,
+        ) = GastroHepatoSupportProtocolService._surgical_pharmacology_genetic_pathway(payload)
 
         critical_alerts = critical_vascular + critical_imaging
         severity = GastroHepatoSupportProtocolService._severity(

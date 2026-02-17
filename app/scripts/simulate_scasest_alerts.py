@@ -102,9 +102,7 @@ def _audit_scasest(base_url: str, task_id: int, run_id: int, mode: str, reviewer
 def _print_summary(base_url: str, task_ids: list[int]) -> None:
     print("\nResumen por task:")
     for task_id in task_ids:
-        summary = _http_json(
-            "GET", f"{base_url}/api/v1/care-tasks/{task_id}/scasest/audit/summary"
-        )
+        summary = _http_json("GET", f"{base_url}/api/v1/care-tasks/{task_id}/scasest/audit/summary")
         print(f"- CareTask {task_id}: {summary}")
 
 
@@ -159,7 +157,9 @@ def main() -> int:
             )
             task_ids.append(task_id)
             print(
-                f"[ok] task_id={task_id} run_id={run_id} mode={current_mode} classification={classification}"
+                "[ok] "
+                f"task_id={task_id} run_id={run_id} "
+                f"mode={current_mode} classification={classification}"
             )
 
         _print_summary(args.base_url, task_ids)

@@ -21,8 +21,7 @@ class AnisakisSupportProtocolService:
         trace: list[str] = []
 
         recent_ingestion = (
-            payload.fish_ingestion_last_hours is not None
-            and payload.fish_ingestion_last_hours <= 6
+            payload.fish_ingestion_last_hours is not None and payload.fish_ingestion_last_hours <= 6
         )
         risk_exposure = (
             payload.raw_or_undercooked_fish_exposure
@@ -81,9 +80,7 @@ class AnisakisSupportProtocolService:
             )
 
         suspicion_allergy = (
-            payload.urticaria_present
-            or payload.angioedema_present
-            or severe_allergy
+            payload.urticaria_present or payload.angioedema_present or severe_allergy
         )
         if suspicion_allergy and not payload.specific_ige_requested:
             safety_blocks.append(
@@ -107,17 +104,13 @@ class AnisakisSupportProtocolService:
             or payload.hypotension_present
         )
         if suspicion_allergy:
-            diagnostic_actions.append(
-                "Solicitar IgE especifica frente a Anisakis simplex."
-            )
+            diagnostic_actions.append("Solicitar IgE especifica frente a Anisakis simplex.")
             diagnostic_actions.append(
                 "Considerar prueba cutanea (prick test) en evaluacion alergologica diferida."
             )
 
         if payload.anisakis_specific_ige_positive or payload.prick_test_positive:
-            trace.append(
-                "Biomarcadores de hipersensibilidad inmediata compatibles con anisakis."
-            )
+            trace.append("Biomarcadores de hipersensibilidad inmediata compatibles con anisakis.")
 
         if payload.digestive_symptoms_present and not suspicion_allergy:
             diagnostic_actions.append(
@@ -133,16 +126,13 @@ class AnisakisSupportProtocolService:
         prevention_actions: list[str] = []
         safety_blocks: list[str] = []
 
-        prevention_actions.append(
-            "Al alta: congelar pescado a -20 C durante al menos 72 horas."
-        )
+        prevention_actions.append("Al alta: congelar pescado a -20 C durante al menos 72 horas.")
         prevention_actions.append(
             "Al alta: cocinar por encima de 60 C, evitar vuelta y vuelta y "
             "microondas insuficiente."
         )
         prevention_actions.append(
-            "Priorizar pescado ultracongelado/eviscerado en altamar cuando "
-            "sea posible."
+            "Priorizar pescado ultracongelado/eviscerado en altamar cuando " "sea posible."
         )
         prevention_actions.append(
             "Reducir riesgo de exposicion priorizando piezas de cola frente a "
@@ -150,19 +140,14 @@ class AnisakisSupportProtocolService:
         )
 
         if (
-            payload.freezing_temperature_c is not None
-            and payload.freezing_temperature_c > -20
-        ) or (
-            payload.freezing_duration_hours is not None
-            and payload.freezing_duration_hours < 72
-        ):
+            payload.freezing_temperature_c is not None and payload.freezing_temperature_c > -20
+        ) or (payload.freezing_duration_hours is not None and payload.freezing_duration_hours < 72):
             safety_blocks.append(
                 "Congelacion previa insuficiente: reforzar estandar -20 C por 72h."
             )
 
         if (
-            payload.cooking_temperature_c is not None
-            and payload.cooking_temperature_c <= 60
+            payload.cooking_temperature_c is not None and payload.cooking_temperature_c <= 60
         ) or payload.insufficient_cooking_suspected:
             safety_blocks.append(
                 "Coccion insuficiente sospechada: reforzar cocinado completo >60 C."
@@ -195,18 +180,23 @@ class AnisakisSupportProtocolService:
         payload: AnisakisSupportProtocolRequest,
     ) -> AnisakisSupportProtocolRecommendation:
         """Genera recomendacion operativa anisakis para validacion humana."""
-        critical_exposure, diagnostic_exposure, trace_exposure = (
-            AnisakisSupportProtocolService._exposure_pathway(payload)
-        )
-        critical_allergy, acute_actions, safety_allergy = (
-            AnisakisSupportProtocolService._allergy_severity_pathway(payload)
-        )
+        (
+            critical_exposure,
+            diagnostic_exposure,
+            trace_exposure,
+        ) = AnisakisSupportProtocolService._exposure_pathway(payload)
+        (
+            critical_allergy,
+            acute_actions,
+            safety_allergy,
+        ) = AnisakisSupportProtocolService._allergy_severity_pathway(payload)
         diagnostic_actions, trace_diagnostic = AnisakisSupportProtocolService._diagnostic_pathway(
             payload
         )
-        prevention_actions, safety_prevention = (
-            AnisakisSupportProtocolService._discharge_prevention_pathway(payload)
-        )
+        (
+            prevention_actions,
+            safety_prevention,
+        ) = AnisakisSupportProtocolService._discharge_prevention_pathway(payload)
 
         critical_alerts = critical_exposure + critical_allergy
         safety_blocks = safety_allergy + safety_prevention

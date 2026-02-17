@@ -22,17 +22,13 @@ class PediatricsNeonatologySupportProtocolService:
         trace: list[str] = []
 
         prodrome_triad = (
-            payload.high_fever_present
-            and payload.photophobia_present
-            and payload.cough_present
+            payload.high_fever_present and payload.photophobia_present and payload.cough_present
         )
         exanthem_pattern = (
             payload.confluent_maculopapular_rash_present
             and payload.cephalocaudal_rash_progression_present
         )
-        measles_suspected = prodrome_triad and (
-            payload.koplik_spots_present or exanthem_pattern
-        )
+        measles_suspected = prodrome_triad and (payload.koplik_spots_present or exanthem_pattern)
 
         if measles_suspected:
             critical_alerts.append(
@@ -44,9 +40,7 @@ class PediatricsNeonatologySupportProtocolService:
             )
             trace.append("Regla de sarampion activada por triada prodromica con tos.")
             if not payload.respiratory_isolation_started:
-                safety_blocks.append(
-                    "Sospecha de sarampion sin aislamiento respiratorio iniciado."
-                )
+                safety_blocks.append("Sospecha de sarampion sin aislamiento respiratorio iniciado.")
 
         if payload.koplik_spots_present:
             actions.append(
@@ -152,9 +146,7 @@ class PediatricsNeonatologySupportProtocolService:
                 and low <= sat <= high
             )
             if minute_3_block:
-                trace.append(
-                    "Minuto 3 con FC>100 y SatO2 en rango 60-80: no escalar oxigeno."
-                )
+                trace.append("Minuto 3 con FC>100 y SatO2 en rango 60-80: no escalar oxigeno.")
                 if payload.oxygen_increase_requested:
                     safety_blocks.append(
                         "Bloqueo: no aumentar O2 si SatO2 minuto 3 esta en 60-80 "
@@ -198,8 +190,7 @@ class PediatricsNeonatologySupportProtocolService:
                 "5 dias o claritromicina 7 dias."
             )
             actions.append(
-                "Aplicar profilaxis a convivientes independientemente de edad o "
-                "estado vacunal."
+                "Aplicar profilaxis a convivientes independientemente de edad o " "estado vacunal."
             )
             trace.append("Regla de profilaxis universal en contactos estrechos activada.")
             if not payload.macrolide_prophylaxis_started:
@@ -294,9 +285,7 @@ class PediatricsNeonatologySupportProtocolService:
                 "Estigmas tardios compatibles con sifilis congenita (triada de "
                 "Hutchinson parcial/completa)."
             )
-            trace.append(
-                "Regla de sifilis congenita tardia activada por triada de Hutchinson."
-            )
+            trace.append("Regla de sifilis congenita tardia activada por triada de Hutchinson.")
 
         other_stigmata = [
             payload.saddle_nose_present,
@@ -351,30 +340,22 @@ class PediatricsNeonatologySupportProtocolService:
             neonatal_actions,
             neonatal_safety,
             neonatal_trace,
-        ) = PediatricsNeonatologySupportProtocolService._neonatal_resuscitation_pathway(
-            payload
-        )
+        ) = PediatricsNeonatologySupportProtocolService._neonatal_resuscitation_pathway(payload)
         (
             critical_pertussis,
             pertussis_actions,
             pertussis_trace,
-        ) = PediatricsNeonatologySupportProtocolService._pertussis_contacts_pathway(
-            payload
-        )
+        ) = PediatricsNeonatologySupportProtocolService._pertussis_contacts_pathway(payload)
         (
             critical_surgical,
             surgical_actions,
             surgical_trace,
-        ) = PediatricsNeonatologySupportProtocolService._intussusception_pathway(
-            payload
-        )
+        ) = PediatricsNeonatologySupportProtocolService._intussusception_pathway(payload)
         (
             critical_syphilis,
             syphilis_actions,
             syphilis_trace,
-        ) = PediatricsNeonatologySupportProtocolService._congenital_syphilis_pathway(
-            payload
-        )
+        ) = PediatricsNeonatologySupportProtocolService._congenital_syphilis_pathway(payload)
 
         critical_alerts = (
             critical_measles
@@ -409,11 +390,7 @@ class PediatricsNeonatologySupportProtocolService:
             congenital_syphilis_actions=syphilis_actions,
             safety_blocks=safety_blocks,
             interpretability_trace=(
-                measles_trace
-                + neonatal_trace
-                + pertussis_trace
-                + surgical_trace
-                + syphilis_trace
+                measles_trace + neonatal_trace + pertussis_trace + surgical_trace + syphilis_trace
             ),
             human_validation_required=True,
             non_diagnostic_warning=(

@@ -44,10 +44,7 @@ class PalliativeSupportProtocolService:
             else:
                 trace.append("Ruta de adecuacion terapeutica por futilidad activada.")
 
-        if (
-            payload.patient_rejects_life_prolonging_treatment
-            and payload.effort_adequation_planned
-        ):
+        if payload.patient_rejects_life_prolonging_treatment and payload.effort_adequation_planned:
             actions.append(
                 "Distinguir rechazo del paciente (autonomia) de adecuacion clinica "
                 "profesional para seguridad etico-legal."
@@ -250,18 +247,27 @@ class PalliativeSupportProtocolService:
         payload: PalliativeSupportProtocolRequest,
     ) -> PalliativeSupportProtocolRecommendation:
         """Genera recomendacion operativa paliativa para validacion humana."""
-        ethical_actions, ethical_safety, trace_ethical = (
-            PalliativeSupportProtocolService._ethical_legal_pathway(payload)
-        )
-        opioid_actions, opioid_critical, trace_opioid = (
-            PalliativeSupportProtocolService._opioid_pathway(payload)
-        )
-        dementia_actions, dementia_critical, trace_dementia = (
-            PalliativeSupportProtocolService._advanced_dementia_pathway(payload)
-        )
-        delirium_actions, delirium_critical, delirium_safety, trace_delirium = (
-            PalliativeSupportProtocolService._delirium_and_neurotoxicity_pathway(payload)
-        )
+        (
+            ethical_actions,
+            ethical_safety,
+            trace_ethical,
+        ) = PalliativeSupportProtocolService._ethical_legal_pathway(payload)
+        (
+            opioid_actions,
+            opioid_critical,
+            trace_opioid,
+        ) = PalliativeSupportProtocolService._opioid_pathway(payload)
+        (
+            dementia_actions,
+            dementia_critical,
+            trace_dementia,
+        ) = PalliativeSupportProtocolService._advanced_dementia_pathway(payload)
+        (
+            delirium_actions,
+            delirium_critical,
+            delirium_safety,
+            trace_delirium,
+        ) = PalliativeSupportProtocolService._delirium_and_neurotoxicity_pathway(payload)
 
         critical_alerts = opioid_critical + dementia_critical + delirium_critical
         safety_blocks = ethical_safety + delirium_safety

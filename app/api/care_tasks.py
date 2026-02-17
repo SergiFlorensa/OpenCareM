@@ -373,13 +373,11 @@ def create_care_task_chat_message(
         response_mode,
         tool_mode,
         quality_metrics,
-    ) = (
-        ClinicalChatService.create_message(
-            db=db,
-            care_task=task,
-            payload=payload,
-            authenticated_user=current_user,
-        )
+    ) = ClinicalChatService.create_message(
+        db=db,
+        care_task=task,
+        payload=payload,
+        authenticated_user=current_user,
     )
     return CareTaskClinicalChatMessageResponse(
         care_task_id=task.id,
@@ -1344,9 +1342,7 @@ def run_care_task_anesthesiology_support(
         care_task_id=task.id,
         agent_run_id=run.id,
         workflow_name=run.workflow_name,
-        recommendation=AnesthesiologySupportProtocolRecommendation(
-            **recommendation.model_dump()
-        ),
+        recommendation=AnesthesiologySupportProtocolRecommendation(**recommendation.model_dump()),
     )
 
 
@@ -1448,9 +1444,7 @@ def run_care_task_ophthalmology_support(
         care_task_id=task.id,
         agent_run_id=run.id,
         workflow_name=run.workflow_name,
-        recommendation=OphthalmologySupportProtocolRecommendation(
-            **recommendation.model_dump()
-        ),
+        recommendation=OphthalmologySupportProtocolRecommendation(**recommendation.model_dump()),
     )
 
 
@@ -1579,9 +1573,7 @@ def run_care_task_pediatrics_neonatology_support(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CareTask no encontrado")
 
-    recommendation = PediatricsNeonatologySupportProtocolService.build_recommendation(
-        payload
-    )
+    recommendation = PediatricsNeonatologySupportProtocolService.build_recommendation(payload)
     run = AgentRunService.run_pediatrics_neonatology_support_workflow(
         db=db,
         care_task=task,
@@ -1628,9 +1620,7 @@ def run_care_task_epidemiology_support(
         care_task_id=task.id,
         agent_run_id=run.id,
         workflow_name=run.workflow_name,
-        recommendation=EpidemiologySupportProtocolRecommendation(
-            **recommendation.model_dump()
-        ),
+        recommendation=EpidemiologySupportProtocolRecommendation(**recommendation.model_dump()),
     )
 
 

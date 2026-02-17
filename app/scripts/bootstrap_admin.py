@@ -10,7 +10,9 @@ from app.services.auth_service import AuthService
 def build_parser() -> argparse.ArgumentParser:
     """Construye el parser de linea de comandos con argumentos obligatorios."""
     parser = argparse.ArgumentParser(
-        description="Crea el primer usuario administrador cuando la base de datos no tiene usuarios.",
+        description=(
+            "Crea el primer usuario administrador cuando la base de datos " "no tiene usuarios."
+        ),
     )
     parser.add_argument("--username", required=True, help="Nombre del admin a crear")
     parser.add_argument("--password", required=True, help="Contrasena del admin")
@@ -27,7 +29,8 @@ def run_bootstrap(username: str, password: str) -> int:
             password=password,
         )
         print(
-            f"Administrador creado correctamente: username={created_admin.username}, id={created_admin.id}"
+            "Administrador creado correctamente: "
+            f"username={created_admin.username}, id={created_admin.id}"
         )
         return 0
     except ValueError as exc:

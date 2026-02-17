@@ -550,7 +550,6 @@ class TraumaSupportProtocolService:
             ),
             human_validation_required=True,
             non_diagnostic_warning=(
-                "Soporte operativo no diagnostico. Requiere validacion clinica "
-                "humana."
+                "Soporte operativo no diagnostico. Requiere validacion clinica " "humana."
             ),
         )

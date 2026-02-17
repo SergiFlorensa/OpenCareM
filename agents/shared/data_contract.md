@@ -303,3 +303,9 @@
 
 - Sin cambios de esquema ni nuevas migraciones.
 - Cambio de payload solo en capa API de respuesta (`quality_metrics`), sin persistencia adicional.
+
+## TM-109
+
+- Sin cambios en modelos de datos, tablas, indices o migraciones Alembic.
+- Sin cambios en politicas de retencion o persistencia.
+- Impacto confinado a documentacion operativa y tooling de calidad en desarrollo.

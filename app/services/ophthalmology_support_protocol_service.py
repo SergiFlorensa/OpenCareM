@@ -35,9 +35,7 @@ class OphthalmologySupportProtocolService:
             actions.append(
                 "Solicitar fondo de ojo urgente completo y estratificar edema papilar/isquemia."
             )
-            trace.append(
-                "Regla OVCR activada por perdida visual brusca + hemorragias en llama."
-            )
+            trace.append("Regla OVCR activada por perdida visual brusca + hemorragias en llama.")
 
         if payload.sudden_visual_loss and oacr_pattern:
             critical_alerts.append(
@@ -54,10 +52,7 @@ class OphthalmologySupportProtocolService:
                 "oftalmologica inmediata."
             )
 
-        if (
-            payload.intraocular_pressure_mmhg is not None
-            and payload.intraocular_pressure_mmhg > 21
-        ):
+        if payload.intraocular_pressure_mmhg is not None and payload.intraocular_pressure_mmhg > 21:
             actions.append(
                 "PIO elevada: considerar control hipotensor ocular "
                 "(ej. latanoprost/timolol) segun contexto."
@@ -67,11 +62,7 @@ class OphthalmologySupportProtocolService:
                     "OVCR con PIO elevada: mayor riesgo de progresion isquemica."
                 )
 
-        if (
-            payload.embolic_arrhythmia_suspected
-            and payload.sudden_visual_loss
-            and oacr_pattern
-        ):
+        if payload.embolic_arrhythmia_suspected and payload.sudden_visual_loss and oacr_pattern:
             actions.append(
                 "Sospecha emboligena asociada: coordinar estudio cardiaco y manejo antiarritmico."
             )
@@ -96,8 +87,7 @@ class OphthalmologySupportProtocolService:
                 "DPAR (Marcus Gunn) presente: priorizar lesion de nervio optico o retina extensa."
             )
             if not (
-                payload.optic_nerve_disease_suspected
-                or payload.extensive_retinal_disease_suspected
+                payload.optic_nerve_disease_suspected or payload.extensive_retinal_disease_suspected
             ):
                 safety_blocks.append(
                     "DPAR sin sospecha de lesion aferente documentada: revisar exploracion pupilar."
@@ -112,10 +102,7 @@ class OphthalmologySupportProtocolService:
                 actions.append(
                     "Anisocoria que aumenta con luz: orientar a disfuncion parasimpatica."
                 )
-            if (
-                payload.anisocoria_worse_in_darkness
-                and payload.anisocoria_worse_in_bright_light
-            ):
+            if payload.anisocoria_worse_in_darkness and payload.anisocoria_worse_in_bright_light:
                 safety_blocks.append(
                     "Anisocoria con patrones simpatico y parasimpatico simultaneos: repetir examen."
                 )
@@ -184,9 +171,7 @@ class OphthalmologySupportProtocolService:
             critical_alerts.append(
                 "Riesgo de IFIS por tamsulosina/alfabloqueante en cirugia de catarata."
             )
-            actions.append(
-                "Planificar fenilefrina intracamerular al inicio para estabilizar iris."
-            )
+            actions.append("Planificar fenilefrina intracamerular al inicio para estabilizar iris.")
             trace.append("Alerta IFIS activada por uso de tamsulosina preoperatoria.")
             if not payload.intracameral_phenylephrine_planned:
                 safety_blocks.append(
@@ -230,8 +215,7 @@ class OphthalmologySupportProtocolService:
             and not payload.neovascular_membrane_or_exudation_present
         )
         wet_pattern = payload.neovascular_membrane_or_exudation_present or (
-            payload.sudden_visual_loss
-            and payload.drusen_present
+            payload.sudden_visual_loss and payload.drusen_present
         )
 
         if dry_pattern:
@@ -249,9 +233,7 @@ class OphthalmologySupportProtocolService:
                 "Coordinar ruta de retina para confirmacion de membrana neovascular y tratamiento."
             )
             if not payload.anti_vegf_planned:
-                critical_alerts.append(
-                    "DMAE humeda sospechada sin plan anti-VEGF documentado."
-                )
+                critical_alerts.append("DMAE humeda sospechada sin plan anti-VEGF documentado.")
             trace.append("Clasificacion operativa DMAE humeda por exudacion/neovascularizacion.")
 
         return critical_alerts, actions, trace
@@ -276,28 +258,35 @@ class OphthalmologySupportProtocolService:
         payload: OphthalmologySupportProtocolRequest,
     ) -> OphthalmologySupportProtocolRecommendation:
         """Genera recomendacion operativa oftalmologica para validacion humana."""
-        critical_vascular, vascular_actions, safety_vascular, trace_vascular = (
-            OphthalmologySupportProtocolService._vascular_pathway(payload)
-        )
-        critical_neuro, neuro_actions, safety_neuro, trace_neuro = (
-            OphthalmologySupportProtocolService._neuro_ophthalmology_pathway(payload)
-        )
-        critical_surface, surface_actions, trace_surface = (
-            OphthalmologySupportProtocolService._surface_inflammation_pathway(payload)
-        )
-        critical_ifis, cataract_actions, safety_ifis, trace_ifis = (
-            OphthalmologySupportProtocolService._cataract_ifis_pathway(payload)
-        )
-        critical_dmae, dmae_actions, trace_dmae = (
-            OphthalmologySupportProtocolService._dmae_pathway(payload)
+        (
+            critical_vascular,
+            vascular_actions,
+            safety_vascular,
+            trace_vascular,
+        ) = OphthalmologySupportProtocolService._vascular_pathway(payload)
+        (
+            critical_neuro,
+            neuro_actions,
+            safety_neuro,
+            trace_neuro,
+        ) = OphthalmologySupportProtocolService._neuro_ophthalmology_pathway(payload)
+        (
+            critical_surface,
+            surface_actions,
+            trace_surface,
+        ) = OphthalmologySupportProtocolService._surface_inflammation_pathway(payload)
+        (
+            critical_ifis,
+            cataract_actions,
+            safety_ifis,
+            trace_ifis,
+        ) = OphthalmologySupportProtocolService._cataract_ifis_pathway(payload)
+        critical_dmae, dmae_actions, trace_dmae = OphthalmologySupportProtocolService._dmae_pathway(
+            payload
         )
 
         critical_alerts = (
-            critical_vascular
-            + critical_neuro
-            + critical_surface
-            + critical_ifis
-            + critical_dmae
+            critical_vascular + critical_neuro + critical_surface + critical_ifis + critical_dmae
         )
         safety_blocks = safety_vascular + safety_neuro + safety_ifis
         has_actions = any(

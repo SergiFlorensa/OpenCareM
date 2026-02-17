@@ -67,9 +67,7 @@ class HematologySupportProtocolService:
             shu_suspected = shu_suspected and payload.schistocytes_percent > 10
 
         if shu_suspected:
-            critical_alerts.append(
-                "Patron compatible con SHU tipico posdiarreico (Shiga-toxina)."
-            )
+            critical_alerts.append("Patron compatible con SHU tipico posdiarreico (Shiga-toxina).")
             diagnostic_actions.append(
                 "Confirmar etiologia enterica y monitorizar dano renal/neurologico seriado."
             )
@@ -101,8 +99,7 @@ class HematologySupportProtocolService:
                 and 5 <= payload.days_since_heparin_start <= 10
             )
             drop_50 = (
-                payload.platelet_drop_percent is not None
-                and payload.platelet_drop_percent > 50
+                payload.platelet_drop_percent is not None and payload.platelet_drop_percent > 50
             )
             if in_window and drop_50:
                 critical_alerts.append(
@@ -110,9 +107,7 @@ class HematologySupportProtocolService:
                 )
                 therapeutic_actions.append("Suspender heparina de forma inmediata.")
                 if payload.renal_failure_present:
-                    therapeutic_actions.append(
-                        "En insuficiencia renal, priorizar Argatroban."
-                    )
+                    therapeutic_actions.append("En insuficiencia renal, priorizar Argatroban.")
                 elif payload.hepatic_failure_present:
                     therapeutic_actions.append(
                         "En fallo hepatico, valorar Danaparoide o Fondaparinux."
@@ -132,9 +127,7 @@ class HematologySupportProtocolService:
             and payload.high_titer_factor_viii_inhibitors
             and payload.acute_hemarthrosis
         ):
-            critical_alerts.append(
-                "Hemofilia A grave con inhibidores en sangrado articular agudo."
-            )
+            critical_alerts.append("Hemofilia A grave con inhibidores en sangrado articular agudo.")
             therapeutic_actions.append(
                 "Usar agentes bypass: rFVIIa o complejo protrombinico (segun contexto)."
             )
@@ -176,9 +169,7 @@ class HematologySupportProtocolService:
             )
         if payload.cd19_positive and payload.cd5_positive and payload.cd23_positive:
             if payload.cd20_weak:
-                oncology_notes.append(
-                    "Patron compatible con LLC (CD19+, CD5+, CD23+, CD20 debil)."
-                )
+                oncology_notes.append("Patron compatible con LLC (CD19+, CD5+, CD23+, CD20 debil).")
             else:
                 oncology_notes.append(
                     "Perfil sugiere LLC; confirmar intensidad de CD20 y correlacion clinica."
@@ -210,9 +201,7 @@ class HematologySupportProtocolService:
                 "Fenotipo compatible con anemia de Fanconi: activar ruta de insuficiencia medular."
             )
             if payload.macrocytosis_present or payload.thrombocytopenia_present:
-                fanconi_flags.append(
-                    "Evolucion hematologica sugestiva (macrocitosis/trombopenia)."
-                )
+                fanconi_flags.append("Evolucion hematologica sugestiva (macrocitosis/trombopenia).")
             if payload.pancytopenia_present:
                 fanconi_flags.append(
                     "Pancitopenia en contexto Fanconi: alto riesgo de progresion medular."
@@ -267,9 +256,7 @@ class HematologySupportProtocolService:
                     "Posesplenectomia con sangrado activo: diferir tromboprofilaxis hasta control."
                 )
             elif payload.thromboprophylaxis_started:
-                checklist.append(
-                    "Tromboprofilaxis posesplenectomia iniciada correctamente."
-                )
+                checklist.append("Tromboprofilaxis posesplenectomia iniciada correctamente.")
             else:
                 critical_alerts.append(
                     "Posesplenectomia sin tromboprofilaxis: riesgo tromboembolico elevado."
@@ -295,12 +282,18 @@ class HematologySupportProtocolService:
         payload: HematologySupportProtocolRequest,
     ) -> HematologySupportProtocolRecommendation:
         """Genera recomendacion operativa de hematologia para validacion humana."""
-        critical_mat, diagnostic_mat, therapeutic_mat, trace_mat = (
-            HematologySupportProtocolService._microangiopathy_and_hemolysis_pathway(payload)
-        )
-        critical_hit, therapeutic_hit, safety_hit, trace_hit = (
-            HematologySupportProtocolService._hit_and_hemostasis_pathway(payload)
-        )
+        (
+            critical_mat,
+            diagnostic_mat,
+            therapeutic_mat,
+            trace_mat,
+        ) = HematologySupportProtocolService._microangiopathy_and_hemolysis_pathway(payload)
+        (
+            critical_hit,
+            therapeutic_hit,
+            safety_hit,
+            trace_hit,
+        ) = HematologySupportProtocolService._hit_and_hemostasis_pathway(payload)
         (
             diagnostic_onco,
             oncology_notes,
@@ -308,9 +301,11 @@ class HematologySupportProtocolService:
             transplant_flags,
             trace_onco,
         ) = HematologySupportProtocolService._oncology_and_genetic_pathway(payload)
-        critical_spl, spl_checklist, trace_spl = (
-            HematologySupportProtocolService._postsplenectomy_safety_pathway(payload)
-        )
+        (
+            critical_spl,
+            spl_checklist,
+            trace_spl,
+        ) = HematologySupportProtocolService._postsplenectomy_safety_pathway(payload)
 
         critical_alerts = critical_mat + critical_hit + critical_spl
         diagnostic_actions = diagnostic_mat + diagnostic_onco

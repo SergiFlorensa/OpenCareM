@@ -71,17 +71,13 @@ class AcneRosaceaProtocolService:
             and payload.systemic_symptoms_present
             and payload.elevated_vsg_or_leukocytosis
         ):
-            alerts.append(
-                "Sospecha de acne fulminans: priorizar valoracion dermatologica urgente."
-            )
+            alerts.append("Sospecha de acne fulminans: priorizar valoracion dermatologica urgente.")
         if payload.phymatous_changes_present:
             alerts.append(
                 "Rosacea fimatosa: valorar derivacion para manejo quirurgico/laser especializado."
             )
         if payload.ocular_symptoms_present:
-            alerts.append(
-                "Rosacea ocular probable: coordinar valoracion oftalmologica precoz."
-            )
+            alerts.append("Rosacea ocular probable: coordinar valoracion oftalmologica precoz.")
         return alerts
 
     @staticmethod
@@ -137,8 +133,7 @@ class AcneRosaceaProtocolService:
                 actions.append("Escalar a terapia sistemica y derivacion dermatologica preferente.")
             else:
                 actions.append(
-                    "Valorar antibiotico oral en acne moderado "
-                    "si no hay respuesta topica."
+                    "Valorar antibiotico oral en acne moderado " "si no hay respuesta topica."
                 )
             return actions
         if condition == "rosacea":

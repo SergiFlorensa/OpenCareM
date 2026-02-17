@@ -11,6 +11,14 @@ Activar entorno virtual del proyecto.
 - Git Bash:
   - `source venv/Scripts/activate`
 
+## Comando unificado recomendado
+
+Para evitar variaciones entre desarrolladores:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action check`
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test`
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test-e2e`
+
 ## Orden recomendado de ejecucion
 
 1. Lint:
@@ -36,8 +44,20 @@ Si `ruff` o `black` fallan:
   - `tool.ruff`
   - `tool.black`
   - `tool.mypy`
+- `.pre-commit-config.yaml`:
+  - hooks staged de `ruff --fix`, `black`, `ruff`.
 - `pytest.ini`:
   - paths de tests y coverage local.
+
+## Hooks pre-commit (staged files)
+
+Instalacion recomendada:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/setup_hooks.ps1`
+
+Validacion manual:
+
+- `python -m pre_commit validate-config`
 
 ## Criterio de merge local
 

@@ -182,12 +182,17 @@ class AnesthesiologySupportProtocolService:
         payload: AnesthesiologySupportProtocolRequest,
     ) -> AnesthesiologySupportProtocolRecommendation:
         """Genera recomendacion operativa anestesiologica para validacion humana."""
-        critical_alerts, rsi_actions, safety_blocks, trace_rsi = (
-            AnesthesiologySupportProtocolService._rsi_pathway(payload)
-        )
-        block_recommendations, differential_recommendations, trace_blocks = (
-            AnesthesiologySupportProtocolService._pain_block_pathway(payload)
-        )
+        (
+            critical_alerts,
+            rsi_actions,
+            safety_blocks,
+            trace_rsi,
+        ) = AnesthesiologySupportProtocolService._rsi_pathway(payload)
+        (
+            block_recommendations,
+            differential_recommendations,
+            trace_blocks,
+        ) = AnesthesiologySupportProtocolService._pain_block_pathway(payload)
 
         severity = AnesthesiologySupportProtocolService._severity(
             critical_alerts=critical_alerts,

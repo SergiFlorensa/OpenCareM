@@ -1,4 +1,23 @@
-# 94. Chat Clinico Operativo: Ollama local, trazabilidad y seguridad
+# 94. Chat Clinico Operativo: Ollama local, trazabilidad y seguridad (runbook interno)
+
+## Objetivo
+
+Operar chat clinico con modelo local (Ollama) en modo open source, con
+trazabilidad por turno, guardas de seguridad y fallback operativo.
+
+## Alcance oficial de este runbook
+
+Incluido:
+
+- Motor local OSS para chat (`Ollama`) en infraestructura propia.
+- Logica de agentes, trazas operativas y metricas de calidad.
+- Automatizacion de calidad en repositorio (hooks, checks, tests).
+
+Excluido (no aplicar en este proyecto):
+
+- Suscripciones, billing por token o pasarelas de pago.
+- Apps moviles nativas.
+- Integraciones de mensajeria externa (Telegram, WhatsApp, Signal, Discord).
 
 ## Configuracion recomendada (`.env`)
 
@@ -19,24 +38,20 @@ CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS=700
 ## Instalacion local de Ollama
 
 1. Instalar Ollama segun SO desde documentacion oficial.
-2. Levantar servicio local:
-   - `ollama serve`
-3. Descargar modelo recomendado para 16GB RAM:
-   - `ollama pull llama3.1:8b`
-4. Verificar modelo disponible:
-   - `ollama list`
+2. Levantar servicio local: `ollama serve`.
+3. Descargar modelo recomendado para 16GB RAM: `ollama pull llama3.1:8b`.
+4. Verificar modelo disponible: `ollama list`.
 
-> Recomendacion operativa: con 16GB RAM evitar modelos >14B para no degradar latencia en guardia.
+Recomendacion operativa: con 16GB RAM evitar modelos mayores de 14B para no
+degradar latencia durante guardia.
 
 ## Flujo de inferencia
 
-- Endpoint preferido: `POST /api/chat`
-- Fallback automatico: `POST /api/generate`
-- Si el LLM falla/timeout, el sistema devuelve fallback operativo no diagnostico con:
-  - prioridades,
-  - riesgos,
-  - checklist,
-  - advertencia de validacion humana.
+- Endpoint preferido: `POST /api/chat`.
+- Fallback automatico: `POST /api/generate`.
+- Si el LLM falla o hace timeout, el sistema devuelve fallback operativo no
+  diagnostico con prioridades, riesgos, checklist y advertencia de validacion
+  humana.
 
 ## Trazabilidad clinica visible
 
@@ -57,9 +72,25 @@ Cada respuesta debe exponer en `interpretability_trace`:
 ## Politica web/RAG y whitelist
 
 - Mantener `CLINICAL_CHAT_WEB_STRICT_WHITELIST=true`.
-- Solo se usan dominios permitidos en `CLINICAL_CHAT_WEB_ALLOWED_DOMAINS`.
-- Si no hay politica valida de seguridad clinica, evitar RAG web en despliegues productivos.
+- Solo usar dominios permitidos en `CLINICAL_CHAT_WEB_ALLOWED_DOMAINS`.
+- Si no hay politica valida de seguridad clinica, no activar RAG web en
+  produccion.
 - Toda fuente web devuelta debe incluir `url` y `snippet`.
+
+## Flujo operativo del equipo (scripts internos)
+
+Base de comandos adaptada al repo:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action dev`
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action build`
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action check`
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test`
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test-e2e`
+
+Setup de hooks para staged files:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/setup_hooks.ps1`
+- Hooks definidos en `.pre-commit-config.yaml` (`ruff --fix`, `black`, verificacion `ruff`).
 
 ## Ejemplos de prompts clinicos
 
@@ -70,6 +101,15 @@ Cada respuesta debe exponer en `interpretability_trace`:
 
 ## Ejecucion de pruebas
 
-- Backend lint: `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
-- Tests chat: `python -m pytest -q app/tests/test_clinical_chat_operational.py`
-- Frontend build: `cd frontend && npm run build`
+- Backend lint:
+  - `python -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+- Tests chat:
+  - `python -m pytest -q app/tests/test_clinical_chat_operational.py`
+- Frontend build:
+  - `cd frontend && npm run build`
+
+## Riesgos pendientes
+
+- Las metricas de calidad son heuristicas y requieren calibracion continua.
+- El rendimiento final depende del modelo local y del hardware.
+- Los hooks mejoran higiene, pero no sustituyen revisiones clinicas ni de seguridad.

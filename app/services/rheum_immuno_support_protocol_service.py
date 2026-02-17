@@ -56,9 +56,7 @@ class RheumImmunoSupportProtocolService:
                 diagnostic_actions.append(
                     "VSG normal en urgencias: arteritis temporal menos probable."
                 )
-                trace.append(
-                    "Criterio de exclusion operativa para arteritis temporal aplicado."
-                )
+                trace.append("Criterio de exclusion operativa para arteritis temporal aplicado.")
             else:
                 critical_alerts.append(
                     "VSG elevada con sospecha de arteritis temporal: "
@@ -86,9 +84,7 @@ class RheumImmunoSupportProtocolService:
                 "Mialgia aislada sin perdida de fuerza: reevaluar diferencial no miopatico."
             )
         if payload.anti_mda5_positive:
-            safety_alerts.append(
-                "Anti-MDA5 positivo: activar vigilancia estrecha de EPI agresiva."
-            )
+            safety_alerts.append("Anti-MDA5 positivo: activar vigilancia estrecha de EPI agresiva.")
             if payload.interstitial_lung_disease_signs:
                 critical = (
                     "Anti-MDA5 + signos de afectacion intersticial: "
@@ -102,9 +98,7 @@ class RheumImmunoSupportProtocolService:
             and payload.erythema_nodosum_present
         )
         if behcet_triade:
-            diagnostic_actions.append(
-                "Triada de Behcet en urgencias: alta sospecha clinica."
-            )
+            diagnostic_actions.append("Triada de Behcet en urgencias: alta sospecha clinica.")
             therapeutic_actions.append(
                 "Primera linea sugerida: pulsos de corticoides + azatioprina."
             )
@@ -206,9 +200,7 @@ class RheumImmunoSupportProtocolService:
                 )
 
         if payload.aps_clinical_event_present and payload.aps_laboratory_criterion_present:
-            data_model_flags.append(
-                "SAF: criterio de entrada clinico + analitico presente."
-            )
+            data_model_flags.append("SAF: criterio de entrada clinico + analitico presente.")
             if payload.thrombocytopenia_present:
                 data_model_flags.append(
                     "SAF: trombopenia registrada como dominio relevante en clasificacion actual."
@@ -233,18 +225,27 @@ class RheumImmunoSupportProtocolService:
         payload: RheumImmunoSupportProtocolRequest,
     ) -> RheumImmunoSupportProtocolRecommendation:
         """Genera recomendacion operativa reuma-inmuno para validacion humana."""
-        critical_vital, diagnostic_vital, therapeutic_vital, trace_vital = (
-            RheumImmunoSupportProtocolService._vital_risk_pathway(payload)
-        )
-        diagnostic_core, therapeutic_core, safety_alerts, trace_core = (
-            RheumImmunoSupportProtocolService._diagnostic_workflows(payload)
-        )
-        imaging_actions, therapeutic_imaging = (
-            RheumImmunoSupportProtocolService._imaging_and_screening_pathway(payload)
-        )
-        critical_mf, maternal_fetal_actions, data_model_flags = (
-            RheumImmunoSupportProtocolService._maternal_fetal_and_data_domains(payload)
-        )
+        (
+            critical_vital,
+            diagnostic_vital,
+            therapeutic_vital,
+            trace_vital,
+        ) = RheumImmunoSupportProtocolService._vital_risk_pathway(payload)
+        (
+            diagnostic_core,
+            therapeutic_core,
+            safety_alerts,
+            trace_core,
+        ) = RheumImmunoSupportProtocolService._diagnostic_workflows(payload)
+        (
+            imaging_actions,
+            therapeutic_imaging,
+        ) = RheumImmunoSupportProtocolService._imaging_and_screening_pathway(payload)
+        (
+            critical_mf,
+            maternal_fetal_actions,
+            data_model_flags,
+        ) = RheumImmunoSupportProtocolService._maternal_fetal_and_data_domains(payload)
 
         critical_alerts = critical_vital + critical_mf
         diagnostic_actions = diagnostic_vital + diagnostic_core

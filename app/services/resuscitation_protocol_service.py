@@ -164,9 +164,7 @@ class ResuscitationProtocolService:
                 "Desfibrilacion no sincronizada inmediata: 200 J bifasico "
                 "o energia maxima disponible."
             )
-            plan.append(
-                "No retrasar descarga por sedoanalgesia en paro sin pulso."
-            )
+            plan.append("No retrasar descarga por sedoanalgesia en paro sin pulso.")
             return plan
         if payload.rhythm == "vt_polymorphic":
             plan.append(
@@ -215,14 +213,10 @@ class ResuscitationProtocolService:
     ) -> list[str]:
         plan: list[str] = []
         if rhythm_classification in {"shockable_arrest", "non_shockable_arrest"}:
-            plan.append(
-                "En paro sin pulso no retrasar desfibrilacion/RCP por sedacion."
-            )
+            plan.append("En paro sin pulso no retrasar desfibrilacion/RCP por sedacion.")
             return plan
         if payload.rhythm == "vt_polymorphic":
-            plan.append(
-                "Si pierde pulso, priorizar desfibrilacion inmediata sin demoras."
-            )
+            plan.append("Si pierde pulso, priorizar desfibrilacion inmediata sin demoras.")
             return plan
         if rhythm_classification == "tachyarrhythmia_with_pulse" and shock_recommended:
             if payload.hypotension or payload.shock_signs:
@@ -231,9 +225,7 @@ class ResuscitationProtocolService:
                     "aprox. 3.5 min antes de descarga."
                 )
             else:
-                plan.append(
-                    "Fentanilo 1-3 mcg/kg aprox. 3.5 min antes de descarga."
-                )
+                plan.append("Fentanilo 1-3 mcg/kg aprox. 3.5 min antes de descarga.")
             plan.append(
                 "Etomidato 0.1-0.15 mg/kg 15-40 s antes "
                 "(hipnotico de eleccion por estabilidad hemodinamica)."
@@ -257,13 +249,9 @@ class ResuscitationProtocolService:
             "Retirar fuente de oxigeno de alto flujo del campo inmediato.",
         ]
         if rhythm_classification == "tachyarrhythmia_with_pulse":
-            checklist.append(
-                "Verificar modo sincronizado activo y marcas de onda R visibles."
-            )
+            checklist.append("Verificar modo sincronizado activo y marcas de onda R visibles.")
         else:
-            checklist.append(
-                "Confirmar descarga no sincronizada para ritmo caotico o sin pulso."
-            )
+            checklist.append("Confirmar descarga no sincronizada para ritmo caotico o sin pulso.")
         if payload.pregnant:
             checklist.append(
                 "Mantener desplazamiento uterino lateral manual durante todo el proceso."
@@ -332,9 +320,7 @@ class ResuscitationProtocolService:
                 "Usar acceso vascular por encima del diafragma para farmacos de reanimacion."
             )
             if payload.fetal_monitor_connected:
-                actions.append(
-                    "Desconectar monitor fetal durante RCP para evitar interferencias."
-                )
+                actions.append("Desconectar monitor fetal durante RCP para evitar interferencias.")
             if payload.context_type == "cardiac_arrest" and (
                 payload.uterine_fundus_at_or_above_umbilicus
                 or (payload.gestational_weeks is not None and payload.gestational_weeks >= 20)
@@ -363,8 +349,7 @@ class ResuscitationProtocolService:
                 )
             if payload.context_type == "cardiac_arrest":
                 actions.append(
-                    "Preparar neonatologia para recepcion "
-                    "y reanimacion neonatal avanzada."
+                    "Preparar neonatologia para recepcion " "y reanimacion neonatal avanzada."
                 )
         return actions
 
@@ -395,15 +380,11 @@ class ResuscitationProtocolService:
             and payload.map_mm_hg < 65
         ):
             alerts.append("PAM por debajo de objetivo post-ROSC.")
-        if (
-            payload.oxygen_saturation_percent is not None
-            and payload.oxygen_saturation_percent < 90
-        ):
+        if payload.oxygen_saturation_percent is not None and payload.oxygen_saturation_percent < 90:
             alerts.append("Hipoxemia significativa detectada.")
         if payload.pregnant and payload.access_above_diaphragm_secured is False:
             alerts.append(
-                "Acceso vascular por encima del diafragma "
-                "pendiente en paciente gestante."
+                "Acceso vascular por encima del diafragma " "pendiente en paciente gestante."
             )
         if (
             payload.pregnant

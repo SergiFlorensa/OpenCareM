@@ -89,6 +89,7 @@
 - Frontend v2 de chat con selector de herramientas y modo hibrido general/clinico (`docs/92_frontend_chat_herramientas_modo_hibrido.md`).
 - Motor conversacional neuronal local (Ollama) opcional con continuidad contextual en follow-up y fallback determinista (`docs/93_motor_conversacional_neuronal_open_source.md`).
 - Chat local endurecido sin pago con defensa anti-inyeccion, presupuesto de contexto/tokens y metricas por turno (`docs/95_chat_open_source_hardening_prompt_injection_quality_metrics.md`).
+- Blueprint OSS de agentes adaptado a uso interno (sin suscripciones, sin movil, sin canales externos) en `docs/96_adaptacion_blueprint_agentes_oss_interno.md`.
 
 ## Estructura funcional
 
@@ -176,6 +177,10 @@
   - Proveedor neuronal local (Ollama) con estrategia `api/chat -> api/generate`, control de presupuesto de contexto/tokens y trazabilidad de prompt.
 - `frontend/src/App.tsx`
   - Consola web v2 con UX tipo assistant, herramientas (medication/cases/treatment/deep_search/images), chat por sesion y panel de trazabilidad.
+- `scripts/dev_workflow.ps1`
+  - Flujo operativo unificado para `dev`, `build`, `check`, `test`, `test-e2e`.
+- `scripts/setup_hooks.ps1`
+  - Setup reproducible de hooks `pre-commit` para archivos staged.
 - `app/services/knowledge_source_service.py`
   - Servicio de curacion de conocimiento clinico: alta, listado y sellado profesional auditable.
 - `app/services/anisakis_support_protocol_service.py`
@@ -331,6 +336,7 @@ Asumiendo `API_V1_PREFIX=/api/v1`:
 - Lint: `ruff` configurado localmente en `pyproject.toml`.
 - Formato: `black` configurado localmente en `pyproject.toml`.
 - Tipado: `mypy` configurado localmente en `pyproject.toml` (plugin SQLAlchemy activo).
+- Hooks staged: `.pre-commit-config.yaml` con `ruff --fix`, `black` y verificacion final `ruff`.
 - Flujo operativo documentado en `docs/06_quality_workflow.md`.
 - CI automatizado en `.github/workflows/ci.yml`.
 

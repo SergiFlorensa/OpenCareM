@@ -16,9 +16,7 @@ class ScasestProtocolService:
     def _suspected(payload: ScasestProtocolRequest) -> bool:
         symptoms = payload.chest_pain_typical or payload.dyspnea or payload.syncope
         objective = (
-            payload.ecg_st_depression
-            or payload.ecg_t_inversion
-            or payload.troponin_positive
+            payload.ecg_st_depression or payload.ecg_t_inversion or payload.troponin_positive
         )
         return bool(symptoms and objective)
 

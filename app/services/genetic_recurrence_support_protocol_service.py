@@ -15,14 +15,7 @@ class GeneticRecurrenceSupportProtocolService:
     @staticmethod
     def _core_recurrence_pathway(
         payload: GeneticRecurrenceSupportProtocolRequest,
-    ) -> tuple[
-        bool,
-        str,
-        float | None,
-        list[str],
-        list[str],
-        list[str],
-    ]:
+    ) -> tuple[bool, str, float | None, list[str], list[str], list[str],]:
         critical_alerts: list[str] = []
         recurrence_actions: list[str] = []
         trace: list[str] = []
@@ -36,9 +29,7 @@ class GeneticRecurrenceSupportProtocolService:
             and recurrence_detected
             and payload.parents_phenotypically_unaffected
         )
-        oi_dominant_signature = (
-            payload.oi_type_ii_suspected and payload.col1a1_or_col1a2_involved
-        )
+        oi_dominant_signature = payload.oi_type_ii_suspected and payload.col1a1_or_col1a2_involved
 
         mosaicism_alert_active = False
         prioritized_mechanism = "indeterminado"
@@ -54,9 +45,7 @@ class GeneticRecurrenceSupportProtocolService:
             recurrence_actions.append(
                 "Priorizar hipotesis de mosaicismo germinal frente a de novo aislado."
             )
-            trace.append(
-                "Regla principal activada: patron dominante + recurrencia + padres sanos."
-            )
+            trace.append("Regla principal activada: patron dominante + recurrencia + padres sanos.")
 
         if oi_dominant_signature:
             recurrence_actions.append(
@@ -78,9 +67,7 @@ class GeneticRecurrenceSupportProtocolService:
                     "recurrencia en futuras gestaciones."
                 )
             else:
-                trace.append(
-                    "Riesgo proporcional a fraccion germinal mutada reportada."
-                )
+                trace.append("Riesgo proporcional a fraccion germinal mutada reportada.")
 
         if recurrence_risk_percent is not None and not payload.germline_mosaicism_confirmed:
             trace.append(
@@ -207,10 +194,7 @@ class GeneticRecurrenceSupportProtocolService:
                 "(padres sanos vs progenitor afectado)."
             )
 
-        if (
-            payload.germline_mosaicism_confirmed
-            and payload.somatic_mosaicism_only_confirmed
-        ):
+        if payload.germline_mosaicism_confirmed and payload.somatic_mosaicism_only_confirmed:
             safety_blocks.append(
                 "Mosaicismo germinal confirmado y somatico exclusivo marcados en paralelo: "
                 "normalizar clasificacion del mecanismo."
@@ -262,25 +246,27 @@ class GeneticRecurrenceSupportProtocolService:
             recurrence_actions,
             core_trace,
         ) = GeneticRecurrenceSupportProtocolService._core_recurrence_pathway(payload)
-        differential_mechanisms, differential_safety, differential_trace = (
-            GeneticRecurrenceSupportProtocolService._differential_pathway(
-                payload,
-                recurrence_detected=recurrence_detected,
-                dominant_parent_unaffected_pattern=dominant_parent_unaffected_pattern,
-            )
+        (
+            differential_mechanisms,
+            differential_safety,
+            differential_trace,
+        ) = GeneticRecurrenceSupportProtocolService._differential_pathway(
+            payload,
+            recurrence_detected=recurrence_detected,
+            dominant_parent_unaffected_pattern=dominant_parent_unaffected_pattern,
         )
-        counseling_actions, counseling_safety, counseling_trace = (
-            GeneticRecurrenceSupportProtocolService._counseling_and_consistency_pathway(
-                payload,
-                recurrence_detected=recurrence_detected,
-                prioritized_mechanism=prioritized_mechanism,
-            )
+        (
+            counseling_actions,
+            counseling_safety,
+            counseling_trace,
+        ) = GeneticRecurrenceSupportProtocolService._counseling_and_consistency_pathway(
+            payload,
+            recurrence_detected=recurrence_detected,
+            prioritized_mechanism=prioritized_mechanism,
         )
 
         safety_blocks = differential_safety + counseling_safety
-        has_actions = any(
-            [recurrence_actions, counseling_actions, differential_mechanisms]
-        )
+        has_actions = any([recurrence_actions, counseling_actions, differential_mechanisms])
         severity = GeneticRecurrenceSupportProtocolService._severity(
             critical_alerts=critical_core,
             safety_blocks=safety_blocks,

@@ -47,9 +47,7 @@ class EpidemiologySupportProtocolService:
                 payload.person_time_at_risk,
             )
             if incidence_density is not None:
-                trace.append(
-                    "Densidad de incidencia calculada como casos nuevos / persona-tiempo."
-                )
+                trace.append("Densidad de incidencia calculada como casos nuevos / persona-tiempo.")
             else:
                 safety_blocks.append(
                     "No se puede calcular densidad de incidencia sin persona-tiempo > 0."
@@ -112,10 +110,7 @@ class EpidemiologySupportProtocolService:
         absolute_risk_reduction: float | None = None
         number_needed_to_treat: float | None = None
 
-        if (
-            payload.control_event_risk is not None
-            and payload.intervention_event_risk is not None
-        ):
+        if payload.control_event_risk is not None and payload.intervention_event_risk is not None:
             absolute_risk_reduction = abs(
                 payload.control_event_risk - payload.intervention_event_risk
             )
@@ -151,9 +146,7 @@ class EpidemiologySupportProtocolService:
         risk_relative: float | None = None
         if payload.exposed_risk is not None and payload.unexposed_risk is not None:
             if payload.unexposed_risk == 0:
-                safety_blocks.append(
-                    "RR no calculable: riesgo en no expuestos igual a 0."
-                )
+                safety_blocks.append("RR no calculable: riesgo en no expuestos igual a 0.")
                 if payload.exposed_risk > 0:
                     critical_alerts.append(
                         "RR potencialmente infinito: revisar calidad de datos y estratificacion."
@@ -197,22 +190,16 @@ class EpidemiologySupportProtocolService:
         positive_criteria = [name for name, enabled in hill_criteria.items() if enabled]
         if positive_criteria:
             actions.append(
-                "Aplicar Bradford Hill para soporte causal: "
-                + ", ".join(positive_criteria)
-                + "."
+                "Aplicar Bradford Hill para soporte causal: " + ", ".join(positive_criteria) + "."
             )
         if payload.hill_biological_gradient:
-            actions.append(
-                "El gradiente biologico (dosis-respuesta) respalda consistencia causal."
-            )
+            actions.append("El gradiente biologico (dosis-respuesta) respalda consistencia causal.")
         if not payload.hill_temporality:
             safety_blocks.append(
                 "Sin temporalidad documentada no se puede sostener inferencia causal robusta."
             )
 
-        trace.append(
-            f"Criterios Bradford Hill positivos: {len(positive_criteria)} de 9."
-        )
+        trace.append(f"Criterios Bradford Hill positivos: {len(positive_criteria)} de 9.")
         return risk_relative, actions, safety_blocks, critical_alerts, trace
 
     @staticmethod
@@ -226,8 +213,7 @@ class EpidemiologySupportProtocolService:
         study_type_raw = payload.economic_study_type or ""
         study_type = study_type_raw.strip().lower()
         is_cost_utility = any(
-            token in study_type
-            for token in ("coste-utilidad", "coste utilidad", "cost-utility")
+            token in study_type for token in ("coste-utilidad", "coste utilidad", "cost-utility")
         )
 
         if is_cost_utility:
@@ -335,9 +321,7 @@ class EpidemiologySupportProtocolService:
             causal_inference_actions=causal_actions,
             economic_evaluation_actions=economic_actions,
             safety_blocks=safety_blocks,
-            interpretability_trace=(
-                frequency_trace + nnt_trace + causal_trace + economic_trace
-            ),
+            interpretability_trace=(frequency_trace + nnt_trace + causal_trace + economic_trace),
             incidence_accumulated=incidence_accumulated,
             incidence_density=incidence_density,
             prevalence=prevalence,

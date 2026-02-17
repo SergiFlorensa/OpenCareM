@@ -5,9 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class AgentRunRequest(BaseModel):
-    workflow_name: Literal["task_triage_v1"] = Field(
-        ..., description="Workflow agente a ejecutar"
-    )
+    workflow_name: Literal["task_triage_v1"] = Field(..., description="Workflow agente a ejecutar")
     title: str = Field(..., min_length=3, max_length=200, description="Titulo base de la tarea")
     description: str | None = Field(
         default=None, max_length=2000, description="Descripcion opcional"

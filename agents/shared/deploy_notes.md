@@ -283,3 +283,16 @@
     - `prompt_injection_detected=1`
     - `prompt_injection_signals=...`
   - verificar presencia de `quality_metrics` en response de chat.
+
+
+## TM-109 - Notas de despliegue
+
+- Sin cambios de runtime productivo, endpoints ni migraciones.
+- Cambios orientados a productividad del equipo:
+  - `.pre-commit-config.yaml` para staged files.
+  - `scripts/dev_workflow.ps1` como entrada unica de comandos locales.
+  - `scripts/setup_hooks.ps1` para onboarding reproducible.
+- Onboarding recomendado por clon local:
+  - `powershell -ExecutionPolicy Bypass -File scripts/setup_hooks.ps1`
+- Smoke recomendado:
+  - `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test-e2e`

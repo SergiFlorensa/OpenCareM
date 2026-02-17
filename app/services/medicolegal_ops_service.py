@@ -51,10 +51,7 @@ class MedicolegalOpsService:
                 "Priorizar interes superior del menor y preservacion de la vida "
                 "como bien juridico prevalente."
             )
-            if (
-                payload.legal_representatives_deceased
-                or not payload.legal_representative_present
-            ):
+            if payload.legal_representatives_deceased or not payload.legal_representative_present:
                 alerts.append(
                     "Desamparo legal inmediato: equipo clinico asume deber "
                     "de proteccion del menor."
@@ -110,25 +107,20 @@ class MedicolegalOpsService:
             actions.append("Judicializar caso y coordinar con forense/autoridad competente.")
         if MedicolegalOpsService._is_pediatric_life_saving_conflict(payload):
             actions.append(
-                "Activar supervision clinica senior inmediata "
-                "(urgencias/pediatria/criticos)."
+                "Activar supervision clinica senior inmediata " "(urgencias/pediatria/criticos)."
             )
             actions.append(
                 "No demorar medida de soporte vital indicada por tramitacion "
                 "judicial cuando riesgo vital es inminente."
             )
-            if (
-                payload.legal_representatives_deceased
-                or not payload.legal_representative_present
-            ):
+            if payload.legal_representatives_deceased or not payload.legal_representative_present:
                 actions.append(
                     "Proceder bajo deber de proteccion del menor y estado de "
                     "necesidad, con trazabilidad completa de tiempos y motivos."
                 )
             if not payload.immediate_judicial_authorization_available:
                 actions.append(
-                    "Escalar comunicacion judicial tan pronto como la "
-                    "estabilizacion lo permita."
+                    "Escalar comunicacion judicial tan pronto como la " "estabilizacion lo permita."
                 )
         if not actions:
             actions.append("Mantener vigilancia medico-legal estandar y documentacion completa.")
@@ -150,15 +142,9 @@ class MedicolegalOpsService:
         if payload.patient_age_years < 16:
             checklist.append("Validar decision con representante legal por minoria de edad.")
         if MedicolegalOpsService._is_pediatric_life_saving_conflict(payload):
-            checklist.append(
-                "Documentar riesgo vital inminente y proporcionalidad de la medida."
-            )
-            checklist.append(
-                "Registrar causa de imposibilidad de autorizacion judicial inmediata."
-            )
-            checklist.append(
-                "Registrar hora exacta de decision e intervencion en linea temporal."
-            )
+            checklist.append("Documentar riesgo vital inminente y proporcionalidad de la medida.")
+            checklist.append("Registrar causa de imposibilidad de autorizacion judicial inmediata.")
+            checklist.append("Registrar hora exacta de decision e intervencion en linea temporal.")
         return checklist
 
     @staticmethod
@@ -197,10 +183,7 @@ class MedicolegalOpsService:
                     "Proteccion de autonomia futura del menor preservando su vida.",
                 ]
             )
-            if (
-                payload.legal_representatives_deceased
-                or not payload.legal_representative_present
-            ):
+            if payload.legal_representatives_deceased or not payload.legal_representative_present:
                 ethical_legal_basis.append(
                     "Desamparo de representacion: el equipo clinico asume funcion de garante."
                 )

@@ -35,8 +35,7 @@ class PsychiatrySupportProtocolService:
                     trace.append("Clasificacion temporal de estres agudo aplicada.")
                 else:
                     diagnostic_support.append(
-                        "Persistencia >= 1 mes tras trauma: "
-                        "priorizar evaluacion de TEPT."
+                        "Persistencia >= 1 mes tras trauma: " "priorizar evaluacion de TEPT."
                     )
                     triage_actions.append(
                         "Escalar seguimiento especializado por duracion prolongada."
@@ -44,8 +43,7 @@ class PsychiatrySupportProtocolService:
                     trace.append("Umbral temporal de TEPT activado.")
             else:
                 diagnostic_support.append(
-                    "Completar cronologia del trauma para diferenciar "
-                    "estres agudo vs TEPT."
+                    "Completar cronologia del trauma para diferenciar " "estres agudo vs TEPT."
                 )
 
         if payload.psychosocial_stressor_present:
@@ -99,8 +97,7 @@ class PsychiatrySupportProtocolService:
                 "contencion y vigilancia."
             )
             diagnostic_support.append(
-                "Documentar antecedentes de intento previo, red de apoyo y "
-                "riesgo familiar."
+                "Documentar antecedentes de intento previo, red de apoyo y " "riesgo familiar."
             )
 
         return critical_alerts, triage_actions, diagnostic_support, trace
@@ -122,9 +119,7 @@ class PsychiatrySupportProtocolService:
                     "Inicio agudo de psicosis: factor de mejor pronostico operativo."
                 )
             if payload.psychosis_early_age_onset:
-                prognosis_flags.append(
-                    "Inicio temprano de psicosis: factor de mal pronostico."
-                )
+                prognosis_flags.append("Inicio temprano de psicosis: factor de mal pronostico.")
             if payload.negative_symptoms_predominant:
                 prognosis_flags.append(
                     "Predominio de sintomas negativos: riesgo de peor respuesta y "
@@ -237,15 +232,11 @@ class PsychiatrySupportProtocolService:
 
         if payload.delusional_disorder_suspected:
             if payload.defense_projection:
-                psychodynamic_flags.append(
-                    "Mecanismo de defensa probable: proyeccion."
-                )
+                psychodynamic_flags.append("Mecanismo de defensa probable: proyeccion.")
             if payload.defense_denial:
                 psychodynamic_flags.append("Mecanismo de defensa probable: negacion.")
             if payload.defense_reaction_formation:
-                psychodynamic_flags.append(
-                    "Mecanismo de defensa probable: formacion reactiva."
-                )
+                psychodynamic_flags.append("Mecanismo de defensa probable: formacion reactiva.")
             if payload.defense_regression:
                 psychodynamic_flags.append(
                     "Regresion reportada: menos caracteristica de psicosis delirante."
@@ -278,15 +269,21 @@ class PsychiatrySupportProtocolService:
         payload: PsychiatrySupportProtocolRequest,
     ) -> PsychiatrySupportProtocolRecommendation:
         """Genera recomendacion operativa de psiquiatria para validacion humana."""
-        triage_time, diagnostic_time, trace_time = (
-            PsychiatrySupportProtocolService._temporal_triage_pathway(payload)
-        )
-        critical_suicide, triage_suicide, diagnostic_suicide, trace_suicide = (
-            PsychiatrySupportProtocolService._suicide_risk_pathway(payload)
-        )
-        prognosis_flags, diagnostic_psychosis = (
-            PsychiatrySupportProtocolService._psychosis_and_prognosis_pathway(payload)
-        )
+        (
+            triage_time,
+            diagnostic_time,
+            trace_time,
+        ) = PsychiatrySupportProtocolService._temporal_triage_pathway(payload)
+        (
+            critical_suicide,
+            triage_suicide,
+            diagnostic_suicide,
+            trace_suicide,
+        ) = PsychiatrySupportProtocolService._suicide_risk_pathway(payload)
+        (
+            prognosis_flags,
+            diagnostic_psychosis,
+        ) = PsychiatrySupportProtocolService._psychosis_and_prognosis_pathway(payload)
         (
             critical_pharm,
             safety_pharm,
@@ -299,17 +296,12 @@ class PsychiatrySupportProtocolService:
             psychodynamic_flags,
             critical_internal,
             diagnostic_internal,
-        ) = PsychiatrySupportProtocolService._internal_medicine_and_psychodynamics_pathway(
-            payload
-        )
+        ) = PsychiatrySupportProtocolService._internal_medicine_and_psychodynamics_pathway(payload)
 
         critical_alerts = critical_suicide + critical_pharm + critical_internal
         triage_actions = triage_time + triage_suicide + triage_pharm
         diagnostic_support = (
-            diagnostic_time
-            + diagnostic_suicide
-            + diagnostic_psychosis
-            + diagnostic_internal
+            diagnostic_time + diagnostic_suicide + diagnostic_psychosis + diagnostic_internal
         )
         interpretability_trace = trace_time + trace_suicide + trace_pharm
         severity = PsychiatrySupportProtocolService._severity(

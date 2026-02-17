@@ -110,7 +110,11 @@ def get_agent_run(run_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/run", response_model=AgentRunResponse, summary="Ejecutar workflow de agente con trazabilidad")
+@router.post(
+    "/run",
+    response_model=AgentRunResponse,
+    summary="Ejecutar workflow de agente con trazabilidad",
+)
 def run_agent_workflow(payload: AgentRunRequest, db: Session = Depends(get_db)):
     """Lanza un workflow, persiste trazas por paso y devuelve el resultado completo."""
     if payload.workflow_name != "task_triage_v1":

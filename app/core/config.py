@@ -112,9 +112,7 @@ class Settings(BaseSettings):
                     "SECRET_KEY debe tener al menos 32 caracteres fuera de desarrollo."
                 )
             if "*" in self.BACKEND_CORS_ORIGINS:
-                raise ValueError(
-                    "BACKEND_CORS_ORIGINS no puede contener '*' fuera de desarrollo."
-                )
+                raise ValueError("BACKEND_CORS_ORIGINS no puede contener '*' fuera de desarrollo.")
         return self
 
 

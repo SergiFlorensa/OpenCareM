@@ -69,10 +69,7 @@ class CriticalOpsProtocolService:
                 "Insuficiencia respiratoria hipercapnica/acidosis respiratoria: priorizar BiPAP."
             )
             trace.append("BiPAP elegido por acidosis respiratoria/hipercapnia.")
-        elif (
-            payload.pulmonary_edema_suspected
-            and not payload.shock_or_severe_arrhythmia_present
-        ):
+        elif payload.pulmonary_edema_suspected and not payload.shock_or_severe_arrhythmia_present:
             device = "cpap"
             plan.append("Edema agudo de pulmon: considerar CPAP para mejorar oxigenacion.")
             trace.append("CPAP elegido por edema agudo de pulmon sin contraindicaciones mayores.")
@@ -238,9 +235,7 @@ class CriticalOpsProtocolService:
             else:
                 actions.append("Corregir hipoglucemia antes de protocolo de antidotos.")
             if payload.malnutrition_or_chronic_alcohol_use:
-                actions.append(
-                    "Administrar tiamina en paciente desnutrido/alcoholismo cronico."
-                )
+                actions.append("Administrar tiamina en paciente desnutrido/alcoholismo cronico.")
 
         if payload.opioid_intoxication_suspected:
             actions.append("Sospecha de opiaceos: priorizar ventilacion y naloxona temprana.")
@@ -280,9 +275,7 @@ class CriticalOpsProtocolService:
         if payload.core_temperature_celsius is not None and payload.core_temperature_celsius < 32:
             alerts.append("Hipotermia moderada/severa: recalentamiento activo obligatorio.")
             if payload.persistent_asystole:
-                actions.append(
-                    "No certificar muerte hasta recalentamiento (objetivo >28-32 C)."
-                )
+                actions.append("No certificar muerte hasta recalentamiento (objetivo >28-32 C).")
                 trace.append("Regla 'caliente y muerto' activada por hipotermia con asistolia.")
             if payload.core_temperature_celsius < 28:
                 alerts.append("Temperatura <28 C: riesgo electrico extremo y alta prioridad.")
@@ -373,21 +366,24 @@ class CriticalOpsProtocolService:
     ) -> CriticalOpsProtocolRecommendation:
         """Genera recomendacion operativa critica para validacion humana."""
         sla_alerts, sla_breaches, sla_trace = CriticalOpsProtocolService._sla(payload)
-        respiratory_device, sat_target, respiratory_plan, respiratory_trace = (
-            CriticalOpsProtocolService._respiratory_support(payload)
-        )
+        (
+            respiratory_device,
+            sat_target,
+            respiratory_plan,
+            respiratory_trace,
+        ) = CriticalOpsProtocolService._respiratory_support(payload)
         chest_pathway, chest_trace = CriticalOpsProtocolService._chest_pain_pe_pathway(payload)
         anaphylaxis_pathway, anaphylaxis_trace = CriticalOpsProtocolService._anaphylaxis_pathway(
             payload
         )
-        hemodynamic_profile, hemodynamic_actions, hemodynamic_trace = (
-            CriticalOpsProtocolService._hemodynamic_profile(payload)
-        )
+        (
+            hemodynamic_profile,
+            hemodynamic_actions,
+            hemodynamic_trace,
+        ) = CriticalOpsProtocolService._hemodynamic_profile(payload)
         tox_actions, tox_alerts, tox_trace = CriticalOpsProtocolService._toxicology(payload)
         red_flags, red_trace = CriticalOpsProtocolService._red_flags(payload)
-        radiology_actions, radiology_trace = CriticalOpsProtocolService._radiology_actions(
-            payload
-        )
+        radiology_actions, radiology_trace = CriticalOpsProtocolService._radiology_actions(payload)
 
         critical_alerts = []
         critical_alerts.extend(sla_breaches)

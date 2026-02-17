@@ -67,8 +67,7 @@ class NeurologySupportProtocolService:
                         "Penumbra salvable en inicio desconocido: valorar trombectomia hasta 24 h."
                     )
                 elif (
-                    payload.ct_perfusion_performed
-                    and payload.salvageable_penumbra_present is False
+                    payload.ct_perfusion_performed and payload.salvageable_penumbra_present is False
                 ):
                     stroke_pathway.append(
                         "Perfusion sin penumbra salvable: reevaluar beneficio de "
@@ -152,9 +151,7 @@ class NeurologySupportProtocolService:
             )
             trace.append("Mapa facial sugiere lesion central.")
         elif payload.facial_weakness_pattern == "hemicara_completa":
-            clues.append(
-                "Paralisis facial de hemicara completa: orienta a origen periferico."
-            )
+            clues.append("Paralisis facial de hemicara completa: orienta a origen periferico.")
             trace.append("Mapa facial sugiere lesion periferica.")
 
         if payload.bilateral_pressing_headache and not payload.headache_activity_limitation:
@@ -195,9 +192,7 @@ class NeurologySupportProtocolService:
                 trace.append("Alerta de seguridad por corticoides en SGB.")
 
         if payload.fluctuating_weakness and payload.ocular_ptosis_or_diplopia:
-            pathway.append(
-                "Miastenia gravis probable: debilidad fluctuante con predominio ocular."
-            )
+            pathway.append("Miastenia gravis probable: debilidad fluctuante con predominio ocular.")
             if payload.pupils_spared:
                 pathway.append("Respeta pupila: dato semiologico compatible con miastenia.")
             if payload.myasthenia_seronegative:
@@ -220,9 +215,7 @@ class NeurologySupportProtocolService:
                 "neurologico y psiquiatrico."
             )
             if not payload.ovarian_teratoma_screening_done:
-                pathway.append(
-                    "Realizar busqueda obligatoria de teratoma ovarico asociado."
-                )
+                pathway.append("Realizar busqueda obligatoria de teratoma ovarico asociado.")
             trace.append("Disparador anti-NMDA activado por fenotipo clinico completo.")
 
         return pathway, contraindications, trace
@@ -240,9 +233,7 @@ class NeurologySupportProtocolService:
             )
             trace.append("Regla de biomarcadores de Alzheimer activada.")
         if payload.apoe_e4_present is True:
-            guidance.append(
-                "ApoE4 es factor de riesgo, pero no establece diagnostico por si solo."
-            )
+            guidance.append("ApoE4 es factor de riesgo, pero no establece diagnostico por si solo.")
 
         if payload.aneurysm_or_malformation_suspected:
             guidance.append(
@@ -320,21 +311,28 @@ class NeurologySupportProtocolService:
         payload: NeurologySupportProtocolRequest,
     ) -> NeurologySupportProtocolRecommendation:
         """Genera recomendacion operativa neurologica para validacion humana."""
-        vascular_alerts, immediate_actions, stroke_pathway, vascular_trace = (
-            NeurologySupportProtocolService._vascular_pathway(payload)
-        )
-        differential_clues, differential_trace = (
-            NeurologySupportProtocolService._differential_clues(payload)
-        )
-        autoimmune_pathway, contraindications, autoimmune_trace = (
-            NeurologySupportProtocolService._autoimmune_neuromuscular_pathway(payload)
-        )
+        (
+            vascular_alerts,
+            immediate_actions,
+            stroke_pathway,
+            vascular_trace,
+        ) = NeurologySupportProtocolService._vascular_pathway(payload)
+        (
+            differential_clues,
+            differential_trace,
+        ) = NeurologySupportProtocolService._differential_clues(payload)
+        (
+            autoimmune_pathway,
+            contraindications,
+            autoimmune_trace,
+        ) = NeurologySupportProtocolService._autoimmune_neuromuscular_pathway(payload)
         biomarker_guidance, biomarker_trace = NeurologySupportProtocolService._biomarker_guidance(
             payload
         )
-        advanced_support, advanced_trace = (
-            NeurologySupportProtocolService._advanced_decision_support(payload)
-        )
+        (
+            advanced_support,
+            advanced_trace,
+        ) = NeurologySupportProtocolService._advanced_decision_support(payload)
 
         severity = NeurologySupportProtocolService._severity(
             vascular_alerts=vascular_alerts,

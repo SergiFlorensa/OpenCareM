@@ -17,6 +17,9 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.agents.session_tool_result_guard import SessionToolResultGuard
+from app.agents.session_write_lock import SessionWriteLock
+from app.agents.tool_policy_pipeline import ToolPolicyContext, ToolPolicyPipeline
 from app.core.config import settings
 from app.models.care_task import CareTask
 from app.models.care_task_chat_message import CareTaskChatMessage
@@ -26,6 +29,9 @@ from app.schemas.clinical_chat import CareTaskClinicalChatMessageRequest
 from app.schemas.critical_ops_protocol import CriticalOpsProtocolRequest
 from app.schemas.scasest_protocol import ScasestProtocolRequest
 from app.schemas.sepsis_protocol import SepsisProtocolRequest
+from app.security.audit import audit_chat_security
+from app.security.dangerous_tools import assess_tool_risk
+from app.security.external_content import ExternalContentSecurity
 from app.services.agent_run_service import AgentRunService
 from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
 from app.services.knowledge_source_service import KnowledgeSourceService
@@ -96,12 +102,8 @@ class ClinicalChatService:
                 "title": "Motor critico transversal",
             }
         ],
-        "sepsis": [
-            {"source": "docs/47_motor_sepsis_urgencias.md", "title": "Bundle de sepsis"}
-        ],
-        "scasest": [
-            {"source": "docs/49_motor_scasest_urgencias.md", "title": "Soporte SCASEST"}
-        ],
+        "sepsis": [{"source": "docs/47_motor_sepsis_urgencias.md", "title": "Bundle de sepsis"}],
+        "scasest": [{"source": "docs/49_motor_scasest_urgencias.md", "title": "Soporte SCASEST"}],
         "resuscitation": [
             {
                 "source": "docs/58_motor_reanimacion_soporte_vital_urgencias.md",
@@ -213,15 +215,12 @@ class ClinicalChatService:
 
     @classmethod
     def _sanitize_user_query(cls, query: str) -> tuple[str, list[str]]:
-        sanitized = query.strip()
-        signals = cls._detect_prompt_injection_signals(sanitized)
-        sanitized = cls._ROLE_TAG_PATTERN.sub(" ", sanitized)
-        sanitized = re.sub(r"\[(?:SYSTEM|ASSISTANT|DEVELOPER|TOOL)\]", "[USER_DATA]", sanitized)
-        sanitized = sanitized.replace("```", "'''")
-        sanitized = re.sub(r"\s+", " ", sanitized).strip()
-        if len(sanitized) < 3:
-            sanitized = query.strip()
-        return sanitized[:4000], signals
+        isolation = ExternalContentSecurity.sanitize_untrusted_text(query, max_chars=4000)
+        signals = cls._detect_prompt_injection_signals(query)
+        for signal in isolation.signals:
+            if signal not in signals:
+                signals.append(signal)
+        return isolation.sanitized_text, signals
 
     @classmethod
     def _overlap_f1(cls, left_tokens: set[str], right_tokens: set[str]) -> float:
@@ -256,8 +255,7 @@ class ClinicalChatService:
                     for item in knowledge_sources[:6]
                 ),
                 " ".join(
-                    f"{item.get('title', '')} {item.get('snippet', '')}"
-                    for item in web_sources[:4]
+                    f"{item.get('title', '')} {item.get('snippet', '')}" for item in web_sources[:4]
                 ),
             ]
         )
@@ -350,8 +348,7 @@ class ClinicalChatService:
         if keyword_hits > 0:
             return True
         if any(
-            fact.startswith("umbral:") or fact.startswith("comparador:")
-            for fact in extracted_facts
+            fact.startswith("umbral:") or fact.startswith("comparador:") for fact in extracted_facts
         ):
             return True
         if any(fact.startswith("termino:") for fact in extracted_facts):
@@ -367,14 +364,16 @@ class ClinicalChatService:
         query: str,
         extracted_facts: list[str],
         keyword_hits: int,
+        tool_mode: str | None = None,
     ) -> str:
+        effective_tool_mode = tool_mode or payload.tool_mode
         if payload.conversation_mode == "general":
             return "general"
         if payload.conversation_mode == "clinical":
             return "clinical"
-        if payload.tool_mode == "deep_search":
+        if effective_tool_mode == "deep_search":
             return "general"
-        if payload.tool_mode in cls._CLINICAL_TOOL_MODES:
+        if effective_tool_mode in cls._CLINICAL_TOOL_MODES:
             return "clinical"
         if cls._has_clinical_signal(
             query=query,
@@ -714,9 +713,7 @@ class ClinicalChatService:
                         "domain": source.specialty,
                         "title": source.title,
                         "source": (
-                            source.source_url
-                            or source.source_path
-                            or f"knowledge:{source.id}"
+                            source.source_url or source.source_path or f"knowledge:{source.id}"
                         ),
                         "snippet": (source.summary or source.content or "")[:280],
                     },
@@ -821,50 +818,49 @@ class ClinicalChatService:
         results: list[dict[str, Any]] = []
         for endpoint in matched_endpoints:
             recommendation: dict[str, Any] | None = None
-            if endpoint.endswith('/critical-ops/recommendation'):
+            if endpoint.endswith("/critical-ops/recommendation"):
                 recommendation = CriticalOpsProtocolService.build_recommendation(
                     CriticalOpsProtocolRequest(
-                        suspected_septic_shock='sepsis' in normalized_query,
-                        non_traumatic_chest_pain='torac' in normalized_query,
-                        triage_level='rojo' if 'shock' in normalized_query else 'amarillo',
+                        suspected_septic_shock="sepsis" in normalized_query,
+                        non_traumatic_chest_pain="torac" in normalized_query,
+                        triage_level="rojo" if "shock" in normalized_query else "amarillo",
                     )
                 ).model_dump()
-            elif endpoint.endswith('/sepsis/recommendation'):
+            elif endpoint.endswith("/sepsis/recommendation"):
                 recommendation = SepsisProtocolService.build_recommendation(
                     SepsisProtocolRequest(
                         suspected_infection=True,
-                        lactate_mmol_l=4.0 if 'lactato' in normalized_query else None,
+                        lactate_mmol_l=4.0 if "lactato" in normalized_query else None,
                         systolic_bp=(
-                            85
-                            if 'tas' in normalized_query or 'shock' in normalized_query
-                            else None
+                            85 if "tas" in normalized_query or "shock" in normalized_query else None
                         ),
                     )
                 ).model_dump()
-            elif endpoint.endswith('/scasest/recommendation'):
+            elif endpoint.endswith("/scasest/recommendation"):
                 recommendation = ScasestProtocolService.build_recommendation(
                     ScasestProtocolRequest(
-                        chest_pain_typical='torac' in normalized_query,
-                        troponin_positive='troponina' in normalized_query,
-                        hemodynamic_instability='shock' in normalized_query,
+                        chest_pain_typical="torac" in normalized_query,
+                        troponin_positive="troponina" in normalized_query,
+                        hemodynamic_instability="shock" in normalized_query,
                     )
                 ).model_dump()
             if recommendation is None:
                 continue
             results.append(
                 {
-                    'type': 'internal_recommendation',
-                    'endpoint': endpoint,
-                    'title': f"Recomendacion sintetizada {endpoint.split('/')[-2]}",
-                    'source': endpoint,
-                    'snippet': json.dumps(recommendation, ensure_ascii=False)[:300],
-                    'recommendation': recommendation,
+                    "type": "internal_recommendation",
+                    "endpoint": endpoint,
+                    "title": f"Recomendacion sintetizada {endpoint.split('/')[-2]}",
+                    "source": endpoint,
+                    "snippet": json.dumps(recommendation, ensure_ascii=False)[:300],
+                    "recommendation": recommendation,
                 }
             )
         return results
 
-    @staticmethod
+    @classmethod
     def _render_clinical_answer(
+        cls,
         *,
         care_task: CareTask,
         query: str,
@@ -892,10 +888,12 @@ class ClinicalChatService:
         ]
         if recent_dialogue:
             last_turn = recent_dialogue[-1]
-            lines.append(
-                "Continuidad: tomo como referencia el ultimo turno sobre "
-                f"'{last_turn.get('user_query', '')[:120]}'."
-            )
+            last_user_query = str(last_turn.get("user_query", "")).strip()
+            if cls._is_clinical_continuity_candidate(last_user_query):
+                lines.append(
+                    "Continuidad: tomo como referencia el ultimo turno clinico sobre "
+                    f"'{last_user_query[:120]}'."
+                )
         if matched_domains:
             lines.append("1) Priorizacion inmediata (0-10 min)")
             for idx, domain in enumerate(matched_domains):
@@ -903,14 +901,14 @@ class ClinicalChatService:
                 summary = str(domain["summary"])
                 if include_protocol_catalog and idx < len(matched_endpoints):
                     lines.append(
-                        f"- Activar ruta {label}: {summary}. "
-                        f"Endpoint: {matched_endpoints[idx]}"
+                        f"- Activar ruta {label}: {summary}. " f"Endpoint: {matched_endpoints[idx]}"
                     )
                 else:
                     lines.append(f"- Activar ruta {label}: {summary}.")
-        if memory_facts_used:
+        display_memory_facts = [fact for fact in memory_facts_used if ":" not in fact]
+        if display_memory_facts:
             lines.append("2) Contexto clinico reutilizado")
-            lines.append("- Memoria de sesion: " + ", ".join(memory_facts_used[:5]) + ".")
+            lines.append("- Memoria de sesion: " + ", ".join(display_memory_facts[:5]) + ".")
         if patient_summary and patient_summary.get("patient_interactions_count", 0) > 0:
             lines.append("3) Contexto longitudinal")
             lines.append(
@@ -920,35 +918,34 @@ class ClinicalChatService:
             )
         if patient_history_facts_used:
             lines.append(
-                "- Hechos longitudinales: "
-                + ", ".join(patient_history_facts_used[:5])
-                + "."
+                "- Hechos longitudinales: " + ", ".join(patient_history_facts_used[:5]) + "."
             )
-        if extracted_facts:
-            display_facts = [
-                fact for fact in extracted_facts if ClinicalChatService._filter_memory_fact(fact)
-            ]
-            lines.append("4) Hechos detectados")
-            lines.append("- " + ", ".join(display_facts[:6]) + ".")
         if endpoint_recommendations:
-            lines.append("5) Recomendaciones operativas internas")
+            lines.append("4) Recomendaciones operativas internas")
             for recommendation in endpoint_recommendations[:4]:
-                lines.append(f"- {recommendation['endpoint']}: {recommendation['snippet']}")
+                endpoint = str(recommendation.get("endpoint", ""))
+                title = str(recommendation.get("title", "Ruta operativa")).strip()
+                safe_snippet = cls._safe_source_snippet(
+                    {"snippet": str(recommendation.get("snippet", ""))}
+                )
+                lines.append(f"- {title}. Endpoint: {endpoint}")
+                if safe_snippet:
+                    lines.append(f"  - Sintesis: {safe_snippet[:220]}")
         if knowledge_sources:
-            lines.append("6) Evidencia usada")
+            lines.append("5) Evidencia usada")
             lines.append("- Fuentes internas indexadas:")
             for source in knowledge_sources[:4]:
                 lines.append(f"  - {source['title']} ({source['source']})")
         elif settings.CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES:
             lines.append(
-                "6) Evidencia usada\n- Sin fuentes internas validadas para esta consulta. "
+                "5) Evidencia usada\n- Sin fuentes internas validadas para esta consulta. "
                 "Escalar revision profesional antes de tomar decision."
             )
         if web_sources:
             lines.append("- Fuentes web consultadas (dominios en whitelist):")
             for source in web_sources[:3]:
                 lines.append(f"  - {source['title']}: {source['url']}")
-        lines.append("7) Cierre operativo")
+        lines.append("6) Cierre operativo")
         lines.append(
             "- Validar decisiones con protocolo local, "
             "responsable clinico y estado dinamico del paciente."
@@ -958,6 +955,19 @@ class ClinicalChatService:
             "requiere verificacion clinica presencial."
         )
         return "\n".join(lines)
+
+    @classmethod
+    def _is_clinical_continuity_candidate(cls, query: str) -> bool:
+        normalized = cls._normalize(query)
+        if not normalized or cls._is_social_or_discovery_query(query):
+            return False
+        query_facts = cls._extract_facts(query)
+        keyword_hits = cls._count_domain_keyword_hits(query)
+        return cls._has_clinical_signal(
+            query=query,
+            extracted_facts=query_facts,
+            keyword_hits=keyword_hits,
+        )
 
     @staticmethod
     def _is_social_or_discovery_query(query: str) -> bool:
@@ -1067,7 +1077,17 @@ class ClinicalChatService:
         care_task: CareTask,
         payload: CareTaskClinicalChatMessageRequest,
         authenticated_user: User | None,
-    ) -> tuple[CareTaskChatMessage, int, str, list[str], str, str, dict[str, float | str]]:
+    ) -> tuple[
+        CareTaskChatMessage,
+        int,
+        str,
+        list[str],
+        str,
+        str,
+        dict[str, float | str],
+        str,
+        list[dict[str, str]],
+    ]:
         session_id = cls._safe_session_id(payload.session_id)
         effective_specialty = cls._resolve_effective_specialty(
             payload=payload,
@@ -1132,26 +1152,59 @@ class ClinicalChatService:
             str(domain["endpoint"]).format(task_id=care_task.id)
             for domain in matched_domain_records
         ]
-        extracted_facts = (
-            cls._extract_facts(safe_query)
-            if payload.persist_extracted_facts
-            else []
+        extracted_facts = cls._extract_facts(safe_query) if payload.persist_extracted_facts else []
+
+        requested_tool_mode = payload.tool_mode
+        provisional_response_mode = cls._resolve_response_mode(
+            payload=payload,
+            query=safe_query,
+            extracted_facts=extracted_facts,
+            keyword_hits=keyword_hits,
+            tool_mode=requested_tool_mode,
         )
+        risk_assessment = assess_tool_risk(
+            tool_mode=requested_tool_mode,
+            response_mode=provisional_response_mode,
+            prompt_injection_detected=bool(prompt_injection_signals),
+            use_web_sources=payload.use_web_sources or requested_tool_mode == "deep_search",
+        )
+        policy_decision = ToolPolicyPipeline.evaluate(
+            ToolPolicyContext(
+                requested_tool_mode=requested_tool_mode,
+                response_mode=provisional_response_mode,
+                user_is_superuser=bool(authenticated_user and authenticated_user.is_superuser),
+                prompt_injection_detected=bool(prompt_injection_signals),
+                human_review_required=bool(care_task.human_review_required),
+                use_web_sources=payload.use_web_sources or requested_tool_mode == "deep_search",
+                include_protocol_catalog=payload.include_protocol_catalog,
+            )
+        )
+        tool_mode = policy_decision.effective_tool_mode
         response_mode = cls._resolve_response_mode(
             payload=payload,
             query=safe_query,
             extracted_facts=extracted_facts,
             keyword_hits=keyword_hits,
+            tool_mode=tool_mode,
         )
-        tool_mode = payload.tool_mode
+
         extracted_facts.append(f"modo_respuesta:{response_mode}")
+        extracted_facts.append(f"herramienta_solicitada:{requested_tool_mode}")
         extracted_facts.append(f"herramienta:{tool_mode}")
+        if not policy_decision.allowed:
+            extracted_facts.append(f"tool_policy:{policy_decision.reason_code}")
+
         endpoint_recommendations: list[dict[str, Any]] = []
         if response_mode == "clinical":
             endpoint_recommendations = cls._fetch_recommendations(
                 query=effective_query,
                 matched_endpoints=matched_endpoints,
             )
+            endpoint_recommendations = SessionToolResultGuard.sanitize(
+                endpoint_recommendations,
+                max_items=4,
+            )
+
         if tool_mode in {"medication", "treatment", "cases"}:
             extracted_facts.append(f"tool_focus:{tool_mode}")
         unique_facts: list[str] = []
@@ -1174,15 +1227,13 @@ class ClinicalChatService:
                 max_internal_sources=payload.max_internal_sources,
             )
         web_limit = payload.max_web_sources
-        use_web_sources = payload.use_web_sources
+        use_web_sources = payload.use_web_sources and policy_decision.allowed
         if tool_mode == "deep_search":
             use_web_sources = True
             web_limit = max(payload.max_web_sources, 6)
-        web_sources = (
-            cls._fetch_web_sources(effective_query, web_limit)
-            if use_web_sources
-            else []
-        )
+        if requested_tool_mode == "deep_search" and tool_mode != "deep_search":
+            use_web_sources = False
+        web_sources = cls._fetch_web_sources(effective_query, web_limit) if use_web_sources else []
         endpoint_sources = [
             {
                 "type": "internal_recommendation",
@@ -1196,20 +1247,35 @@ class ClinicalChatService:
             knowledge_sources = [*knowledge_sources, *endpoint_sources][
                 : max(payload.max_internal_sources, 6)
             ]
+        security_findings = [
+            item.to_dict()
+            for item in audit_chat_security(
+                prompt_injection_signals=prompt_injection_signals,
+                risk=risk_assessment,
+                tool_policy_allowed=policy_decision.allowed,
+                tool_policy_reason=policy_decision.reason_code,
+                response_mode=response_mode,
+                internal_sources_count=len(knowledge_sources),
+                validated_sources_required=settings.CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES,
+                use_web_sources=use_web_sources,
+            )
+        ]
         interpretability_trace = [
             f"query_length={len(payload.query)}",
             f"effective_specialty={effective_specialty}",
             f"conversation_mode={payload.conversation_mode}",
             f"response_mode={response_mode}",
+            f"requested_tool_mode={requested_tool_mode}",
             f"tool_mode={tool_mode}",
+            f"tool_policy_decision={'allowed' if policy_decision.allowed else 'denied'}",
+            f"tool_policy_reason={policy_decision.reason_code}",
+            f"tool_risk_level={risk_assessment.risk_level}",
+            "tool_risk_categories="
+            + (",".join(risk_assessment.categories) if risk_assessment.categories else "none"),
             f"query_sanitized={1 if safe_query != payload.query.strip() else 0}",
             f"prompt_injection_detected={1 if prompt_injection_signals else 0}",
             "prompt_injection_signals="
-            + (
-                ",".join(prompt_injection_signals)
-                if prompt_injection_signals
-                else "none"
-            ),
+            + (",".join(prompt_injection_signals) if prompt_injection_signals else "none"),
             f"query_expanded={1 if query_expanded else 0}",
             f"keyword_hits={keyword_hits}",
             f"history_messages_used={len(recent_messages)}",
@@ -1223,7 +1289,10 @@ class ClinicalChatService:
             "source_policy=internal_first_web_whitelist",
             f"memory_facts_used={len(memory_facts_used)}",
             f"extracted_facts={len(extracted_facts)}",
+            f"security_findings_count={len(security_findings)}",
+            "security_findings=" + ",".join(finding["code"] for finding in security_findings[:4]),
         ]
+        interpretability_trace.extend(policy_decision.trace)
         llm_answer, llm_trace = LLMChatProvider.generate_answer(
             query=safe_query,
             response_mode=response_mode,
@@ -1286,9 +1355,7 @@ class ClinicalChatService:
             ]
         )
         if llm_trace:
-            interpretability_trace.extend(
-                [f"{key}={value}" for key, value in llm_trace.items()]
-            )
+            interpretability_trace.extend([f"{key}={value}" for key, value in llm_trace.items()])
         run = AgentRunService.run_care_task_clinical_chat_workflow(
             db=db,
             care_task=care_task,
@@ -1299,7 +1366,10 @@ class ClinicalChatService:
                 "specialty_hint": payload.specialty_hint,
                 "effective_specialty": effective_specialty,
                 "conversation_mode": payload.conversation_mode,
+                "requested_tool_mode": requested_tool_mode,
                 "tool_mode": tool_mode,
+                "tool_policy_decision": "allowed" if policy_decision.allowed else "denied",
+                "tool_policy_reason": policy_decision.reason_code,
                 "response_mode": response_mode,
                 "use_patient_history": payload.use_patient_history,
                 "use_web_sources": use_web_sources,
@@ -1322,6 +1392,13 @@ class ClinicalChatService:
                 "patient_summary": patient_summary,
                 "interpretability_trace": interpretability_trace,
                 "quality_metrics": quality_metrics,
+                "security_findings": security_findings,
+                "tool_policy_trace": policy_decision.trace,
+                "tool_risk": {
+                    "risk_level": risk_assessment.risk_level,
+                    "categories": risk_assessment.categories,
+                    "reasons": risk_assessment.reasons,
+                },
             },
         )
         message = CareTaskChatMessage(
@@ -1339,9 +1416,17 @@ class ClinicalChatService:
             patient_history_facts_used=patient_history_facts_used,
             extracted_facts=extracted_facts,
         )
-        db.add(message)
-        db.commit()
-        db.refresh(message)
+        lock_key = f"care-task:{care_task.id}:session:{session_id}"
+        lock_owner = f"chat-message:{uuid4().hex[:10]}"
+        with SessionWriteLock.acquire(
+            lock_key=lock_key,
+            owner=lock_owner,
+            timeout_seconds=2.5,
+            stale_after_seconds=20.0,
+        ):
+            db.add(message)
+            db.commit()
+            db.refresh(message)
         return (
             message,
             run.id,
@@ -1350,4 +1435,6 @@ class ClinicalChatService:
             response_mode,
             tool_mode,
             quality_metrics,
+            "allowed" if policy_decision.allowed else "denied",
+            security_findings,
         )

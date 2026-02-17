@@ -24,9 +24,7 @@ class ChestXRaySupportService:
                     "Ocupacion alveolar compatible con consolidacion (ej. neumonia o edema)."
                 )
             else:
-                suspected.append(
-                    "Patron alveolar probable; correlacionar con clinica y evolucion."
-                )
+                suspected.append("Patron alveolar probable; correlacionar con clinica y evolucion.")
 
         if payload.pattern in {"intersticial", "mixto"}:
             if "lineas_kerley_b" in signs:
@@ -34,9 +32,7 @@ class ChestXRaySupportService:
                     "Patron intersticial con lineas B de Kerley (considerar congestion)."
                 )
             else:
-                suspected.append(
-                    "Patron intersticial sugerido; completar evaluacion hemodinamica."
-                )
+                suspected.append("Patron intersticial sugerido; completar evaluacion hemodinamica.")
 
         if payload.pattern == "atelectasia" or "desplazamiento_cisuras" in signs:
             suspected.append("Perdida de volumen compatible con atelectasia.")
@@ -80,8 +76,7 @@ class ChestXRaySupportService:
             )
         if "neumoperitoneo_subdiafragmatico" in signs:
             red_flags.append(
-                "Aire subdiafragmatico sugerente de neumoperitoneo: "
-                "valorar urgencia quirurgica."
+                "Aire subdiafragmatico sugerente de neumoperitoneo: " "valorar urgencia quirurgica."
             )
         return red_flags
 
@@ -89,9 +84,7 @@ class ChestXRaySupportService:
     def _build_projection_caveats(payload: ChestXRaySupportRequest) -> list[str]:
         caveats: list[str] = []
         if payload.projection == "ap":
-            caveats.append(
-                "Proyeccion AP puede magnificar silueta cardiaca (falsa cardiomegalia)."
-            )
+            caveats.append("Proyeccion AP puede magnificar silueta cardiaca (falsa cardiomegalia).")
         if payload.inspiratory_quality == "suboptima":
             caveats.append("Inspiracion suboptima puede simular aumento de densidad basal.")
         return caveats
@@ -114,9 +107,7 @@ class ChestXRaySupportService:
             actions.append("Correlacionar hallazgos con gasometria, saturacion y estado clinico.")
 
         if payload.projection == "ap" and "cardiomegalia_aparente_ap" in signs:
-            actions.append(
-                "Evitar sobrediagnosticar cardiomegalia en AP sin correlacion clinica."
-            )
+            actions.append("Evitar sobrediagnosticar cardiomegalia en AP sin correlacion clinica.")
 
         if payload.pattern == "neumotorax" and payload.inspiratory_quality == "adecuada":
             actions.append(
@@ -125,8 +116,7 @@ class ChestXRaySupportService:
 
         if "signo_menisco" in signs:
             actions.append(
-                "Valorar cuantia de derrame y causa de base "
-                "(cardiaca, infecciosa, neoplasica)."
+                "Valorar cuantia de derrame y causa de base " "(cardiaca, infecciosa, neoplasica)."
             )
 
         if not actions:
@@ -144,9 +134,7 @@ class ChestXRaySupportService:
         return ChestXRaySupportRecommendation(
             suspected_patterns=ChestXRaySupportService._build_suspected_patterns(payload),
             urgent_red_flags=red_flags,
-            suggested_actions=ChestXRaySupportService._build_suggested_actions(
-                payload, red_flags
-            ),
+            suggested_actions=ChestXRaySupportService._build_suggested_actions(payload, red_flags),
             projection_caveats=ChestXRaySupportService._build_projection_caveats(payload),
             human_validation_required=True,
             non_diagnostic_warning=(

@@ -52,26 +52,20 @@ class GynecologyObstetricsSupportProtocolService:
             )
 
         if payload.endometrial_tumor_molecular_profile == "pole_ultramutated":
-            actions.append(
-                "Perfil molecular POLE ultramutado: pronostico favorable relativo."
-            )
+            actions.append("Perfil molecular POLE ultramutado: pronostico favorable relativo.")
         elif payload.endometrial_tumor_molecular_profile == "p53_mutated_serous_like":
             critical_alerts.append(
                 "Perfil molecular P53 mutado (serous-like): alto riesgo oncologico."
             )
         elif payload.endometrial_tumor_molecular_profile == "mismatch_repair_deficient":
-            actions.append(
-                "Perfil dMMR: evaluar implicaciones pronosticas y geneticas asociadas."
-            )
+            actions.append("Perfil dMMR: evaluar implicaciones pronosticas y geneticas asociadas.")
 
         if payload.breast_cancer_subtype == "triple_negative":
             critical_alerts.append(
                 "Subtipo mama triple negativo: fenotipo de mayor agresividad clinica."
             )
         elif payload.breast_cancer_subtype == "luminal_a":
-            actions.append(
-                "Subtipo luminal A: fenotipo frecuente con mejor pronostico relativo."
-            )
+            actions.append("Subtipo luminal A: fenotipo frecuente con mejor pronostico relativo.")
 
         return critical_alerts, actions, trace
 
@@ -213,8 +207,7 @@ class GynecologyObstetricsSupportProtocolService:
 
         if payload.live_attenuated_vaccine_requested_during_pregnancy:
             safety_blocks.append(
-                "Vacunas vivas atenuadas (varicela/triple virica) contraindicadas en "
-                "embarazo."
+                "Vacunas vivas atenuadas (varicela/triple virica) contraindicadas en " "embarazo."
             )
 
         if payload.maternal_varicella_confirmed:
@@ -252,16 +245,12 @@ class GynecologyObstetricsSupportProtocolService:
                 "sin proteinuria."
             )
 
-        severe_systolic = (
-            payload.systolic_bp_mm_hg is not None and payload.systolic_bp_mm_hg >= 160
-        )
+        severe_systolic = payload.systolic_bp_mm_hg is not None and payload.systolic_bp_mm_hg >= 160
         if severe_systolic:
             critical_alerts.append(
                 "Preeclampsia con sistolica >=160 mmHg: priorizar antihipertensivo IV inmediato."
             )
-            actions.append(
-                "Activar flujo de tratamiento intravenoso y monitorizacion estrecha."
-            )
+            actions.append("Activar flujo de tratamiento intravenoso y monitorizacion estrecha.")
             trace.append("Regla de tension grave en preeclampsia activada.")
 
         if payload.severe_features_present:
@@ -296,17 +285,11 @@ class GynecologyObstetricsSupportProtocolService:
 
         if payload.oral_contraception_planned:
             if not payload.baseline_history_completed:
-                safety_blocks.append(
-                    "Anticoncepcion oral sin historia clinica basal registrada."
-                )
+                safety_blocks.append("Anticoncepcion oral sin historia clinica basal registrada.")
             if not payload.baseline_bp_recorded:
-                safety_blocks.append(
-                    "Anticoncepcion oral sin toma basal de tension arterial."
-                )
+                safety_blocks.append("Anticoncepcion oral sin toma basal de tension arterial.")
             if not payload.baseline_bmi_recorded:
-                safety_blocks.append(
-                    "Anticoncepcion oral sin calculo basal de IMC."
-                )
+                safety_blocks.append("Anticoncepcion oral sin calculo basal de IMC.")
             if payload.routine_cytology_required_before_ocp:
                 safety_blocks.append(
                     "No exigir citologia rutinaria como requisito previo universal para ACO."
@@ -338,14 +321,8 @@ class GynecologyObstetricsSupportProtocolService:
                         payload.fasting_glucose_mg_dl is not None
                         and payload.fasting_glucose_mg_dl >= 92
                     )
-                    or (
-                        payload.glucose_1h_mg_dl is not None
-                        and payload.glucose_1h_mg_dl >= 180
-                    )
-                    or (
-                        payload.glucose_2h_mg_dl is not None
-                        and payload.glucose_2h_mg_dl >= 153
-                    )
+                    or (payload.glucose_1h_mg_dl is not None and payload.glucose_1h_mg_dl >= 180)
+                    or (payload.glucose_2h_mg_dl is not None and payload.glucose_2h_mg_dl >= 153)
                 )
                 if gdm_positive:
                     actions.append(
@@ -366,18 +343,12 @@ class GynecologyObstetricsSupportProtocolService:
                 actions.append(
                     "Neuroproteccion fetal con magnesio indicada (<32 semanas y parto inminente)."
                 )
-            elif (
-                payload.ruptured_membranes_present
-                and payload.cervix_long_without_contractions
-            ):
+            elif payload.ruptured_membranes_present and payload.cervix_long_without_contractions:
                 safety_blocks.append(
                     "Neuroproteccion fetal con magnesio no indicada en RPM con cuello largo "
                     "sin dinamica uterina."
                 )
-            elif (
-                payload.gestational_age_weeks is not None
-                and payload.gestational_age_weeks >= 32
-            ):
+            elif payload.gestational_age_weeks is not None and payload.gestational_age_weeks >= 32:
                 safety_blocks.append(
                     "Neuroproteccion fetal con magnesio fuera de umbral (<32 semanas)."
                 )
@@ -386,9 +357,7 @@ class GynecologyObstetricsSupportProtocolService:
             payload.chronic_lymphedema_post_oncologic_surgery
             and payload.diuretic_prescription_requested
         ):
-            safety_blocks.append(
-                "Bloqueo de diureticos en linfedema cronico post-oncologico."
-            )
+            safety_blocks.append("Bloqueo de diureticos en linfedema cronico post-oncologico.")
             actions.append(
                 "Sugerir fisioterapia descongestiva y ejercicio fisico como manejo preferente."
             )
@@ -482,11 +451,7 @@ class GynecologyObstetricsSupportProtocolService:
             pharmacology_prevention_actions=pharm_actions,
             safety_blocks=safety_blocks,
             interpretability_trace=(
-                oncology_trace
-                + urgent_trace
-                + obstetric_trace
-                + preeclampsia_trace
-                + pharm_trace
+                oncology_trace + urgent_trace + obstetric_trace + preeclampsia_trace + pharm_trace
             ),
             human_validation_required=True,
             non_diagnostic_warning=(

@@ -39,7 +39,9 @@ async def run_smoke() -> None:
     stats = await client.tasks_stats_count()
     required_keys = {"total", "completed", "pending"}
     if not required_keys.issubset(stats.keys()):
-        raise RuntimeError("Prueba MCP fallida: la forma de respuesta de tasks_stats_count es invalida.")
+        raise RuntimeError(
+            "Prueba MCP fallida: la forma de respuesta de tasks_stats_count " "es invalida."
+        )
 
     schema = await client.openapi_schema()
     if "paths" not in schema:

@@ -119,8 +119,7 @@ class KnowledgeSourceService:
         query = db.query(ClinicalKnowledgeSource)
         if specialty:
             query = query.filter(
-                ClinicalKnowledgeSource.specialty
-                == specialty.strip().lower().replace(" ", "_")
+                ClinicalKnowledgeSource.specialty == specialty.strip().lower().replace(" ", "_")
             )
         if validated_only:
             query = query.filter(ClinicalKnowledgeSource.status == "validated")
@@ -147,9 +146,7 @@ class KnowledgeSourceService:
         if payload.decision == "approve" and source.source_url:
             source_domain = cls._extract_domain(source.source_url)
             if not cls.is_allowed_domain(source_domain):
-                raise ValueError(
-                    "No se puede sellar una fuente con dominio fuera de whitelist."
-                )
+                raise ValueError("No se puede sellar una fuente con dominio fuera de whitelist.")
             source.source_domain = source_domain
         now = datetime.now(timezone.utc)
         status_map = {

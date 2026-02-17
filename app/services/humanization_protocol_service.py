@@ -56,12 +56,8 @@ class HumanizationProtocolService:
         if payload.primary_context == "neuro_oncologia":
             plan.append("Coordinar sesion breve neuro-oncologia + familia para plan actualizado.")
         if payload.has_clinical_trial_option:
-            plan.append(
-                "Valorar pre-elegibilidad a ensayo clinico con revision multidisciplinar."
-            )
-            plan.append(
-                "Sincronizar ventana operativa con anestesia y equipo de investigacion."
-            )
+            plan.append("Valorar pre-elegibilidad a ensayo clinico con revision multidisciplinar.")
+            plan.append("Sincronizar ventana operativa con anestesia y equipo de investigacion.")
         if not plan:
             plan.append("Mantener coordinacion clinica convencional segun protocolo de servicio.")
         return plan
