@@ -1440,3 +1440,19 @@ Resultados:
 - Comandos ejecutados:
   - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py` (OK).
   - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "clinical_fallback or general_answer or follow_up_query_expansion"` (`5 passed, 6 deselected`).
+
+## TM-113 - Plan de validacion ejecutado
+
+- Verificar que el endpoint de chat no rompa por desempaquetado de retorno.
+- Verificar integracion RAG en `clinical_chat_service` con fallback sin regresion.
+- Verificar compatibilidad de politicas de herramientas para modo clinico (`medication`).
+- Verificar lint/sintaxis de modulos RAG y script de ingesta.
+
+Resultados:
+- Comandos ejecutados:
+  - `.\venv\Scripts\python.exe -m ruff check app/agents/tool_policy_pipeline.py app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/services/rag_retriever.py app/services/embedding_service.py app/scripts/ingest_clinical_docs.py app/tests/test_clinical_chat_operational.py app/api/care_tasks.py app/core/config.py app/models/__init__.py app/models/clinical_document.py app/models/document_chunk.py app/models/rag_query_audit.py alembic/env.py app/core/database.py app/core/chunking.py app/services/document_ingestion_service.py app/services/rag_prompt_builder.py app/services/rag_gatekeeper.py app/services/__init__.py` (OK).
+  - `.\venv\Scripts\python.exe -m py_compile app/agents/tool_policy_pipeline.py app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/services/rag_retriever.py app/services/embedding_service.py app/scripts/ingest_clinical_docs.py app/tests/test_clinical_chat_operational.py app/api/care_tasks.py app/core/config.py app/models/clinical_document.py app/models/document_chunk.py app/models/rag_query_audit.py app/core/database.py app/core/chunking.py app/services/document_ingestion_service.py app/services/rag_prompt_builder.py app/services/rag_gatekeeper.py` (OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py` (`12 passed`).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`9 passed, 126 deselected`).
+- Observaciones:
+  - Persisten warnings deprecados de `python-jose` (`datetime.utcnow()`), sin afectar resultado funcional.

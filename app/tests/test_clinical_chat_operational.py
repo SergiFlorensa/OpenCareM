@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from app.services.clinical_chat_service import ClinicalChatService
 from app.services.llm_chat_provider import LLMChatProvider
+from app.services.rag_orchestrator import RAGOrchestrator
 
 
 def _auth_headers(client, username: str):
@@ -156,6 +157,66 @@ def test_chat_e2e_three_turns_continuity_and_trace(client, monkeypatch):
     assert any(item == "llm_endpoint=chat" for item in payload["interpretability_trace"])
     assert any(item.startswith("matched_endpoints=") for item in payload["interpretability_trace"])
     assert payload["quality_metrics"]["quality_status"] in {"ok", "attention", "degraded"}
+
+
+def test_chat_e2e_uses_rag_when_enabled(client, monkeypatch):
+    headers = _auth_headers(client, "chat_rag_user")
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso RAG activo",
+            "clinical_priority": "high",
+            "specialty": "emergency",
+            "patient_reference": "PAC-RAG-1",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_RAG_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_LLM_ENABLED",
+        False,
+    )
+
+    def fake_process(self, **kwargs):
+        assert kwargs["query"].startswith("Sospecha")
+        return (
+            "Respuesta asistida por RAG con pasos priorizados.",
+            {
+                "rag_status": "success",
+                "rag_chunks_retrieved": "2",
+                "rag_sources": [
+                    {
+                        "type": "rag_chunk",
+                        "title": "Motor sepsis",
+                        "source": "docs/47_motor_sepsis_urgencias.md",
+                        "snippet": "Bundle de una hora con control hemodinamico.",
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(RAGOrchestrator, "process_query_with_rag", fake_process)
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={"query": "Sospecha de sepsis con lactato 4", "session_id": "session-rag"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == "Respuesta asistida por RAG con pasos priorizados."
+    assert any(item == "rag_status=success" for item in payload["interpretability_trace"])
+    assert any(item == "rag_chunks_retrieved=2" for item in payload["interpretability_trace"])
+    assert any(source["title"] == "Motor sepsis" for source in payload["knowledge_sources"])
 
 
 def test_parse_ollama_payload_supports_jsonl_chunks():

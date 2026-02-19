@@ -309,3 +309,23 @@
 - Sin cambios en modelos de datos, tablas, indices o migraciones Alembic.
 - Sin cambios en politicas de retencion o persistencia.
 - Impacto confinado a documentacion operativa y tooling de calidad en desarrollo.
+
+## TM-113
+
+- Migracion nueva:
+  - `alembic/versions/d8c3f2e1a445_add_rag_tables.py`
+- Tablas nuevas:
+  - `clinical_documents`
+    - metadata de documentos fuente (`title`, `source_file`, `specialty`, `content_hash`)
+  - `document_chunks`
+    - fragmentos enriquecidos (`chunk_text`, `section_path`, `keywords`, `custom_questions`)
+    - embedding persistido en binario (`chunk_embedding`)
+  - `rag_queries_audit`
+    - auditoria por consulta RAG (`search_method`, `chunks_retrieved`, latencias)
+- Reglas operativas:
+  - `clinical_documents.content_hash` evita duplicados de fuente.
+  - `document_chunks` referencia `clinical_documents.id` con `ON DELETE CASCADE`.
+  - el chat no depende de estas tablas si RAG esta desactivado o vacio (fallback).
+- Riesgos de datos:
+  - en SQLite el retrieval vectorial es lineal y puede degradar con corpus grande.
+  - embeddings fallback (hash local) priorizan continuidad operativa, no precision semantica alta.

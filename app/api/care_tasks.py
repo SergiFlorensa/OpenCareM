@@ -373,6 +373,8 @@ def create_care_task_chat_message(
         response_mode,
         tool_mode,
         quality_metrics,
+        _tool_policy_decision,
+        _security_findings,
     ) = ClinicalChatService.create_message(
         db=db,
         care_task=task,

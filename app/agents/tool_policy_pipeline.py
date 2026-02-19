@@ -134,8 +134,13 @@ class ToolPolicyPipeline:
         for layer in cls._build_layers(ctx):
             layer_allow = set(layer.allow_tools) | cls._expand_groups(layer.allow_groups)
             layer_deny = set(layer.deny_tools) | cls._expand_groups(layer.deny_groups)
+            # Regla de precedencia por capas:
+            # - un allow explicito en capa posterior puede levantar un deny previo
+            # - un deny explicito en capa posterior vuelve a bloquear la herramienta
             allowset.update(layer_allow)
+            allowset.difference_update(layer_deny)
             denyset.update(layer_deny)
+            denyset.difference_update(layer_allow)
             trace.append(
                 f"tool_policy_layer={layer.name};"
                 f"allow={','.join(sorted(layer_allow)) or 'none'};"

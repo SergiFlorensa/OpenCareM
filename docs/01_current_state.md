@@ -90,6 +90,7 @@
 - Motor conversacional neuronal local (Ollama) opcional con continuidad contextual en follow-up y fallback determinista (`docs/93_motor_conversacional_neuronal_open_source.md`).
 - Chat local endurecido sin pago con defensa anti-inyeccion, presupuesto de contexto/tokens y metricas por turno (`docs/95_chat_open_source_hardening_prompt_injection_quality_metrics.md`).
 - Blueprint OSS de agentes adaptado a uso interno (sin suscripciones, sin movil, sin canales externos) en `docs/96_adaptacion_blueprint_agentes_oss_interno.md`.
+- Chat clinico con RAG hibrido local (vector + keyword) integrado con fallback seguro y auditoria por consulta (`docs/97_chat_rag_hibrido_local.md`).
 
 ## Estructura funcional
 
@@ -175,6 +176,12 @@
   - Motor de chat hibrido (general/clinico) con especialidad autenticada, memoria por sesion/paciente, sanitizacion anti-inyeccion y metricas de calidad por turno.
 - `app/services/llm_chat_provider.py`
   - Proveedor neuronal local (Ollama) con estrategia `api/chat -> api/generate`, control de presupuesto de contexto/tokens y trazabilidad de prompt.
+- `app/services/rag_orchestrator.py`
+  - Orquesta pipeline RAG (retrieval hibrido, augment de fuentes, validacion y auditoria) antes del fallback del chat.
+- `app/services/rag_retriever.py`
+  - Recuperador hibrido sobre `document_chunks` combinando similitud vectorial y matching lexical por dominio/especialidad.
+- `app/scripts/ingest_clinical_docs.py`
+  - Ingesta markdown/txt del repo a tablas RAG con embeddings para alimentar respuestas fundamentadas.
 - `frontend/src/App.tsx`
   - Consola web v2 con UX tipo assistant, herramientas (medication/cases/treatment/deep_search/images), chat por sesion y panel de trazabilidad.
 - `scripts/dev_workflow.ps1`
@@ -199,6 +206,12 @@
   - Modelo SQLAlchemy de fuentes clinicas confiables por especialidad y estado de validacion.
 - `app/models/clinical_knowledge_source_validation.py`
   - Modelo SQLAlchemy de eventos de sellado/revision profesional por fuente.
+- `app/models/clinical_document.py`
+  - Modelo SQLAlchemy de documentos fuente para RAG.
+- `app/models/document_chunk.py`
+  - Modelo SQLAlchemy de fragmentos enriquecidos con embeddings para retrieval.
+- `app/models/rag_query_audit.py`
+  - Modelo SQLAlchemy de auditoria de consultas RAG (metodo, latencia, chunks).
 - `app/models/agent_run.py`
   - Modelos `agent_runs` y `agent_steps` para ejecucion trazable.
 - `app/models/user.py`

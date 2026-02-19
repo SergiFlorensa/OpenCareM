@@ -449,3 +449,22 @@
   - guia de adopcion (`docs/96_adaptacion_blueprint_agentes_oss_interno.md`)
 - Compatibilidad:
   - contrato publico de API se mantiene estable y backward compatible.
+
+## TM-113 (RAG hibrido integrado en chat, sin cambio de payload)
+
+- Endpoint afectado:
+  - `POST /care-tasks/{task_id}/chat/messages`
+- Contrato externo:
+  - sin cambios de request/response.
+  - se mantiene compatibilidad con clientes existentes.
+- Cambios internos:
+  - el chat clinico puede ejecutar pipeline RAG cuando `CLINICAL_CHAT_RAG_ENABLED=true`.
+  - trazabilidad ampliada en `interpretability_trace` con llaves `rag_*`:
+    - `rag_status`
+    - `rag_chunks_retrieved`
+    - `rag_retrieval_strategy`
+    - `rag_validation_status`
+    - `rag_total_latency_ms`
+  - si RAG no recupera contexto o falla, se mantiene fallback seguro al flujo actual.
+- Riesgos de contrato:
+  - clientes que parsean `interpretability_trace` con reglas estrictas deben tolerar entradas nuevas `rag_*`.

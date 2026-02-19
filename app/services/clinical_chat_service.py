@@ -36,6 +36,7 @@ from app.services.agent_run_service import AgentRunService
 from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
 from app.services.knowledge_source_service import KnowledgeSourceService
 from app.services.llm_chat_provider import LLMChatProvider
+from app.services.rag_orchestrator import RAGOrchestrator
 from app.services.scasest_protocol_service import ScasestProtocolService
 from app.services.sepsis_protocol_service import SepsisProtocolService
 
@@ -1069,6 +1070,35 @@ class ClinicalChatService:
         lines.append("Si quieres, te doy una version mas breve o una checklist accionable.")
         return "\n".join(lines)
 
+    @staticmethod
+    def _merge_source_lists(
+        primary: list[dict[str, str]],
+        secondary: list[dict[str, str]],
+        *,
+        limit: int,
+    ) -> list[dict[str, str]]:
+        merged: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for source in [*primary, *secondary]:
+            title = str(source.get("title") or "Fuente")
+            locator = str(source.get("source") or source.get("url") or "")
+            key = (title, locator)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(
+                {
+                    "type": str(source.get("type") or "internal"),
+                    "title": title,
+                    "source": locator,
+                    "snippet": str(source.get("snippet") or "")[:360],
+                    "url": str(source.get("url") or ""),
+                }
+            )
+            if len(merged) >= limit:
+                break
+        return merged
+
     @classmethod
     def create_message(
         cls,
@@ -1187,6 +1217,8 @@ class ClinicalChatService:
             keyword_hits=keyword_hits,
             tool_mode=tool_mode,
         )
+        if requested_tool_mode in cls._CLINICAL_TOOL_MODES and response_mode != "clinical":
+            response_mode = "clinical"
 
         extracted_facts.append(f"modo_respuesta:{response_mode}")
         extracted_facts.append(f"herramienta_solicitada:{requested_tool_mode}")
@@ -1293,21 +1325,71 @@ class ClinicalChatService:
             "security_findings=" + ",".join(finding["code"] for finding in security_findings[:4]),
         ]
         interpretability_trace.extend(policy_decision.trace)
-        llm_answer, llm_trace = LLMChatProvider.generate_answer(
-            query=safe_query,
-            response_mode=response_mode,
-            effective_specialty=effective_specialty,
-            tool_mode=tool_mode,
-            matched_domains=matched_domains,
-            matched_endpoints=matched_endpoints,
-            memory_facts_used=memory_facts_used,
-            patient_summary=patient_summary,
-            patient_history_facts_used=patient_history_facts_used,
-            knowledge_sources=knowledge_sources,
-            web_sources=web_sources,
-            recent_dialogue=recent_dialogue,
-            endpoint_results=endpoint_recommendations,
-        )
+        rag_trace: dict[str, Any] = {}
+        llm_trace: dict[str, Any] = {}
+        llm_answer: str | None = None
+
+        if response_mode == "clinical":
+            interpretability_trace.append(
+                f"rag_enabled={1 if settings.CLINICAL_CHAT_RAG_ENABLED else 0}"
+            )
+
+        if response_mode == "clinical" and settings.CLINICAL_CHAT_RAG_ENABLED:
+            rag_answer, rag_trace = RAGOrchestrator(db=db).process_query_with_rag(
+                query=safe_query,
+                response_mode=response_mode,
+                effective_specialty=effective_specialty,
+                tool_mode=tool_mode,
+                matched_domains=matched_domains,
+                matched_endpoints=matched_endpoints,
+                memory_facts_used=memory_facts_used,
+                patient_summary=patient_summary,
+                patient_history_facts_used=patient_history_facts_used,
+                knowledge_sources=knowledge_sources,
+                web_sources=web_sources,
+                recent_dialogue=recent_dialogue,
+                endpoint_results=endpoint_recommendations,
+                care_task_id=care_task.id,
+            )
+            rag_sources = rag_trace.get("rag_sources")
+            if isinstance(rag_sources, list):
+                normalized_rag_sources: list[dict[str, str]] = []
+                for item in rag_sources:
+                    if isinstance(item, dict):
+                        normalized_rag_sources.append(
+                            {
+                                "type": str(item.get("type") or "rag_chunk"),
+                                "title": str(item.get("title") or "Fragmento RAG"),
+                                "source": str(item.get("source") or "catalogo interno"),
+                                "snippet": str(item.get("snippet") or "")[:360],
+                                "url": str(item.get("url") or ""),
+                            }
+                        )
+                knowledge_sources = cls._merge_source_lists(
+                    knowledge_sources,
+                    normalized_rag_sources,
+                    limit=max(payload.max_internal_sources, 8),
+                )
+            if rag_answer:
+                llm_answer = rag_answer
+
+        if llm_answer is None:
+            llm_answer, llm_trace = LLMChatProvider.generate_answer(
+                query=safe_query,
+                response_mode=response_mode,
+                effective_specialty=effective_specialty,
+                tool_mode=tool_mode,
+                matched_domains=matched_domains,
+                matched_endpoints=matched_endpoints,
+                memory_facts_used=memory_facts_used,
+                patient_summary=patient_summary,
+                patient_history_facts_used=patient_history_facts_used,
+                knowledge_sources=knowledge_sources,
+                web_sources=web_sources,
+                recent_dialogue=recent_dialogue,
+                endpoint_results=endpoint_recommendations,
+            )
+
         if llm_answer:
             answer = llm_answer
         elif response_mode == "clinical":
@@ -1354,6 +1436,15 @@ class ClinicalChatService:
                 f"quality_status={quality_metrics['quality_status']}",
             ]
         )
+        if rag_trace:
+            for key, value in rag_trace.items():
+                if key == "rag_sources":
+                    continue
+                if isinstance(value, list):
+                    rendered_value = ",".join(str(item) for item in value[:6]) if value else "none"
+                else:
+                    rendered_value = str(value)
+                interpretability_trace.append(f"{key}={rendered_value}")
         if llm_trace:
             interpretability_trace.extend([f"{key}={value}" for key, value in llm_trace.items()])
         run = AgentRunService.run_care_task_clinical_chat_workflow(

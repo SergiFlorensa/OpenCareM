@@ -16,6 +16,8 @@ from app.services.chest_xray_support_service import ChestXRaySupportService
 from app.services.clinical_chat_service import ClinicalChatService
 from app.services.clinical_context_service import ClinicalContextService
 from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
+from app.services.document_ingestion_service import DocumentIngestionService
+from app.services.embedding_service import OllamaEmbeddingService
 from app.services.emergency_episode_service import EmergencyEpisodeService
 from app.services.endocrinology_support_protocol_service import EndocrinologySupportProtocolService
 from app.services.epidemiology_support_protocol_service import EpidemiologySupportProtocolService
@@ -46,6 +48,7 @@ from app.services.pediatrics_neonatology_support_protocol_service import (
 from app.services.pityriasis_protocol_service import PityriasisProtocolService
 from app.services.pneumology_support_protocol_service import PneumologySupportProtocolService
 from app.services.psychiatry_support_protocol_service import PsychiatrySupportProtocolService
+from app.services.rag_orchestrator import RAGOrchestrator
 from app.services.respiratory_protocol_service import RespiratoryProtocolService
 from app.services.resuscitation_protocol_service import ResuscitationProtocolService
 from app.services.rheum_immuno_support_protocol_service import RheumImmunoSupportProtocolService
@@ -63,6 +66,7 @@ __all__ = [
     "ClinicalChatService",
     "ClinicalContextService",
     "CriticalOpsProtocolService",
+    "DocumentIngestionService",
     "EndocrinologySupportProtocolService",
     "EpidemiologySupportProtocolService",
     "EmergencyEpisodeService",
@@ -79,6 +83,7 @@ __all__ = [
     "HumanizationProtocolService",
     "KnowledgeSourceService",
     "LLMChatProvider",
+    "OllamaEmbeddingService",
     "MedicolegalOpsService",
     "NeurologySupportProtocolService",
     "OncologySupportProtocolService",
@@ -89,6 +94,7 @@ __all__ = [
     "PneumologySupportProtocolService",
     "PsychiatrySupportProtocolService",
     "PityriasisProtocolService",
+    "RAGOrchestrator",
     "ResuscitationProtocolService",
     "AuthService",
     "AITriageService",

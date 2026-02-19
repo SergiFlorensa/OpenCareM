@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_LLM_TEMPERATURE: float = 0.2
     CLINICAL_CHAT_LLM_NUM_CTX: int = 4096
     CLINICAL_CHAT_LLM_TOP_P: float = 0.9
+    CLINICAL_CHAT_RAG_ENABLED: bool = False
+    CLINICAL_CHAT_RAG_MAX_CHUNKS: int = 5
+    CLINICAL_CHAT_RAG_VECTOR_WEIGHT: float = 0.5
+    CLINICAL_CHAT_RAG_KEYWORD_WEIGHT: float = 0.5
+    CLINICAL_CHAT_RAG_EMBEDDING_MODEL: str = "nomic-embed-text"
+    CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER: bool = True
 
     DATABASE_URL: str = "sqlite:///./task_manager.db"
     DATABASE_ECHO: bool = True
@@ -104,6 +110,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "CLINICAL_CHAT_LLM_NUM_CTX debe superar salida maxima + margen de prompt."
             )
+        if not (1 <= self.CLINICAL_CHAT_RAG_MAX_CHUNKS <= 20):
+            raise ValueError("CLINICAL_CHAT_RAG_MAX_CHUNKS debe estar entre 1 y 20.")
+        if self.CLINICAL_CHAT_RAG_VECTOR_WEIGHT < 0 or self.CLINICAL_CHAT_RAG_KEYWORD_WEIGHT < 0:
+            raise ValueError("Pesos RAG no pueden ser negativos.")
+        if self.CLINICAL_CHAT_RAG_VECTOR_WEIGHT + self.CLINICAL_CHAT_RAG_KEYWORD_WEIGHT <= 0:
+            raise ValueError("La suma de pesos RAG debe ser mayor que 0.")
+        if not self.CLINICAL_CHAT_RAG_EMBEDDING_MODEL.strip():
+            raise ValueError("CLINICAL_CHAT_RAG_EMBEDDING_MODEL no puede estar vacio.")
         if self.ENVIRONMENT != "development":
             if self.SECRET_KEY == DEFAULT_SECRET_KEY:
                 raise ValueError("SECRET_KEY debe cambiarse fuera del entorno de desarrollo.")

@@ -296,3 +296,22 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/setup_hooks.ps1`
 - Smoke recomendado:
   - `powershell -ExecutionPolicy Bypass -File scripts/dev_workflow.ps1 -Action test-e2e`
+
+## TM-113 - Notas de despliegue
+
+- Migraciones requeridas:
+  - `alembic upgrade head`
+- Variables nuevas de runtime para chat RAG:
+  - `CLINICAL_CHAT_RAG_ENABLED`
+  - `CLINICAL_CHAT_RAG_MAX_CHUNKS`
+  - `CLINICAL_CHAT_RAG_VECTOR_WEIGHT`
+  - `CLINICAL_CHAT_RAG_KEYWORD_WEIGHT`
+  - `CLINICAL_CHAT_RAG_EMBEDDING_MODEL`
+  - `CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER`
+- Carga inicial recomendada de corpus interno:
+  - `python -m app.scripts.ingest_clinical_docs --paths docs agents/shared`
+- Smoke funcional recomendado:
+  - enviar consulta clinica a `POST /api/v1/care-tasks/{id}/chat/messages`.
+  - verificar en `interpretability_trace`:
+    - `rag_status=success` cuando hay corpus cargado.
+    - `rag_status=failed_retrieval` + fallback cuando no hay chunks.

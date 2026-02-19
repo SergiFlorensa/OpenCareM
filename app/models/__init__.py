@@ -12,10 +12,13 @@ from app.models.care_task_scasest_audit_log import CareTaskScasestAuditLog
 from app.models.care_task_screening_audit_log import CareTaskScreeningAuditLog
 from app.models.care_task_triage_audit_log import CareTaskTriageAuditLog
 from app.models.care_task_triage_review import CareTaskTriageReview
+from app.models.clinical_document import ClinicalDocument
 from app.models.clinical_knowledge_source import ClinicalKnowledgeSource
 from app.models.clinical_knowledge_source_validation import ClinicalKnowledgeSourceValidation
+from app.models.document_chunk import DocumentChunk
 from app.models.emergency_episode import EmergencyEpisode
 from app.models.login_attempt import LoginAttempt
+from app.models.rag_query_audit import RAGQueryAudit
 from app.models.task import Task
 from app.models.user import User
 
@@ -23,8 +26,10 @@ __all__ = [
     "Task",
     "CareTask",
     "CareTaskChatMessage",
+    "ClinicalDocument",
     "ClinicalKnowledgeSource",
     "ClinicalKnowledgeSourceValidation",
+    "DocumentChunk",
     "CareTaskCardioRiskAuditLog",
     "CareTaskMedicolegalAuditLog",
     "CareTaskResuscitationAuditLog",
@@ -36,6 +41,7 @@ __all__ = [
     "User",
     "AuthSession",
     "LoginAttempt",
+    "RAGQueryAudit",
     "AgentRun",
     "AgentStep",
 ]

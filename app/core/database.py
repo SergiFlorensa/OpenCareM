@@ -40,12 +40,15 @@ def init_db():
     from app.models.agent_run import AgentRun, AgentStep  # noqa: F401
     from app.models.auth_session import AuthSession  # noqa: F401
     from app.models.care_task_chat_message import CareTaskChatMessage  # noqa: F401
+    from app.models.clinical_document import ClinicalDocument  # noqa: F401
     from app.models.clinical_knowledge_source import ClinicalKnowledgeSource  # noqa: F401
     from app.models.clinical_knowledge_source_validation import (  # noqa: F401
         ClinicalKnowledgeSourceValidation,
     )
+    from app.models.document_chunk import DocumentChunk  # noqa: F401
     from app.models.emergency_episode import EmergencyEpisode  # noqa: F401
     from app.models.login_attempt import LoginAttempt  # noqa: F401
+    from app.models.rag_query_audit import RAGQueryAudit  # noqa: F401
     from app.models.task import Task  # noqa: F401
     from app.models.user import User  # noqa: F401
 

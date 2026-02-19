@@ -2365,3 +2365,25 @@
 - Riesgos pendientes identificados:
   - El lock de escritura de sesion en proceso local no coordina procesos distribuidos sin backend compartido.
   - Las politicas iniciales requeriran calibracion con feedback real de uso clinico.
+
+- ID: TM-113
+- Objetivo: Auditar cambios RAG pendientes, recuperar estabilidad del endpoint de chat e integrar RAG hibrido con fallback seguro en runtime.
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/rag_*.py`, `app/services/embedding_service.py`, `app/core/config.py`, `app/api/care_tasks.py`, `app/models/*`, migracion Alembic RAG y documentacion/contratos asociados.
+- Agentes involucrados: orchestrator, api-agent, data-agent, qa-agent.
+- Estado: completado
+- Dependencias: TM-112.
+- Entregables:
+  - Correccion del endpoint de chat para evitar desempaquetado invalido.
+  - Integracion efectiva de RAG en `create_message` con trazabilidad y fallback.
+  - Limpieza de calidad (ruff) en nuevos modulos RAG para permitir commit.
+  - Ajuste de precedencia en pipeline de politicas para respetar habilitacion clinica contextual.
+  - Validacion focalizada de tests de chat.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m ruff check ...` (modulos afectados, OK).
+  - `.\venv\Scripts\python.exe -m py_compile ...` (modulos afectados, OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py` (`12 passed`).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`9 passed, 126 deselected`).
+  - `docs/decisions/ADR-0081-chat-rag-hibrido-local-fallback-seguro.md`.
+- Riesgos pendientes identificados:
+  - Si no hay chunks ingeridos en DB, RAG caera a fallback rule/LLM sin contexto documental.
+  - El retrieval vectorial sobre SQLite puede degradar latencia al crecer el corpus sin indice ANN.

@@ -17,8 +17,11 @@ from app.models import (  # noqa: F401
     care_task_screening_audit_log,
     care_task_triage_audit_log,
     care_task_triage_review,
+    clinical_document,
+    document_chunk,
     emergency_episode,
     login_attempt,
+    rag_query_audit,
     task,
     user,
 )
