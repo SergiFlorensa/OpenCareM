@@ -315,3 +315,41 @@
   - verificar en `interpretability_trace`:
     - `rag_status=success` cuando hay corpus cargado.
     - `rag_status=failed_retrieval` + fallback cuando no hay chunks.
+
+## TM-114 - Notas de despliegue
+
+- Sin migraciones DB.
+- Dependencias opcionales (solo si se activa backend extendido):
+  - `pip install -r requirements.optional-rag-guardrails.txt`
+- Variables nuevas de runtime:
+  - `CLINICAL_CHAT_RAG_RETRIEVER_BACKEND=legacy|llamaindex`
+  - `CLINICAL_CHAT_RAG_LLAMAINDEX_CANDIDATE_POOL=120`
+  - `CLINICAL_CHAT_GUARDRAILS_ENABLED=true|false`
+  - `CLINICAL_CHAT_GUARDRAILS_CONFIG_PATH=app/guardrails`
+  - `CLINICAL_CHAT_GUARDRAILS_FAIL_OPEN=true|false`
+- Config guardrails incluida por defecto:
+  - `app/guardrails/config.yml` (modelo Ollama local).
+- Smoke funcional recomendado:
+  - con `CLINICAL_CHAT_RAG_RETRIEVER_BACKEND=llamaindex`, enviar consulta clinica y validar traza:
+    - `rag_retriever_backend=llamaindex`
+    - `llamaindex_available=1` (si dependencias instaladas)
+  - si faltan extras/config, validar fallback:
+    - `rag_retriever_fallback=legacy_hybrid` o `guardrails_status=fallback_unavailable`
+  - con guardrails activo, validar presencia de:
+    - `guardrails_status=applied_passthrough|applied_rewrite`
+
+## TM-115 - Notas de despliegue
+
+- Sin migraciones DB.
+- Dependencia opcional para backend Chroma:
+  - `pip install -r requirements.optional-rag-guardrails.txt`
+- Variable nueva:
+  - `CLINICAL_CHAT_RAG_CHROMA_CANDIDATE_POOL=200`
+- Activacion de backend:
+  - `CLINICAL_CHAT_RAG_RETRIEVER_BACKEND=chroma`
+- Smoke recomendado:
+  - enviar consulta clinica y validar en traza:
+    - `rag_retriever_backend=chroma`
+    - `chroma_available=1`
+  - en ausencia de dependencia o resultado:
+    - `rag_retriever_fallback=legacy_hybrid`

@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_RAG_KEYWORD_WEIGHT: float = 0.5
     CLINICAL_CHAT_RAG_EMBEDDING_MODEL: str = "nomic-embed-text"
     CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER: bool = True
+    CLINICAL_CHAT_RAG_RETRIEVER_BACKEND: str = "legacy"
+    CLINICAL_CHAT_RAG_LLAMAINDEX_CANDIDATE_POOL: int = 120
+    CLINICAL_CHAT_RAG_CHROMA_CANDIDATE_POOL: int = 200
+    CLINICAL_CHAT_GUARDRAILS_ENABLED: bool = False
+    CLINICAL_CHAT_GUARDRAILS_CONFIG_PATH: str = "app/guardrails"
+    CLINICAL_CHAT_GUARDRAILS_FAIL_OPEN: bool = True
 
     DATABASE_URL: str = "sqlite:///./task_manager.db"
     DATABASE_ECHO: bool = True
@@ -112,12 +118,26 @@ class Settings(BaseSettings):
             )
         if not (1 <= self.CLINICAL_CHAT_RAG_MAX_CHUNKS <= 20):
             raise ValueError("CLINICAL_CHAT_RAG_MAX_CHUNKS debe estar entre 1 y 20.")
+        if self.CLINICAL_CHAT_RAG_RETRIEVER_BACKEND not in {"legacy", "llamaindex", "chroma"}:
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_RETRIEVER_BACKEND debe ser 'legacy', 'llamaindex' o 'chroma'."
+            )
+        if not (20 <= self.CLINICAL_CHAT_RAG_LLAMAINDEX_CANDIDATE_POOL <= 1000):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_LLAMAINDEX_CANDIDATE_POOL debe estar entre 20 y 1000."
+            )
+        if not (20 <= self.CLINICAL_CHAT_RAG_CHROMA_CANDIDATE_POOL <= 2000):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_CHROMA_CANDIDATE_POOL debe estar entre 20 y 2000."
+            )
         if self.CLINICAL_CHAT_RAG_VECTOR_WEIGHT < 0 or self.CLINICAL_CHAT_RAG_KEYWORD_WEIGHT < 0:
             raise ValueError("Pesos RAG no pueden ser negativos.")
         if self.CLINICAL_CHAT_RAG_VECTOR_WEIGHT + self.CLINICAL_CHAT_RAG_KEYWORD_WEIGHT <= 0:
             raise ValueError("La suma de pesos RAG debe ser mayor que 0.")
         if not self.CLINICAL_CHAT_RAG_EMBEDDING_MODEL.strip():
             raise ValueError("CLINICAL_CHAT_RAG_EMBEDDING_MODEL no puede estar vacio.")
+        if not self.CLINICAL_CHAT_GUARDRAILS_CONFIG_PATH.strip():
+            raise ValueError("CLINICAL_CHAT_GUARDRAILS_CONFIG_PATH no puede estar vacio.")
         if self.ENVIRONMENT != "development":
             if self.SECRET_KEY == DEFAULT_SECRET_KEY:
                 raise ValueError("SECRET_KEY debe cambiarse fuera del entorno de desarrollo.")

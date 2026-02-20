@@ -91,6 +91,7 @@
 - Chat local endurecido sin pago con defensa anti-inyeccion, presupuesto de contexto/tokens y metricas por turno (`docs/95_chat_open_source_hardening_prompt_injection_quality_metrics.md`).
 - Blueprint OSS de agentes adaptado a uso interno (sin suscripciones, sin movil, sin canales externos) en `docs/96_adaptacion_blueprint_agentes_oss_interno.md`.
 - Chat clinico con RAG hibrido local (vector + keyword) integrado con fallback seguro y auditoria por consulta (`docs/97_chat_rag_hibrido_local.md`).
+- Chat clinico con backend RAG configurable (`legacy|llamaindex|chroma`) y capa opcional de NeMo Guardrails, ambos con fallback no bloqueante (`docs/98_chat_llamaindex_nemo_guardrails.md`).
 
 ## Estructura funcional
 
@@ -180,6 +181,12 @@
   - Orquesta pipeline RAG (retrieval hibrido, augment de fuentes, validacion y auditoria) antes del fallback del chat.
 - `app/services/rag_retriever.py`
   - Recuperador hibrido sobre `document_chunks` combinando similitud vectorial y matching lexical por dominio/especialidad.
+- `app/services/llamaindex_retriever.py`
+  - Recuperador opcional con LlamaIndex/Ollama sobre el corpus interno, con fallback automatico a retriever legacy.
+- `app/services/chroma_retriever.py`
+  - Recuperador opcional con Chroma local sobre embeddings existentes, con fallback automatico a retriever legacy.
+- `app/services/nemo_guardrails_service.py`
+  - Capa opcional de validacion/reescritura de respuesta con NeMo Guardrails en modo fail-open configurable.
 - `app/scripts/ingest_clinical_docs.py`
   - Ingesta markdown/txt del repo a tablas RAG con embeddings para alimentar respuestas fundamentadas.
 - `frontend/src/App.tsx`

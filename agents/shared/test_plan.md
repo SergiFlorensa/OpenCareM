@@ -1456,3 +1456,47 @@ Resultados:
   - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`9 passed, 126 deselected`).
 - Observaciones:
   - Persisten warnings deprecados de `python-jose` (`datetime.utcnow()`), sin afectar resultado funcional.
+
+## TM-114 - Plan de validacion ejecutado
+
+- Verificar validacion de nuevos flags de configuracion (retriever backend y guardrails path).
+- Verificar fallback de RAG cuando backend `llamaindex` no entrega resultados.
+- Verificar aplicacion de guardrails en flujo e2e de chat sin romper contrato.
+- Verificar no regresion de chat API.
+
+Resultados:
+- Tests nuevos/actualizados:
+  - `app/tests/test_settings_security.py`
+    - `test_rejects_invalid_rag_retriever_backend`
+    - `test_rejects_empty_guardrails_config_path`
+  - `app/tests/test_nemo_guardrails_service.py`
+    - `test_guardrails_service_skips_when_disabled`
+    - `test_guardrails_service_fails_open_when_config_missing`
+  - `app/tests/test_clinical_chat_operational.py`
+    - `test_rag_orchestrator_falls_back_to_legacy_when_llamaindex_has_no_results`
+    - `test_chat_e2e_applies_guardrails_when_enabled`
+- Comandos ejecutados:
+  - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/llamaindex_retriever.py app/services/nemo_guardrails_service.py app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/services/__init__.py app/tests/test_clinical_chat_operational.py app/tests/test_nemo_guardrails_service.py app/tests/test_settings_security.py` (OK)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_settings_security.py` (`6 passed`)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_nemo_guardrails_service.py` (`2 passed`)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py` (`14 passed`)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`9 passed, 126 deselected`)
+
+## TM-115 - Plan de validacion ejecutado
+
+- Verificar backend `chroma` en selector de retrieval sin romper `legacy`.
+- Verificar fallback a `legacy` cuando `chroma` no devuelve resultados.
+- Verificar validacion de nuevo flag `CLINICAL_CHAT_RAG_CHROMA_CANDIDATE_POOL`.
+
+Resultados:
+- Tests nuevos/actualizados:
+  - `app/tests/test_clinical_chat_operational.py`
+    - `test_rag_orchestrator_uses_chroma_backend_when_configured`
+    - `test_rag_orchestrator_falls_back_to_legacy_when_chroma_empty`
+  - `app/tests/test_settings_security.py`
+    - `test_rejects_invalid_chroma_candidate_pool`
+- Comandos ejecutados:
+  - `.\venv\Scripts\python.exe -m ruff check ...` (modulos tocados, OK)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_settings_security.py` (OK)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py` (OK)
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (OK)

@@ -2387,3 +2387,44 @@
 - Riesgos pendientes identificados:
   - Si no hay chunks ingeridos en DB, RAG caera a fallback rule/LLM sin contexto documental.
   - El retrieval vectorial sobre SQLite puede degradar latencia al crecer el corpus sin indice ANN.
+
+- ID: TM-114
+- Objetivo: Integrar backend opcional LlamaIndex y capa opcional NeMo Guardrails en chat RAG local, con fallback seguro sin romper flujo actual.
+- Alcance: `app/core/config.py`, `app/services/rag_orchestrator.py`, nuevos servicios `app/services/llamaindex_retriever.py` y `app/services/nemo_guardrails_service.py`, `app/services/clinical_chat_service.py`, tests operativos de chat, contratos y documentacion.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-113.
+- Entregables:
+  - Selector de backend retrieval (`legacy|llamaindex`) por variable de entorno.
+  - Integracion opcional de NeMo Guardrails para moderacion/revision de salida.
+  - Trazabilidad explicita de uso/fallback en `interpretability_trace`.
+  - Compatibilidad backward con pipeline existente si dependencias opcionales no estan instaladas.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/llamaindex_retriever.py app/services/nemo_guardrails_service.py app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/services/__init__.py app/tests/test_clinical_chat_operational.py app/tests/test_nemo_guardrails_service.py app/tests/test_settings_security.py` (OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_settings_security.py` (`6 passed`).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_nemo_guardrails_service.py` (`2 passed`).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py` (`14 passed`).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (`9 passed, 126 deselected`).
+- Riesgos pendientes identificados:
+  - `llama-index` y `nemoguardrails` pueden incrementar latencia en equipos modestos; se recomienda activar por flag y medir.
+  - Si no se instalan dependencias opcionales o falta config de rails, el sistema opera en modo fail-open (sin bloqueo).
+
+- ID: TM-115
+- Objetivo: Integrar backend opcional Chroma para retrieval RAG local sin pagos y sin romper pipelines existentes.
+- Alcance: `app/core/config.py`, `app/services/chroma_retriever.py`, `app/services/rag_orchestrator.py`, `.env*`, dependencias opcionales, tests de chat y documentacion/contratos.
+- Agentes involucrados: orchestrator, api-agent, qa-agent, devops-agent.
+- Estado: completado
+- Dependencias: TM-114.
+- Entregables:
+  - Nuevo backend retrieval `chroma` seleccionable por `CLINICAL_CHAT_RAG_RETRIEVER_BACKEND`.
+  - Fallback automatico a `legacy` cuando Chroma no esta disponible o no devuelve resultados.
+  - Trazabilidad `chroma_*` en `interpretability_trace` para auditoria operativa.
+  - Cobertura en tests operativos para ruta `chroma` y fallback.
+- Evidencia:
+  - `.\venv\Scripts\python.exe -m ruff check ...` (modulos tocados, OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_settings_security.py` (OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py` (OK).
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k chat` (OK).
+- Riesgos pendientes identificados:
+  - Crear coleccion Chroma en memoria por consulta simplifica integracion, pero puede penalizar latencia en corpus grandes.
+  - Para rendimiento maximo, se recomienda evolucionar a estrategia de sincronizacion persistente de embeddings en Chroma.

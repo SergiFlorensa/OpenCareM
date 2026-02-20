@@ -329,3 +329,23 @@
 - Riesgos de datos:
   - en SQLite el retrieval vectorial es lineal y puede degradar con corpus grande.
   - embeddings fallback (hash local) priorizan continuidad operativa, no precision semantica alta.
+
+## TM-114
+
+- Sin cambios de esquema DB ni migraciones.
+- Sin nuevas tablas, columnas o indices.
+- Cambios operativos:
+  - backend de retrieval puede usar `llamaindex` de forma opcional sobre el corpus ya persistido.
+  - guardrails actua en capa de respuesta y no persiste datos adicionales estructurales.
+- Riesgos de datos:
+  - sin impacto de integridad relacional; riesgo principal es latencia por procesamiento adicional en runtime.
+
+## TM-115
+
+- Sin cambios de esquema DB ni migraciones.
+- Sin nuevas tablas/columnas para Chroma en esta fase.
+- Comportamiento de datos:
+  - Chroma se usa como indice en memoria por consulta con embeddings ya persistidos en `document_chunks`.
+  - no altera ni duplica persistencia principal del repositorio.
+- Riesgos de datos:
+  - reconstruccion de indice por consulta puede incrementar latencia con alto volumen de chunks.

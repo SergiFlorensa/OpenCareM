@@ -37,3 +37,27 @@ def test_rejects_wildcard_cors_outside_development():
             SECRET_KEY="secure-secret-key-secure-secret-key-123",
             BACKEND_CORS_ORIGINS=["*"],
         )
+
+
+def test_rejects_invalid_rag_retriever_backend():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_RETRIEVER_BACKEND"):
+        Settings(
+            CLINICAL_CHAT_RAG_RETRIEVER_BACKEND="unknown",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_empty_guardrails_config_path():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_GUARDRAILS_CONFIG_PATH"):
+        Settings(
+            CLINICAL_CHAT_GUARDRAILS_CONFIG_PATH="   ",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_chroma_candidate_pool():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_CHROMA_CANDIDATE_POOL"):
+        Settings(
+            CLINICAL_CHAT_RAG_CHROMA_CANDIDATE_POOL=5,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )

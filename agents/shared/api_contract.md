@@ -468,3 +468,48 @@
   - si RAG no recupera contexto o falla, se mantiene fallback seguro al flujo actual.
 - Riesgos de contrato:
   - clientes que parsean `interpretability_trace` con reglas estrictas deben tolerar entradas nuevas `rag_*`.
+
+## TM-114 (LlamaIndex + NeMo Guardrails opcionales, sin cambio de payload)
+
+- Endpoint afectado:
+  - `POST /care-tasks/{task_id}/chat/messages`
+- Contrato externo:
+  - sin cambios de request/response.
+  - no se agregan endpoints.
+- Cambios internos:
+  - retrieval RAG configurable por backend:
+    - `legacy` (actual)
+    - `llamaindex` (opcional, con fallback automatico a `legacy` si falla/no disponible)
+  - capa de validacion de salida con NeMo Guardrails (opcional, fail-open por defecto).
+  - trazabilidad ampliada en `interpretability_trace`:
+    - `rag_retriever_backend`
+    - `rag_retriever_fallback`
+    - `llamaindex_*`
+    - `guardrails_status`
+    - `guardrails_loaded`
+    - `guardrails_fail_mode`
+- Riesgos de contrato:
+  - clientes que parsean `interpretability_trace` de forma estricta deben tolerar nuevas claves.
+
+## TM-115 (Chroma opcional, sin cambio de payload)
+
+- Endpoint afectado:
+  - `POST /care-tasks/{task_id}/chat/messages`
+- Contrato externo:
+  - sin cambios de request/response.
+  - no se agregan endpoints.
+- Cambios internos:
+  - backend retrieval `chroma` disponible por flag:
+    - `CLINICAL_CHAT_RAG_RETRIEVER_BACKEND=chroma`
+  - fallback automatico a retriever `legacy` cuando:
+    - no esta instalada dependencia `chromadb`,
+    - no hay resultados,
+    - ocurre error en runtime.
+  - trazabilidad ampliada:
+    - `chroma_available`
+    - `chroma_candidates`
+    - `chroma_chunks_found`
+    - `chroma_latency_ms`
+    - `chroma_error` (si aplica)
+- Riesgos de contrato:
+  - consumidores que parsean trazas con whitelist estricta deben aceptar nuevas claves `chroma_*`.

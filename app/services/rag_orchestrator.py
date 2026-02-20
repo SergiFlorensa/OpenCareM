@@ -17,6 +17,8 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.services.chroma_retriever import ChromaRetriever
+from app.services.llamaindex_retriever import LlamaIndexRetriever
 from app.services.llm_chat_provider import LLMChatProvider
 from app.services.rag_gatekeeper import BasicGatekeeper
 from app.services.rag_prompt_builder import RAGContextAssembler
@@ -30,7 +32,9 @@ class RAGOrchestrator:
 
     def __init__(self, db: Session):
         self.db = db
-        self.retriever = HybridRetriever()
+        self.legacy_retriever = HybridRetriever()
+        self.llamaindex_retriever = LlamaIndexRetriever()
+        self.chroma_retriever = ChromaRetriever()
         self.gatekeeper = BasicGatekeeper()
 
     def process_query_with_rag(
@@ -73,7 +77,7 @@ class RAGOrchestrator:
             retrieval_strategy = "hybrid"
 
             if matched_domains:
-                domain_chunks, domain_trace = self.retriever.search_by_domain(
+                domain_chunks, domain_trace = self.legacy_retriever.search_by_domain(
                     matched_domains,
                     self.db,
                     k=k,
@@ -84,13 +88,12 @@ class RAGOrchestrator:
                     retrieval_strategy = "domain"
 
             if not retrieved_chunks:
-                chunks, hybrid_trace = self.retriever.search_hybrid(
-                    query,
-                    self.db,
+                chunks, backend_trace, retrieval_strategy = self._search_with_configured_backend(
+                    query=query,
                     k=k,
                     specialty_filter=effective_specialty,
                 )
-                trace.update(hybrid_trace)
+                trace.update(backend_trace)
                 retrieved_chunks = chunks
 
             if not retrieved_chunks:
@@ -183,6 +186,73 @@ class RAGOrchestrator:
             )
             logger.exception("Error no controlado en RAG orchestrator")
             return None, trace
+
+    def _search_with_configured_backend(
+        self,
+        *,
+        query: str,
+        k: int,
+        specialty_filter: str,
+    ) -> tuple[list[Any], dict[str, str], str]:
+        backend = settings.CLINICAL_CHAT_RAG_RETRIEVER_BACKEND.strip().lower() or "legacy"
+        if backend == "llamaindex":
+            llama_chunks, llama_trace = self.llamaindex_retriever.search(
+                query,
+                self.db,
+                k=k,
+                specialty_filter=specialty_filter,
+            )
+            trace = {"rag_retriever_backend": "llamaindex"}
+            trace.update(llama_trace)
+            if llama_chunks:
+                return llama_chunks, trace, "llamaindex"
+
+            legacy_chunks, legacy_trace = self.legacy_retriever.search_hybrid(
+                query,
+                self.db,
+                k=k,
+                specialty_filter=specialty_filter,
+            )
+            trace["rag_retriever_fallback"] = "legacy_hybrid"
+            for key, value in legacy_trace.items():
+                trace[f"legacy_{key}"] = value
+            strategy = "hybrid_fallback" if legacy_chunks else "hybrid_empty"
+            return legacy_chunks, trace, strategy
+
+        if backend == "chroma":
+            chroma_chunks, chroma_trace = self.chroma_retriever.search(
+                query,
+                self.db,
+                k=k,
+                specialty_filter=specialty_filter,
+            )
+            trace = {"rag_retriever_backend": "chroma"}
+            trace.update(chroma_trace)
+            if chroma_chunks:
+                return chroma_chunks, trace, "chroma"
+
+            legacy_chunks, legacy_trace = self.legacy_retriever.search_hybrid(
+                query,
+                self.db,
+                k=k,
+                specialty_filter=specialty_filter,
+            )
+            trace["rag_retriever_fallback"] = "legacy_hybrid"
+            for key, value in legacy_trace.items():
+                trace[f"legacy_{key}"] = value
+            strategy = "hybrid_fallback" if legacy_chunks else "hybrid_empty"
+            return legacy_chunks, trace, strategy
+
+        legacy_chunks, legacy_trace = self.legacy_retriever.search_hybrid(
+            query,
+            self.db,
+            k=k,
+            specialty_filter=specialty_filter,
+        )
+        trace = {"rag_retriever_backend": "legacy"}
+        trace.update(legacy_trace)
+        strategy = "hybrid" if legacy_chunks else "hybrid_empty"
+        return legacy_chunks, trace, strategy
 
     def _build_rag_knowledge_sources(self, chunks: list[dict[str, Any]]) -> list[dict[str, str]]:
         sources: list[dict[str, str]] = []

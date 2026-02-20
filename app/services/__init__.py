@@ -13,6 +13,7 @@ from app.services.auth_service import AuthService
 from app.services.cardio_risk_support_service import CardioRiskSupportService
 from app.services.care_task_service import CareTaskService
 from app.services.chest_xray_support_service import ChestXRaySupportService
+from app.services.chroma_retriever import ChromaRetriever
 from app.services.clinical_chat_service import ClinicalChatService
 from app.services.clinical_context_service import ClinicalContextService
 from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
@@ -35,8 +36,10 @@ from app.services.hematology_support_protocol_service import HematologySupportPr
 from app.services.humanization_protocol_service import HumanizationProtocolService
 from app.services.immunology_support_protocol_service import ImmunologySupportProtocolService
 from app.services.knowledge_source_service import KnowledgeSourceService
+from app.services.llamaindex_retriever import LlamaIndexRetriever
 from app.services.llm_chat_provider import LLMChatProvider
 from app.services.medicolegal_ops_service import MedicolegalOpsService
+from app.services.nemo_guardrails_service import NeMoGuardrailsService
 from app.services.nephrology_support_protocol_service import NephrologySupportProtocolService
 from app.services.neurology_support_protocol_service import NeurologySupportProtocolService
 from app.services.oncology_support_protocol_service import OncologySupportProtocolService
@@ -63,6 +66,7 @@ __all__ = [
     "CareTaskService",
     "CardioRiskSupportService",
     "ChestXRaySupportService",
+    "ChromaRetriever",
     "ClinicalChatService",
     "ClinicalContextService",
     "CriticalOpsProtocolService",
@@ -82,9 +86,11 @@ __all__ = [
     "ScasestProtocolService",
     "HumanizationProtocolService",
     "KnowledgeSourceService",
+    "LlamaIndexRetriever",
     "LLMChatProvider",
     "OllamaEmbeddingService",
     "MedicolegalOpsService",
+    "NeMoGuardrailsService",
     "NeurologySupportProtocolService",
     "OncologySupportProtocolService",
     "OphthalmologySupportProtocolService",

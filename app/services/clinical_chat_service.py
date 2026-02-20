@@ -36,6 +36,7 @@ from app.services.agent_run_service import AgentRunService
 from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
 from app.services.knowledge_source_service import KnowledgeSourceService
 from app.services.llm_chat_provider import LLMChatProvider
+from app.services.nemo_guardrails_service import NeMoGuardrailsService
 from app.services.rag_orchestrator import RAGOrchestrator
 from app.services.scasest_protocol_service import ScasestProtocolService
 from app.services.sepsis_protocol_service import SepsisProtocolService
@@ -1327,6 +1328,7 @@ class ClinicalChatService:
         interpretability_trace.extend(policy_decision.trace)
         rag_trace: dict[str, Any] = {}
         llm_trace: dict[str, Any] = {}
+        guardrails_trace: dict[str, str] = {}
         llm_answer: str | None = None
 
         if response_mode == "clinical":
@@ -1421,6 +1423,16 @@ class ClinicalChatService:
                 matched_domains=matched_domain_records,
             )
 
+        answer, guardrails_trace = NeMoGuardrailsService.apply_output_guardrails(
+            query=safe_query,
+            answer=answer,
+            response_mode=response_mode,
+            effective_specialty=effective_specialty,
+            tool_mode=tool_mode,
+            knowledge_sources=knowledge_sources,
+            web_sources=web_sources,
+        )
+
         quality_metrics = cls._build_quality_metrics(
             query=safe_query,
             answer=answer,
@@ -1447,6 +1459,10 @@ class ClinicalChatService:
                 interpretability_trace.append(f"{key}={rendered_value}")
         if llm_trace:
             interpretability_trace.extend([f"{key}={value}" for key, value in llm_trace.items()])
+        if guardrails_trace:
+            interpretability_trace.extend(
+                [f"{key}={value}" for key, value in guardrails_trace.items()]
+            )
         run = AgentRunService.run_care_task_clinical_chat_workflow(
             db=db,
             care_task=care_task,
@@ -1483,6 +1499,7 @@ class ClinicalChatService:
                 "patient_summary": patient_summary,
                 "interpretability_trace": interpretability_trace,
                 "quality_metrics": quality_metrics,
+                "guardrails_trace": guardrails_trace,
                 "security_findings": security_findings,
                 "tool_policy_trace": policy_decision.trace,
                 "tool_risk": {

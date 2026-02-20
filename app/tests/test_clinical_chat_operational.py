@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from app.services.clinical_chat_service import ClinicalChatService
 from app.services.llm_chat_provider import LLMChatProvider
+from app.services.nemo_guardrails_service import NeMoGuardrailsService
 from app.services.rag_orchestrator import RAGOrchestrator
 
 
@@ -217,6 +218,247 @@ def test_chat_e2e_uses_rag_when_enabled(client, monkeypatch):
     assert any(item == "rag_status=success" for item in payload["interpretability_trace"])
     assert any(item == "rag_chunks_retrieved=2" for item in payload["interpretability_trace"])
     assert any(source["title"] == "Motor sepsis" for source in payload["knowledge_sources"])
+
+
+def test_rag_orchestrator_falls_back_to_legacy_when_llamaindex_has_no_results(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_RETRIEVER_BACKEND",
+        "llamaindex",
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER",
+        False,
+    )
+
+    fake_chunk = SimpleNamespace(
+        id=101,
+        chunk_text="Bundle de sepsis con control hemodinamico y lactato seriado.",
+        section_path="Sepsis > Bundle 1h",
+        keywords=["sepsis", "bundle"],
+        custom_questions=[],
+        specialty="emergency",
+        tokens_count=32,
+        document=SimpleNamespace(source_file="docs/47_motor_sepsis_urgencias.md"),
+    )
+
+    def fake_domain_search(self, detected_domains, db, k=5):  # noqa: ARG001
+        return [], {"domain_search_chunks_found": "0"}
+
+    def fake_llamaindex_search(self, query, db, k=5, specialty_filter=None):  # noqa: ARG001
+        return [], {"llamaindex_available": "0", "llamaindex_error": "ImportError"}
+
+    def fake_hybrid_search(self, query, db, k=5, specialty_filter=None):  # noqa: ARG001
+        return [fake_chunk], {"hybrid_search_chunks_found": "1"}
+
+    def fake_generate_answer(**kwargs):  # noqa: ARG001
+        return "Respuesta desde fallback hybrid.", {"llm_used": "true", "llm_endpoint": "chat"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.HybridRetriever.search_by_domain",
+        fake_domain_search,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.LlamaIndexRetriever.search",
+        fake_llamaindex_search,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.HybridRetriever.search_hybrid",
+        fake_hybrid_search,
+    )
+    monkeypatch.setattr(LLMChatProvider, "generate_answer", staticmethod(fake_generate_answer))
+
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Sospecha de sepsis con lactato 4",
+        response_mode="clinical",
+        effective_specialty="emergency",
+        matched_domains=[],
+        matched_endpoints=[],
+        knowledge_sources=[],
+        web_sources=[],
+    )
+
+    assert answer == "Respuesta desde fallback hybrid."
+    assert trace["rag_retriever_backend"] == "llamaindex"
+    assert trace["rag_retriever_fallback"] == "legacy_hybrid"
+    assert trace["rag_status"] == "success"
+
+
+def test_chat_e2e_applies_guardrails_when_enabled(client, monkeypatch):
+    headers = _auth_headers(client, "chat_guardrails_user")
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso guardrails",
+            "clinical_priority": "high",
+            "specialty": "emergency",
+            "patient_reference": "PAC-GUARDRAILS-1",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.nemo_guardrails_service.settings.CLINICAL_CHAT_GUARDRAILS_ENABLED",
+        True,
+    )
+
+    def fake_generate_answer(**kwargs):  # noqa: ARG001
+        return (
+            "Respuesta base LLM.",
+            {"llm_used": "true", "llm_model": "llama3.1:8b", "llm_endpoint": "chat"},
+        )
+
+    def fake_guardrails(**kwargs):
+        assert kwargs["answer"] == "Respuesta base LLM."
+        return (
+            "Respuesta validada por guardrails.",
+            {"guardrails_status": "applied_rewrite", "guardrails_loaded": "cache"},
+        )
+
+    monkeypatch.setattr(LLMChatProvider, "generate_answer", staticmethod(fake_generate_answer))
+    monkeypatch.setattr(
+        NeMoGuardrailsService,
+        "apply_output_guardrails",
+        staticmethod(fake_guardrails),
+    )
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={"query": "Paciente con sepsis, prioriza plan", "session_id": "session-guardrails"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == "Respuesta validada por guardrails."
+    assert any(
+        item == "guardrails_status=applied_rewrite"
+        for item in payload["interpretability_trace"]
+    )
+
+
+def test_rag_orchestrator_uses_chroma_backend_when_configured(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_RETRIEVER_BACKEND",
+        "chroma",
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER",
+        False,
+    )
+
+    fake_chunk = SimpleNamespace(
+        id=201,
+        chunk_text="Escalado sepsis con lactato seriado y objetivos MAP.",
+        section_path="Sepsis > Escalado",
+        keywords=["sepsis", "lactato"],
+        custom_questions=[],
+        specialty="emergency",
+        tokens_count=24,
+        document=SimpleNamespace(source_file="docs/47_motor_sepsis_urgencias.md"),
+    )
+
+    def fake_domain_search(self, detected_domains, db, k=5):  # noqa: ARG001
+        return [], {"domain_search_chunks_found": "0"}
+
+    def fake_chroma_search(self, query, db, k=5, specialty_filter=None):  # noqa: ARG001
+        return [fake_chunk], {"chroma_available": "1", "chroma_chunks_found": "1"}
+
+    def fake_generate_answer(**kwargs):  # noqa: ARG001
+        return "Respuesta desde Chroma.", {"llm_used": "true", "llm_endpoint": "chat"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.HybridRetriever.search_by_domain",
+        fake_domain_search,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.ChromaRetriever.search",
+        fake_chroma_search,
+    )
+    monkeypatch.setattr(LLMChatProvider, "generate_answer", staticmethod(fake_generate_answer))
+
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Sospecha de sepsis con hipotension",
+        response_mode="clinical",
+        effective_specialty="emergency",
+        matched_domains=[],
+        matched_endpoints=[],
+        knowledge_sources=[],
+        web_sources=[],
+    )
+
+    assert answer == "Respuesta desde Chroma."
+    assert trace["rag_retriever_backend"] == "chroma"
+    assert trace["rag_status"] == "success"
+
+
+def test_rag_orchestrator_falls_back_to_legacy_when_chroma_empty(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_RETRIEVER_BACKEND",
+        "chroma",
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER",
+        False,
+    )
+
+    fake_chunk = SimpleNamespace(
+        id=301,
+        chunk_text="Manejo hemodinamico en sepsis de urgencias.",
+        section_path="Sepsis > Hemodinamica",
+        keywords=["sepsis"],
+        custom_questions=[],
+        specialty="emergency",
+        tokens_count=18,
+        document=SimpleNamespace(source_file="docs/47_motor_sepsis_urgencias.md"),
+    )
+
+    def fake_domain_search(self, detected_domains, db, k=5):  # noqa: ARG001
+        return [], {"domain_search_chunks_found": "0"}
+
+    def fake_chroma_search(self, query, db, k=5, specialty_filter=None):  # noqa: ARG001
+        return [], {"chroma_available": "1", "chroma_chunks_found": "0"}
+
+    def fake_hybrid_search(self, query, db, k=5, specialty_filter=None):  # noqa: ARG001
+        return [fake_chunk], {"hybrid_search_chunks_found": "1"}
+
+    def fake_generate_answer(**kwargs):  # noqa: ARG001
+        return "Respuesta desde fallback legacy.", {"llm_used": "true", "llm_endpoint": "chat"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.HybridRetriever.search_by_domain",
+        fake_domain_search,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.ChromaRetriever.search",
+        fake_chroma_search,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.HybridRetriever.search_hybrid",
+        fake_hybrid_search,
+    )
+    monkeypatch.setattr(LLMChatProvider, "generate_answer", staticmethod(fake_generate_answer))
+
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Sospecha de sepsis con hipotension",
+        response_mode="clinical",
+        effective_specialty="emergency",
+        matched_domains=[],
+        matched_endpoints=[],
+        knowledge_sources=[],
+        web_sources=[],
+    )
+
+    assert answer == "Respuesta desde fallback legacy."
+    assert trace["rag_retriever_backend"] == "chroma"
+    assert trace["rag_retriever_fallback"] == "legacy_hybrid"
+    assert trace["rag_status"] == "success"
 
 
 def test_parse_ollama_payload_supports_jsonl_chunks():
