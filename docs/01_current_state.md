@@ -84,14 +84,39 @@
 - Chat clinico-operativo profesional por CareTask integrado en API (`docs/87_chat_clinico_operativo_profesional.md`).
 - Chat clinico-operativo v2 con especialidad autenticada, contexto longitudinal por paciente y fuentes trazables (`docs/88_chat_clinico_especialidad_contexto_longitudinal.md`).
 - Chat clinico-operativo v3 con fuentes confiables: whitelist estricta web + sellado profesional de conocimiento (`docs/89_chat_fuentes_confiables_whitelist_sellado.md`).
+- Chat clinico-operativo admite evidencia local adjunta por turno (`local_evidence`) para contexto multimodal minimo sin servicios externos de pago.
+- Pipeline de ingesta RAG soporta `.md/.txt/.pdf` (extraccion local con `pypdf` para PDF multipagina).
+- Chat clinico reforzado con motor logico determinista (reglas secuente + detector de contradicciones + trazabilidad epistemica).
+- Motor logico extendido con firma estructural de planes (Godel), chequeo de consistencia formal y abstencion automatica por evidencia insuficiente.
+- Contratos operativos por dominio en chat (fase 1: nefrologia y ginecologia/obstetricia) con pasos 0-10/10-60, datos criticos requeridos y guard de fallback seguro.
+- Capa matematica local de inferencia clinica (similitud coseno + distancia L2 + posterior Bayes) integrada en chat con trazabilidad `math_*`, incertidumbre explicita y reordenado de dominio por confianza.
+- Clasificacion supervisada Naive Bayes local para rerank de dominio (`nb_*`) integrada en chat clinico, con smoothing configurable, seleccion de features y gating por incertidumbre matematica.
+- Clasificacion vectorial local para enrutado de dominio (`vector_*`) con modos Rocchio/kNN/hybrid, mas matriz de confusion y metricas macro/micro para evaluacion.
+- Clustering plano local (k-means + EM opcional) para priorizacion de candidatos de dominio (`cluster_*`) con metricas Purity/NMI/Rand/F para auditoria.
+- Clustering jerarquico local (HAC/divisive/buckshot) para priorizacion de candidatos de dominio (`hcluster_*`) con trazabilidad de linkage/estrategia y metricas Purity/NMI/Rand/F.
+- Clasificacion SVM lineal OVA local para rerank de dominio (`svm_domain_*`) integrada en chat, con calibracion de inferencia para evitar sesgo por intercepto en catalogo desbalanceado.
 - Playbook operativo de curacion/sellado de fuentes clinicas disponible para adopcion por equipo asistencial (`docs/90_playbook_curacion_fuentes_clinicas.md`).
 - Frontend MVP de chat clinico disponible en `frontend/` con interfaz moderna para simulacion profesional (`docs/91_frontend_chat_clinico_mvp.md`).
 - Frontend v2 de chat con selector de herramientas y modo hibrido general/clinico (`docs/92_frontend_chat_herramientas_modo_hibrido.md`).
+- Frontend v3 del chat clinico con UX minimalista para urgencias: sidebar operativa, quick-actions, typing visible, feedback por respuesta, fuentes expandibles, indicador de confianza y disclaimer medico fijo.
+- Frontend actualizado a stack UI moderno con `TailwindCSS + daisyUI + lucide-react` y acceso directo anonimo al chat (sin login en frontend).
 - Motor conversacional neuronal local (Ollama) opcional con continuidad contextual en follow-up y fallback determinista (`docs/93_motor_conversacional_neuronal_open_source.md`).
 - Chat local endurecido sin pago con defensa anti-inyeccion, presupuesto de contexto/tokens y metricas por turno (`docs/95_chat_open_source_hardening_prompt_injection_quality_metrics.md`).
 - Blueprint OSS de agentes adaptado a uso interno (sin suscripciones, sin movil, sin canales externos) en `docs/96_adaptacion_blueprint_agentes_oss_interno.md`.
 - Chat clinico con RAG hibrido local (vector + keyword) integrado con fallback seguro y auditoria por consulta (`docs/97_chat_rag_hibrido_local.md`).
-- Chat clinico con backend RAG configurable (`legacy|llamaindex|chroma`) y capa opcional de NeMo Guardrails, ambos con fallback no bloqueante (`docs/98_chat_llamaindex_nemo_guardrails.md`).
+- Chat clinico con backend RAG configurable (`legacy|elastic|llamaindex|chroma`) y capa opcional de NeMo Guardrails, ambos con fallback no bloqueante (`docs/98_chat_llamaindex_nemo_guardrails.md`).
+- Script de sincronizacion SQLite->Elastic para chunks RAG (`app.scripts.sync_chunks_to_elastic`) con carga bulk y creacion de indice base.
+- Candidate retrieval optimizado con indice invertido local FTS5 + parser booleano con precedencia/parentesis, soporte de frases y comodines (`*`), proximidad (/k), correccion ortografica local opcional (Levenshtein con filtro k-gram/Jaccard, rerank contextual por bigramas y respaldo fonetico Soundex), cache de diccionario FTS en memoria (TTL), cache de postings comprimida por gaps (VB/Gamma), scoring lexical `tf-idf` por zonas (title/section/body/keywords/custom_questions) con coseno y normalizacion pivotada por longitud, blend probabilistico BM25, Query Likelihood Model (unigrama con smoothing Dirichlet/JM) y bonus BIM configurable, poda de terminos por idf, bonus de proximidad por ventana y ranking por niveles con calidad estatica (`g(d)`), expansion de consultas por tesauro global local + pseudo-relevance feedback (blind RF), y skip pointers en listas largas, con fallback automatico cuando FTS no esta disponible.
+- Retrieval lexical reforzado con LSI local (SVD truncada sobre candidate pool) para capturar semantica latente y reducir gap terminologico en consultas clinicas.
+- Script local de dimensionamiento estadistico de corpus RAG (`app.scripts.estimate_rag_index_stats`) para estimar Heaps/Zipf y calibrar caches/memoria.
+- Script local de evaluacion offline de retrieval RAG (`app.scripts.evaluate_rag_retrieval`) con `P/R/F1`, `P@k`, `MAP`, `MRR`, `nDCG`, `Kappa` opcional, A/B offline por estrategia y reporte por consulta con snippet KWIC.
+- Ingesta clinica progresiva con mapeo de especialidad por defecto (`docs/45_*` a `docs/86_*`) y backfill de `specialty` en corpus existente mediante `app.scripts.ingest_clinical_docs`.
+- Ingesta incremental optimizada por `source_file` para evitar reprocesado de archivos ya cargados, con override de reingesta total (`--force-reprocess-existing-paths`).
+- Chat RAG con presupuesto de latencia y degradacion controlada: si no queda presupuesto antes de LLM, salta a respuesta extractiva con fuentes (`rag_llm_skipped_reason=latency_budget_exhausted_pre_llm`), reduciendo timeouts en entorno local.
+- Perfil RAG de latencia estabilizado: `k` adaptativo conservador (fan-out acotado), menor `fts_candidate_pool` y compresion de contexto mas agresiva para reducir p95/p99.
+- Plan B v2 de hardening local: enrutado determinista `simple|medium|complex`, safe-wrapper explicito por baja evidencia (`rag_safe_wrapper_*`) y cap de utilizacion de contexto LLM al 40% para reducir saturacion y variabilidad.
+- Capa CIR determinista para ambiguedad en chat clinico: gate proactivo de clarificacion + sugerencias NQP-lite por dominio/intencion, sin cambios de schema API.
+- Regression Set de chat clinico disponible para aprendizaje continuo offline: export desde historico y evaluacion automatica por metricas de regresion (F1/dominio/leak/latencia) sin servicios externos.
 
 ## Estructura funcional
 
@@ -175,8 +200,18 @@
   - Motor de soporte operativo de pediatria/neonatologia para sarampion, reanimacion neonatal, contactos de tosferina, invaginacion y secuelas tardias de sifilis congenita.
 - `app/services/clinical_chat_service.py`
   - Motor de chat hibrido (general/clinico) con especialidad autenticada, memoria por sesion/paciente, sanitizacion anti-inyeccion y metricas de calidad por turno.
+- `app/services/diagnostic_interrogatory_service.py`
+  - Motor opcional de interrogatorio activo (Bayes + DEIG) para pedir datos clinicos faltantes antes de cerrar respuesta.
+- `app/services/clinical_decision_psychology_service.py`
+  - Capa local de psicologia de decision (Fechner + Prospect framing) para comunicar riesgo operativo sin diagnostico.
+- `app/services/clinical_logic_engine_service.py`
+  - Motor logico determinista para reglas de seguridad clinica, detector de contradicciones y trazabilidad epistemica.
+- `app/services/clinical_protocol_contracts_service.py`
+  - Contratos operativos por dominio para forzar estructura minima de respuesta y cobertura de datos criticos.
+- `app/services/clinical_math_inference_service.py`
+  - Capa matematica local de similitud y posterior Bayes para priorizacion de dominio/score operativo sin dependencias de pago.
 - `app/services/llm_chat_provider.py`
-  - Proveedor neuronal local (Ollama) con estrategia `api/chat -> api/generate`, control de presupuesto de contexto/tokens y trazabilidad de prompt.
+  - Proveedor neuronal local (Ollama) con estrategia `api/chat -> api/generate`, control de presupuesto de contexto/tokens, trazabilidad de prompt y ciclo de reparacion `draft->verify->rewrite` para salidas clinicas.
 - `app/services/rag_orchestrator.py`
   - Orquesta pipeline RAG (retrieval hibrido, augment de fuentes, validacion y auditoria) antes del fallback del chat.
 - `app/services/rag_retriever.py`
@@ -190,7 +225,7 @@
 - `app/scripts/ingest_clinical_docs.py`
   - Ingesta markdown/txt del repo a tablas RAG con embeddings para alimentar respuestas fundamentadas.
 - `frontend/src/App.tsx`
-  - Consola web v2 con UX tipo assistant, herramientas (medication/cases/treatment/deep_search/images), chat por sesion y panel de trazabilidad.
+  - Consola web v3 minimalista con enfoque de velocidad/claridad en urgencias: historial + quick-actions + fuentes + controles en sidebar, timeline limpio con avatares, typewriter local, feedback por turno y trazabilidad/fuentes expandibles.
 - `scripts/dev_workflow.ps1`
   - Flujo operativo unificado para `dev`, `build`, `check`, `test`, `test-e2e`.
 - `scripts/setup_hooks.ps1`
@@ -376,3 +411,91 @@ Asumiendo `API_V1_PREFIX=/api/v1`:
 
 
 
+
+## TM-164 (quality web sources)
+
+- Chat clinico mejora `web_sources` con pipeline de calidad:
+  - deduplicacion de URL canonica y near-duplicate por shingles + MinHash.
+  - filtro heuristico anti-spam/clickbait sobre titulo/snippet/url.
+  - priorizacion por score de autoridad de dominio y relevancia lexical.
+  - trazabilidad operacional por consulta con claves `web_search_*` en `interpretability_trace`.
+- Sin cambios de API publica ni de esquema de datos.
+
+## TM-165 (crawler web clinico local)
+
+- Nuevo servicio `app/services/web_crawler_service.py` para rastreo web polite:
+  - frontier priorizada, colas por host, cortesia temporal y robots.txt.
+  - deduplicacion por URL canonica y near-duplicate por contenido (shingles + MinHash).
+  - checkpoint de estado para reanudacion tras fallo.
+- Nuevo script operativo `app/scripts/crawl_clinical_web.py`.
+- Salida de crawl en `docs/web_raw/` para alimentar ingesta RAG posterior.
+- Sin cambios de API publica ni de esquema de datos.
+
+## TM-166 (link analysis web: PageRank/HITS/anchors)
+
+- Chat clinico mejora ranking de `web_sources` con senales de grafo:
+  - PageRank global.
+  - Topic-Specific PageRank.
+  - HITS (authority/hub) sobre base-set de consulta.
+  - relevancia por `anchor_text` entrante.
+- Nuevo servicio `app/services/web_link_analysis_service.py` y script `app/scripts/build_web_link_analysis.py`.
+- Crawler web enriquece `crawl_manifest.jsonl` con `outgoing_links`, `outgoing_anchor_texts` y `outgoing_edges`.
+- Sin cambios de API publica ni de esquema de datos.
+- Chat RAG con fail-fast de latencia: ante `rag_status=failed_retrieval|failed_exception` se omite segundo pase LLM y se aplica fallback estructurado inmediato para evitar cascada de timeouts.
+- Calidad de respuesta reforzada: si la salida clinica final queda `degraded` y existe evidencia RAG, se aplica reparacion automatica a formato evidence-first con recalculo de metricas y traza explicita.
+- Benchmark local reforzado: p95 corregido (nearest-rank), resumen JSON persistente y gate de aceptacion automatizado para evitar regresiones silenciosas de calidad/latencia.
+- Tuning operativo RAG->LLM ajustado para elevar uso real de LLM sin perder control de p95; benchmark summary ahora expone `llm_enabled/llm_used/llm_error` por query para diagnostico rapido.
+- Capa LLM ahora soporta proveedor local alternativo `llama_cpp` (OpenAI-compatible) para mitigar timeouts/circuit-open observados con Ollama, manteniendo stack sin coste por token.
+
+- Chat clinico con modo asincrono Plan B disponible en API (`/chat/messages/async` + polling de estado) para evitar bloqueos por inferencia local en CPU (`docs/decisions/ADR-0135-chat-asincrono-pausa-reanudacion.md`).
+
+## Actualizacion TM-187 (RAG transversal + parser PDF)
+
+- Retrieval clinico reforzado para evitar sesgo de dominio fallback (`critical_ops`) en consultas generales y filtrar chunks no clinicos antes de la respuesta.
+- QA shortcut ampliado para trabajar tambien con chunks sin `specialty`, reduciendo perdidas por metadatos legacy incompletos.
+- Ingesta documental con parser PDF configurable (`pypdf|mineru`) via `PDFParserService`, con fail-open opcional para continuidad operativa.
+- Script de ingesta ampliado con mapeo de especialidades mas completo y rebuild de `custom_questions` en corpus existente.
+
+## Actualizacion TM-188 (pipeline PDF estructurado)
+
+- Ingesta PDF con salida estructurada (`blocks`) y trazabilidad (`trace`) via `PDFParserService`.
+- Soporte de backend `mineru` con OCR selectivo por region, orden de lectura configurable y fallback fail-open a `pypdf`.
+- Limpieza de artefactos repetidos de pagina (headers/footers) en fase de parseo.
+- `SemanticChunker` admite `parsed_blocks` y preserva tipos de contenido (`table`, `formula`, `text`) en `document_chunks.content_type`.
+- Script de ingesta reporta telemetria PDF agregada (paginas/bloques/filtrado/latencia).
+
+## Actualizacion TM-189 (quality gates de ingesta + acceptance offline por especialidad)
+
+- Ingesta CLI (`app/scripts/ingest_clinical_docs.py`) endurecida con quality gates deterministas por documento:
+  - `min_chunks`, `min_total_chars`, `min_avg_chunk_chars`.
+  - reglas especificas para PDF: `pdf_min_chars_per_page`, `pdf_min_blocks_per_page`.
+  - nuevos contadores operativos: `documents_rejected_quality`, `quality_rejection_reason_counts`.
+- Evaluacion offline de retrieval (`app/scripts/evaluate_rag_retrieval.py`) ampliada con:
+  - resumen por especialidad en `summary.by_specialty`.
+  - aceptacion por umbrales (`acceptance_thresholds`, `acceptance_passed`, `acceptance_failures`).
+  - CLI con `--acceptance-thresholds` y `--fail-on-acceptance` para quality gate automatico.
+- Cobertura automatica:
+  - nuevas pruebas de unidad para quality gates y acceptance parsing/evaluation.
+
+## Actualizacion TM-190 (benchmark acceptance pass)
+
+- Se ajusto `quality_metrics` en chat clinico para medir cobertura util (query/context/answer) y anclaje por citas, reduciendo falsos `degraded` en modo extractivo.
+- Se incorporo fast-path de latencia en RAG:
+  - compactacion de query en ruta compleja determinista.
+  - `keyword_only` en retrieval hibrido cuando `force_extractive_only` esta activo.
+- Resultado benchmark local (5 queries):
+  - `latency_ok_p95_ms: 2844.0`
+  - `answer_relevance_avg: 1.0`
+  - `context_relevance_avg: 0.6308`
+  - `groundedness_avg: 0.828`
+  - `BENCHMARK OK - criterios cumplidos.`
+
+## Actualizacion TM-191 (adaptive routing budget-aware)
+
+- Se incorporo enrutado adaptativo en RAG:
+  - `keyword_only` para consultas complejas bajo alta reserva de presupuesto LLM.
+  - umbral dinamico de llamada LLM segun complejidad (`simple/medium/complex`) y `pre_context_relevance`.
+- Objetivo: reducir p95 en consultas complejas sin degradar calidad y manteniendo benchmark en verde.
+- Resultado verificado:
+  - `latency_ok_p95_ms: 2719.0`
+  - `BENCHMARK OK - criterios cumplidos.`

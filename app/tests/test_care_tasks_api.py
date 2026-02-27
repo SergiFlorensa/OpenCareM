@@ -5588,3 +5588,191 @@ def test_chat_message_forces_clinical_mode_with_medication_tool(client):
     assert payload["response_mode"] == "clinical"
     assert payload["tool_mode"] == "medication"
     assert "herramienta:medication" in payload["extracted_facts"]
+
+
+def test_create_care_task_chat_message_async_enqueues_job(client, monkeypatch):
+    from app.services.clinical_chat_async_service import ClinicalChatAsyncService
+
+    register_response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "chat_async_user_1",
+            "password": "StrongPass123",
+            "specialty": "emergency",
+        },
+    )
+    assert register_response.status_code == 200
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={"username": "chat_async_user_1", "password": "StrongPass123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_response.status_code == 200
+    auth_headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso async chat",
+            "clinical_priority": "high",
+            "specialty": "emergency",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    def fake_enqueue_job(*, care_task_id, payload, authenticated_user):
+        assert care_task_id == task_id
+        assert authenticated_user.username == "chat_async_user_1"
+        return {
+            "job_id": "chatjob-test-001",
+            "care_task_id": task_id,
+            "session_id": "session-async-test",
+            "status": "queued",
+        }
+
+    monkeypatch.setattr(ClinicalChatAsyncService, "enqueue_job", staticmethod(fake_enqueue_job))
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages/async",
+        json={
+            "query": "Necesito orientacion operacional en segundo plano.",
+            "session_id": "session-async-test",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["care_task_id"] == task_id
+    assert payload["job_id"] == "chatjob-test-001"
+    assert payload["session_id"] == "session-async-test"
+    assert payload["status"] == "queued"
+    assert payload["poll_after_ms"] >= 250
+
+
+def test_get_care_task_chat_message_async_status_returns_completed_payload(client, monkeypatch):
+    from datetime import datetime, timezone
+
+    from app.services.clinical_chat_async_service import ClinicalChatAsyncService
+
+    register_response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "chat_async_user_2",
+            "password": "StrongPass123",
+            "specialty": "general",
+        },
+    )
+    assert register_response.status_code == 200
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={"username": "chat_async_user_2", "password": "StrongPass123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_response.status_code == 200
+    auth_headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso status async",
+            "clinical_priority": "medium",
+            "specialty": "general",
+            "sla_target_minutes": 60,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+    now = datetime.now(timezone.utc)
+
+    def fake_get_job_status(*, job_id):
+        assert job_id == "chatjob-test-002"
+        return {
+            "job_id": "chatjob-test-002",
+            "care_task_id": task_id,
+            "session_id": "session-async-status",
+            "status": "completed",
+            "created_at": now,
+            "updated_at": now,
+            "message_id": 11,
+            "agent_run_id": 22,
+            "workflow_name": "care_task_clinical_chat_v1",
+            "response_mode": "clinical",
+            "tool_mode": "chat",
+            "quality_status": "attention",
+            "llm_used": True,
+            "error": None,
+        }
+
+    monkeypatch.setattr(
+        ClinicalChatAsyncService,
+        "get_job_status",
+        staticmethod(fake_get_job_status),
+    )
+
+    response = client.get(
+        f"/api/v1/care-tasks/{task_id}/chat/messages/async/chatjob-test-002",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["message_id"] == 11
+    assert payload["agent_run_id"] == 22
+    assert payload["workflow_name"] == "care_task_clinical_chat_v1"
+    assert payload["response_mode"] == "clinical"
+    assert payload["quality_status"] == "attention"
+    assert payload["llm_used"] is True
+
+
+def test_get_care_task_chat_message_async_status_returns_404_for_unknown_job(client, monkeypatch):
+    from app.services.clinical_chat_async_service import ClinicalChatAsyncService
+
+    register_response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "chat_async_user_3",
+            "password": "StrongPass123",
+            "specialty": "general",
+        },
+    )
+    assert register_response.status_code == 200
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={"username": "chat_async_user_3", "password": "StrongPass123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert login_response.status_code == 200
+    auth_headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso async not found",
+            "clinical_priority": "low",
+            "specialty": "general",
+            "sla_target_minutes": 120,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        ClinicalChatAsyncService,
+        "get_job_status",
+        staticmethod(lambda *, job_id: None),
+    )
+
+    response = client.get(
+        f"/api/v1/care-tasks/{task_id}/chat/messages/async/chatjob-missing",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    assert "Trabajo asincrono no encontrado" in response.json()["detail"]

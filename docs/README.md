@@ -101,6 +101,7 @@ Este directorio centraliza la documentacion tecnica y operativa del proyecto.
 96. `docs/96_adaptacion_blueprint_agentes_oss_interno.md`
 97. `docs/97_chat_rag_hibrido_local.md`
 98. `docs/98_chat_llamaindex_nemo_guardrails.md`
+99. `docs/99_frontend_chat_ui_clinica_minimal_2026.md`
 
 ## Objetivo
 

@@ -3,7 +3,7 @@ Configuracion de conexion y sesion de base de datos.
 """
 from typing import Any
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.core.config import settings
@@ -12,10 +12,28 @@ engine_options: dict[str, Any] = {
     "echo": settings.DATABASE_ECHO,
 }
 if settings.DATABASE_URL.startswith("sqlite"):
-    engine_options["connect_args"] = {"check_same_thread": False}
+    engine_options["connect_args"] = {
+        "check_same_thread": False,
+        "timeout": 60,
+    }
 
 
 engine = create_engine(settings.DATABASE_URL, **engine_options)
+
+if settings.DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        # Best-effort: en Windows puede haber lock temporal externo.
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA busy_timeout=60000;")
+        except Exception:
+            pass
+        cursor.close()
 
 SessionLocal = sessionmaker(
     autocommit=False,

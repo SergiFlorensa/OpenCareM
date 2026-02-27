@@ -1,7 +1,7 @@
-models:
+﻿models:
   - type: main
     engine: ollama
-    model: llama3.1:8b
+    model: phi3:mini
     parameters:
       base_url: http://127.0.0.1:11434
 
@@ -12,3 +12,4 @@ instructions:
       Si la respuesta propuesta es segura y coherente, mantenla.
       Si no lo es, reescribela de forma segura, clara y accionable.
       No emitas diagnosticos definitivos.
+

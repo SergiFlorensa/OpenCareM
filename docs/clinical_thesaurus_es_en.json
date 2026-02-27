@@ -1,0 +1,87 @@
+{
+  "leucemia": [
+    "neoplasia hematologica",
+    "hemopatia maligna",
+    "leukemia"
+  ],
+  "neutropenia": [
+    "neutropenia febril",
+    "granulocitopenia",
+    "neutropenic fever"
+  ],
+  "fiebre": [
+    "hipertermia",
+    "febril",
+    "fever"
+  ],
+  "sepsis": [
+    "septicemia",
+    "infeccion sistemica",
+    "septic shock"
+  ],
+  "hiperkalemia": [
+    "hiperpotasemia",
+    "potasio alto",
+    "hyperkalemia"
+  ],
+  "oliguria": [
+    "diuresis baja",
+    "anuria parcial"
+  ],
+  "anuria": [
+    "ausencia de diuresis",
+    "diuresis nula"
+  ],
+  "insuficiencia renal": [
+    "fra",
+    "fallo renal agudo",
+    "acute kidney injury"
+  ],
+  "disnea": [
+    "dificultad respiratoria",
+    "dyspnea"
+  ],
+  "dolor toracico": [
+    "angina",
+    "chest pain",
+    "sindrome coronario"
+  ],
+  "infarto": [
+    "iam",
+    "myocardial infarction",
+    "sindrome coronario agudo"
+  ],
+  "oncologia": [
+    "cancer",
+    "neoplasia",
+    "oncology"
+  ],
+  "inmunoterapia": [
+    "checkpoint inhibitor",
+    "terapia anti pd1",
+    "immunotherapy"
+  ],
+  "iraes": [
+    "toxicidad inmunomediada",
+    "immune related adverse events"
+  ],
+  "preeclampsia": [
+    "hipertension gestacional severa",
+    "toxemia"
+  ],
+  "ectopico": [
+    "embarazo ectopico",
+    "gestacion extrauterina"
+  ],
+  "hemocultivos": [
+    "blood cultures"
+  ],
+  "antibioterapia": [
+    "antibioticos empiricos",
+    "antimicrobial therapy"
+  ],
+  "aislamiento": [
+    "precauciones de contacto",
+    "isolation"
+  ]
+}

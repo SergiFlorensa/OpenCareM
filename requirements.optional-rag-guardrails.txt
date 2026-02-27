@@ -4,8 +4,7 @@
 # - CLINICAL_CHAT_RAG_RETRIEVER_BACKEND=llamaindex|chroma
 # - CLINICAL_CHAT_GUARDRAILS_ENABLED=true
 
-llama-index>=0.14,<0.15
-llama-index-llms-ollama>=0.6,<0.7
-llama-index-embeddings-ollama>=0.6,<0.7
+llama-index-core>=0.14,<0.15
+llama-index-embeddings-ollama>=0.8,<0.9
 chromadb>=0.5,<0.7
-nemoguardrails>=0.12,<0.13
+nemoguardrails>=0.13,<0.21

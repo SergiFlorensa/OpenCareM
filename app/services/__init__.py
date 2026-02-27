@@ -14,9 +14,24 @@ from app.services.cardio_risk_support_service import CardioRiskSupportService
 from app.services.care_task_service import CareTaskService
 from app.services.chest_xray_support_service import ChestXRaySupportService
 from app.services.chroma_retriever import ChromaRetriever
+from app.services.clinical_chat_async_service import ClinicalChatAsyncService
 from app.services.clinical_chat_service import ClinicalChatService
 from app.services.clinical_context_service import ClinicalContextService
+from app.services.clinical_decision_psychology_service import ClinicalDecisionPsychologyService
+from app.services.clinical_flat_clustering_service import ClinicalFlatClusteringService
+from app.services.clinical_hierarchical_clustering_service import (
+    ClinicalHierarchicalClusteringService,
+)
+from app.services.clinical_logic_engine_service import ClinicalLogicEngineService
+from app.services.clinical_math_inference_service import ClinicalMathInferenceService
+from app.services.clinical_naive_bayes_service import ClinicalNaiveBayesService
+from app.services.clinical_protocol_contracts_service import ClinicalProtocolContractsService
+from app.services.clinical_risk_pipeline_service import ClinicalRiskPipelineService
+from app.services.clinical_svm_domain_service import ClinicalSVMDomainService
+from app.services.clinical_svm_triage_service import ClinicalSVMTriageService
+from app.services.clinical_vector_classification_service import ClinicalVectorClassificationService
 from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
+from app.services.diagnostic_interrogatory_service import DiagnosticInterrogatoryService
 from app.services.document_ingestion_service import DocumentIngestionService
 from app.services.embedding_service import OllamaEmbeddingService
 from app.services.emergency_episode_service import EmergencyEpisodeService
@@ -60,6 +75,8 @@ from app.services.sepsis_protocol_service import SepsisProtocolService
 from app.services.task_service import TaskService
 from app.services.trauma_support_protocol_service import TraumaSupportProtocolService
 from app.services.urology_support_protocol_service import UrologySupportProtocolService
+from app.services.web_crawler_service import WebCrawlerService
+from app.services.web_link_analysis_service import WebLinkAnalysisService
 
 __all__ = [
     "TaskService",
@@ -68,6 +85,19 @@ __all__ = [
     "ChestXRaySupportService",
     "ChromaRetriever",
     "ClinicalChatService",
+    "ClinicalChatAsyncService",
+    "ClinicalDecisionPsychologyService",
+    "ClinicalFlatClusteringService",
+    "ClinicalHierarchicalClusteringService",
+    "ClinicalMathInferenceService",
+    "ClinicalNaiveBayesService",
+    "ClinicalLogicEngineService",
+    "ClinicalProtocolContractsService",
+    "ClinicalRiskPipelineService",
+    "ClinicalSVMDomainService",
+    "ClinicalSVMTriageService",
+    "ClinicalVectorClassificationService",
+    "DiagnosticInterrogatoryService",
     "ClinicalContextService",
     "CriticalOpsProtocolService",
     "DocumentIngestionService",
@@ -111,4 +141,6 @@ __all__ = [
     "AnesthesiologySupportProtocolService",
     "TraumaSupportProtocolService",
     "UrologySupportProtocolService",
+    "WebCrawlerService",
+    "WebLinkAnalysisService",
 ]

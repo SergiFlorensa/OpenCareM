@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user_optional
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.acne_rosacea_protocol import (
@@ -68,10 +68,12 @@ from app.schemas.chest_xray_support import (
     ChestXRaySupportRequest,
 )
 from app.schemas.clinical_chat import (
+    CareTaskClinicalChatAsyncCreateResponse,
+    CareTaskClinicalChatAsyncStatusResponse,
     CareTaskClinicalChatHistoryItemResponse,
     CareTaskClinicalChatMemoryResponse,
     CareTaskClinicalChatMessageRequest,
-    CareTaskClinicalChatMessageResponse,
+    CareTaskClinicalChatPublicResponse,
 )
 from app.schemas.critical_ops_protocol import (
     CareTaskCriticalOpsProtocolResponse,
@@ -218,6 +220,7 @@ from app.services.anisakis_support_protocol_service import AnisakisSupportProtoc
 from app.services.cardio_risk_support_service import CardioRiskSupportService
 from app.services.care_task_service import CareTaskService
 from app.services.chest_xray_support_service import ChestXRaySupportService
+from app.services.clinical_chat_async_service import ClinicalChatAsyncService
 from app.services.clinical_chat_service import ClinicalChatService
 from app.services.critical_ops_protocol_service import CriticalOpsProtocolService
 from app.services.endocrinology_support_protocol_service import EndocrinologySupportProtocolService
@@ -254,6 +257,53 @@ from app.services.trauma_support_protocol_service import TraumaSupportProtocolSe
 from app.services.urology_support_protocol_service import UrologySupportProtocolService
 
 router = APIRouter(prefix="/care-tasks", tags=["care-tasks"])
+
+
+def _sanitize_public_chat_answer(answer: str) -> str:
+    """Elimina trazas tecnicas para salida publica de frontend."""
+    if not answer:
+        return ""
+    blocked_tokens = (
+        "/api/v1",
+        "py_compile",
+        "venv",
+        "app/",
+        "agent_run",
+        "workflow",
+        "tool_mode",
+        "ruta operativa activa",
+    )
+    blocked_prefixes = (
+        "modo conversacional",
+        "herramienta seleccionada",
+        "entendido.",
+        "contexto disponible en base interna",
+        "referencia interna:",
+        "contexto reutilizado:",
+        "sigo el hilo",
+        "si quieres,",
+    )
+    clean_lines: list[str] = []
+    for line in answer.splitlines():
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+        line_low = line_stripped.lower()
+        if any(token in line_low for token in blocked_tokens):
+            continue
+        if any(line_low.startswith(prefix) for prefix in blocked_prefixes):
+            continue
+        clean_lines.append(line_stripped)
+
+    # Elimina repeticion de separadores y deja salida compacta.
+    compact_lines: list[str] = []
+    for line in clean_lines:
+        if line in {"-", "--", "---"}:
+            continue
+        compact_lines.append(line)
+
+    cleaned = "\n".join(compact_lines).strip()
+    return cleaned or "No hay evidencia interna suficiente para una recomendacion operativa confiable."
 
 
 @router.post("/", response_model=CareTaskResponse, status_code=status.HTTP_201_CREATED)
@@ -348,13 +398,13 @@ def delete_care_task(task_id: int, db: Session = Depends(get_db)):
 
 @router.post(
     "/{task_id}/chat/messages",
-    response_model=CareTaskClinicalChatMessageResponse,
+    response_model=CareTaskClinicalChatPublicResponse,
 )
 def create_care_task_chat_message(
     task_id: int,
     payload: CareTaskClinicalChatMessageRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """
     Crea un turno de chat clinico-operativo y lo persiste para memoria futura.
@@ -367,9 +417,9 @@ def create_care_task_chat_message(
 
     (
         message,
-        agent_run_id,
-        workflow_name,
-        interpretability_trace,
+        _agent_run_id,
+        _workflow_name,
+        _interpretability_trace,
         response_mode,
         tool_mode,
         quality_metrics,
@@ -381,28 +431,88 @@ def create_care_task_chat_message(
         payload=payload,
         authenticated_user=current_user,
     )
-    return CareTaskClinicalChatMessageResponse(
+    return CareTaskClinicalChatPublicResponse(
         care_task_id=task.id,
         message_id=message.id,
         session_id=message.session_id,
-        agent_run_id=agent_run_id,
-        workflow_name=workflow_name,
         response_mode=response_mode,
         tool_mode=tool_mode,
-        answer=message.assistant_answer,
+        answer=_sanitize_public_chat_answer(message.assistant_answer),
         matched_domains=list(message.matched_domains or []),
-        matched_endpoints=list(message.matched_endpoints or []),
         effective_specialty=message.effective_specialty,
         knowledge_sources=list(message.knowledge_sources or []),
-        web_sources=list(message.web_sources or []),
-        memory_facts_used=list(message.memory_facts_used or []),
-        patient_history_facts_used=list(message.patient_history_facts_used or []),
-        extracted_facts=list(message.extracted_facts or []),
         quality_metrics=quality_metrics,
-        interpretability_trace=interpretability_trace,
         non_diagnostic_warning=(
             "Soporte operativo no diagnostico. Requiere validacion humana y protocolo local."
         ),
+    )
+
+
+@router.post(
+    "/{task_id}/chat/messages/async",
+    response_model=CareTaskClinicalChatAsyncCreateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_care_task_chat_message_async(
+    task_id: int,
+    payload: CareTaskClinicalChatMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
+):
+    """
+    Encola un turno de chat clinico para procesarlo en segundo plano.
+
+    Util para entorno local CPU cuando el LLM tarda y se quiere evitar timeout
+    del request sin perder trazabilidad.
+    """
+    task = CareTaskService.get_care_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CareTask no encontrado")
+
+    job = ClinicalChatAsyncService.enqueue_job(
+        care_task_id=task.id,
+        payload=payload,
+        authenticated_user=current_user,
+    )
+    return CareTaskClinicalChatAsyncCreateResponse(
+        care_task_id=task.id,
+        job_id=str(job["job_id"]),
+        session_id=str(job["session_id"]),
+        status=str(job["status"]),
+        poll_after_ms=1200,
+    )
+
+
+@router.get(
+    "/{task_id}/chat/messages/async/{job_id}",
+    response_model=CareTaskClinicalChatAsyncStatusResponse,
+)
+def get_care_task_chat_message_async_status(
+    task_id: int,
+    job_id: str,
+):
+    """Consulta estado de un trabajo asincrono de chat clinico."""
+    job = ClinicalChatAsyncService.get_job_status(job_id=job_id)
+    if job is None or int(job["care_task_id"]) != task_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trabajo asincrono no encontrado para el CareTask indicado.",
+        )
+    return CareTaskClinicalChatAsyncStatusResponse(
+        care_task_id=int(job["care_task_id"]),
+        job_id=str(job["job_id"]),
+        session_id=str(job["session_id"]),
+        status=str(job["status"]),
+        created_at=job["created_at"],
+        updated_at=job["updated_at"],
+        message_id=job.get("message_id"),
+        agent_run_id=job.get("agent_run_id"),
+        workflow_name=job.get("workflow_name"),
+        response_mode=job.get("response_mode"),
+        tool_mode=job.get("tool_mode"),
+        quality_status=job.get("quality_status"),
+        llm_used=job.get("llm_used"),
+        error=job.get("error"),
     )
 
 
@@ -415,7 +525,6 @@ def list_care_task_chat_messages(
     session_id: Optional[str] = Query(default=None, min_length=3, max_length=64),
     limit: int = Query(default=30, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
 ):
     """Lista historial de chat clinico por CareTask y sesion opcional."""
     task = CareTaskService.get_care_task_by_id(db, task_id)
@@ -439,7 +548,6 @@ def get_care_task_chat_memory(
     session_id: Optional[str] = Query(default=None, min_length=3, max_length=64),
     limit: int = Query(default=200, ge=1, le=500),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
 ):
     """Devuelve memoria agregada reutilizable del chat clinico para el CareTask."""
     task = CareTaskService.get_care_task_by_id(db, task_id)

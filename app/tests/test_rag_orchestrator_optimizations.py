@@ -1,0 +1,870 @@
+from array import array
+from types import SimpleNamespace
+
+from app.models.clinical_document import ClinicalDocument
+from app.models.document_chunk import DocumentChunk
+from app.services.rag_orchestrator import RAGOrchestrator
+from app.services.rag_prompt_builder import RAGContextAssembler
+
+
+def _vec_bytes(values: list[float]) -> bytes:
+    buff = array("f")
+    buff.extend(values)
+    return buff.tobytes()
+
+
+def test_adaptive_k_short_query_with_high_risk_marker(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ADAPTIVE_K_ENABLED",
+        True,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MAX_CHUNKS", 5)
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MIN_CHUNKS", 3)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD",
+        12,
+    )
+
+    k, trace = RAGOrchestrator._resolve_adaptive_k("K 6.2 con oliguria")
+
+    assert k == 5
+    assert trace["rag_adaptive_k_reason"] == "short_query+high_risk_raise_to_base"
+
+
+def test_adaptive_k_disabled_uses_bounded_base(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ADAPTIVE_K_ENABLED",
+        False,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MAX_CHUNKS", 9)
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MIN_CHUNKS", 3)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD",
+        6,
+    )
+
+    k, trace = RAGOrchestrator._resolve_adaptive_k("consulta breve")
+
+    assert k == 6
+    assert trace["rag_adaptive_k_enabled"] == "0"
+    assert trace["rag_adaptive_k_reason"] == "disabled"
+
+
+def test_mmr_rerank_prioritizes_diversity(monkeypatch):
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MMR_LAMBDA", 0.5)
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+
+    monkeypatch.setattr(
+        orchestrator.legacy_retriever.embedding_service,
+        "embed_text",
+        lambda text: ([1.0, 0.0], {"embedding_source": "test"}),
+    )
+
+    chunk_a = SimpleNamespace(id=1, chunk_embedding=_vec_bytes([1.0, 0.0]), _rag_score=1.0)
+    chunk_b = SimpleNamespace(id=2, chunk_embedding=_vec_bytes([1.0, 0.0]), _rag_score=0.2)
+    chunk_c = SimpleNamespace(id=3, chunk_embedding=_vec_bytes([0.0, 1.0]), _rag_score=0.3)
+
+    selected, trace = orchestrator._apply_mmr_rerank(
+        query="hiperkalemia grave",
+        chunks=[chunk_a, chunk_b, chunk_c],
+        top_k=2,
+    )
+
+    assert [int(getattr(item, "id")) for item in selected] == [1, 3]
+    assert trace["rag_mmr_enabled"] == "1"
+    assert trace["rag_mmr_selected"] == "2"
+
+
+def test_context_compression_keeps_overlap_sentences():
+    chunks = [
+        {
+            "id": 10,
+            "text": (
+                "Texto administrativo sin valor clinico para esta consulta. "
+                "En neutropenia febril se debe activar ruta rapida con toma de cultivos y "
+                "antibiotico temprano. "
+                "Otra frase irrelevante de cierre."
+            ),
+            "section": "Oncologia > Neutropenia febril",
+            "source": "docs/76_motor_operativo_oncologia_urgencias.md",
+            "score": 0.8,
+        }
+    ]
+
+    compressed, trace = RAGContextAssembler.compress_rag_context(
+        query="neutropenia febril y antibiotico",
+        chunks=chunks,
+        max_chars_per_chunk=120,
+    )
+
+    assert len(compressed[0]["text"]) <= 120
+    assert "neutropenia" in compressed[0]["text"].lower()
+    assert trace["rag_context_compressed"] == "1"
+
+
+def test_extractive_answer_filters_non_clinical_noise():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Oliguria con hiperkalemia y QRS ancho",
+        matched_domains=["nephrology"],
+        chunks=[
+            {
+                "text": (
+                    "# Motor Operativo de Nefrologia en Urgencias\n"
+                    "python.exe -m pytest app/tests/test_x.py\n"
+                    "Hiperkalemia con QRS ancho requiere monitorizacion ECG continua y "
+                    "tratamiento inmediato."
+                ),
+                "section": "Nefrologia > Hiperkalemia",
+                "source": "docs/73_motor_operativo_nefrologia_urgencias.md",
+            }
+        ],
+    )
+
+    assert answer is not None
+    lowered = answer.lower()
+    assert "hiperkalemia" in lowered
+    assert "pytest" not in lowered
+    assert "python.exe" not in lowered
+    assert "motor operativo" not in lowered
+
+
+def test_extractive_answer_prioritizes_query_overlap_over_noise_chunks():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Shock septico con lactato alto y hipotension",
+        matched_domains=["sepsis"],
+        chunks=[
+            {
+                "text": "Bloqueo de ganglio impar en dolor perineal cronico refractario.",
+                "section": "Paliativos > Dolor perineal",
+                "source": "docs/78_motor_operativo_cuidados_paliativos_urgencias.md",
+                "score": 0.95,
+            },
+            {
+                "text": (
+                    "Shock septico con hipotension y lactato elevado: activar bundle "
+                    "inicial, hemocultivos y antibiotico precoz."
+                ),
+                "section": "Sepsis > Bundle inicial",
+                "source": "docs/47_motor_sepsis_urgencias.md",
+                "score": 0.35,
+            },
+        ],
+    )
+
+    assert answer is not None
+    lowered = answer.lower()
+    assert "shock septico" in lowered
+    assert "lactato" in lowered
+
+
+def test_extractive_answer_coarse_to_fine_prefers_actionable_sentences():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Sepsis con hipotension y lactato elevado, pasos iniciales",
+        matched_domains=["sepsis"],
+        chunks=[
+            {
+                "text": (
+                    "Resumen historico del servicio. "
+                    "En sepsis con hipotension y lactato elevado se debe priorizar bundle, "
+                    "cultivos y antibiotico precoz en primera hora. "
+                    "Texto general administrativo sin accion clinica concreta."
+                ),
+                "section": "Sepsis > Bundle inicial",
+                "source": "docs/47_motor_sepsis_urgencias.md",
+                "score": 0.7,
+            }
+        ],
+    )
+
+    assert answer is not None
+    lowered = answer.lower()
+    assert "bundle" in lowered
+    assert "antibiotico" in lowered
+
+
+def test_query_overlap_log_scaling_rewards_relevant_sentence():
+    short_score = RAGOrchestrator._query_overlap_score(
+        query_tokens={"sepsis", "lactato"},
+        text="Sepsis con lactato elevado y shock.",
+    )
+    long_score = RAGOrchestrator._query_overlap_score(
+        query_tokens={"sepsis", "lactato", "hipotension", "qsofa", "cultivos", "bundle"},
+        text="Sepsis con lactato elevado y shock.",
+    )
+    assert short_score > 0
+    assert long_score > 0
+    assert short_score >= long_score
+
+
+def test_generative_proxy_score_prefers_well_formed_sentence():
+    query_tokens = {"sepsis", "lactato"}
+    good = RAGOrchestrator._generative_proxy_score(
+        query_tokens=query_tokens,
+        text="En sepsis con lactato alto, iniciar bundle y monitorizacion estrecha.",
+    )
+    poor = RAGOrchestrator._generative_proxy_score(
+        query_tokens=query_tokens,
+        text="sepsis lactato",
+    )
+    assert good > poor
+
+
+def test_extractive_answer_adds_dose_safety_note_when_no_numeric_dose_found():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Cual es la dosis de heparina en este contexto?",
+        matched_domains=["scasest"],
+        chunks=[
+            {
+                "text": (
+                    "En SCASEST con heparina se prioriza monitorizacion, estratificacion de riesgo "
+                    "y vigilancia de sangrado."
+                ),
+                "section": "SCASEST > Ruta inicial",
+                "source": "docs/49_motor_scasest_urgencias.md",
+                "score": 0.8,
+            }
+        ],
+    )
+    assert answer is not None
+    assert "No se identifica dosis explicita" in answer
+
+
+def test_select_retriever_backend_supports_elastic_with_specialty():
+    backend, reason = RAGOrchestrator._select_retriever_backend(
+        query="Paciente con dolor toracico y troponina positiva",
+        specialty_filter="scasest",
+        configured_backend="elastic",
+    )
+    assert backend == "elastic"
+    assert reason == "specialty_semantic_priority"
+
+
+def test_rag_latency_budget_skips_llm_and_uses_extractive_fallback(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    llm_called = {"value": False}
+
+    def fake_llm(**kwargs):  # noqa: ARG001
+        llm_called["value"] = True
+        return "respuesta llm", {"llm_used": "true"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.LLMChatProvider.generate_answer",
+        fake_llm,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_FORCE_EXTRACTIVE_ONLY",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MAX_TOTAL_LATENCY_MS",
+        1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_LLM_MIN_REMAINING_BUDGET_MS",
+        900,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_MAX_ITEMS",
+        2,
+    )
+
+    chunk = SimpleNamespace(
+        id=101,
+        chunk_text=(
+            "Hiperkalemia con QRS ancho requiere monitorizacion ECG continua, "
+            "calcio IV y medidas de desplazamiento transcelular."
+        ),
+        section_path="Nefrologia > Hiperkalemia",
+        tokens_count=42,
+        keywords=[],
+        custom_questions=[],
+        specialty="nephrology",
+        content_type="markdown",
+        _rag_score=0.9,
+        document=SimpleNamespace(source_file="docs/73_motor_operativo_nefrologia_urgencias.md"),
+    )
+
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (1, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: (
+            [chunk],
+            {"vector_search_latency_ms": "1"},
+            "hybrid",
+        ),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Oliguria con hiperkalemia y QRS ancho",
+        response_mode="clinical",
+        effective_specialty="nephrology",
+        matched_domains=[],
+    )
+
+    assert llm_called["value"] is False
+    assert answer is not None
+    assert trace["rag_status"] == "success"
+    assert trace["rag_generation_mode"] == "extractive_fallback_llm_error"
+    assert trace["rag_llm_skipped_reason"] == "latency_budget_exhausted_pre_llm"
+
+
+def test_domain_search_is_skipped_when_query_is_long(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SKIP_DOMAIN_SEARCH_TOKENS_OVER",
+        1,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", False)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED",
+        True,
+    )
+
+    def fail_domain_search(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError("domain search should have been skipped")
+
+    monkeypatch.setattr(orchestrator.legacy_retriever, "search_by_domain", fail_domain_search)
+
+    chunk = SimpleNamespace(
+        id=102,
+        chunk_text="Manejo inicial de sepsis con lactato elevado y reanimacion guiada.",
+        section_path="Sepsis > Bundle inicial",
+        tokens_count=18,
+        keywords=[],
+        custom_questions=[],
+        specialty="sepsis",
+        content_type="markdown",
+        _rag_score=0.8,
+        document=SimpleNamespace(source_file="docs/47_motor_sepsis_urgencias.md"),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (1, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: (
+            [chunk],
+            {"vector_search_latency_ms": "3"},
+            "hybrid",
+        ),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Paciente con sepsis, lactato alto e hipotension refractaria",
+        response_mode="clinical",
+        effective_specialty="sepsis",
+        matched_domains=["sepsis"],
+    )
+
+    assert answer is not None
+    assert trace["rag_status"] == "success"
+    assert trace["rag_domain_search_skipped"] == "1"
+
+
+def test_deterministic_complex_route_skips_domain_search(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SKIP_DOMAIN_SEARCH_TOKENS_OVER",
+        99,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_DETERMINISTIC_ROUTING_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_COMPLEX_ROUTE_FORCE_SKIP_DOMAIN_SEARCH",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_DETERMINISTIC_COMPLEX_MIN_TOKENS",
+        8,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", False)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+
+    def fail_domain_search(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError(
+            "domain search should have been skipped by deterministic complex route"
+        )
+
+    monkeypatch.setattr(orchestrator.legacy_retriever, "search_by_domain", fail_domain_search)
+
+    chunk = SimpleNamespace(
+        id=103,
+        chunk_text="Oliguria e hiperkalemia: estabilizar membrana y monitorizar ECG.",
+        section_path="Nefrologia > Hiperkalemia",
+        tokens_count=20,
+        keywords=[],
+        custom_questions=[],
+        specialty="nephrology",
+        content_type="markdown",
+        _rag_score=0.82,
+        document=SimpleNamespace(source_file="docs/73_motor_operativo_nefrologia_urgencias.md"),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (2, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: (
+            [chunk],
+            {"vector_search_latency_ms": "4"},
+            "hybrid",
+        ),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Oliguria con hiperkalemia y QRS ancho: acciones inmediatas y criterios de dialisis.",
+        response_mode="clinical",
+        effective_specialty="nephrology",
+        matched_domains=["nephrology"],
+    )
+
+    assert answer is not None
+    assert trace["rag_status"] == "success"
+    assert trace["rag_query_complexity"] == "complex"
+    assert trace["rag_domain_search_skipped"] == "1"
+    assert trace["rag_domain_search_skip_reason"] == "deterministic_complex_route"
+
+
+def test_safe_wrapper_pre_generation_skips_llm_when_context_is_low(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    llm_called = {"value": False}
+
+    def fake_llm(**kwargs):  # noqa: ARG001
+        llm_called["value"] = True
+        return "respuesta llm", {"llm_used": "true"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.LLMChatProvider.generate_answer",
+        fake_llm,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_MIN_CONTEXT_RATIO",
+        0.85,
+    )
+
+    chunk = SimpleNamespace(
+        id=104,
+        chunk_text="Documento administrativo sin relacion clinica directa para esta consulta.",
+        section_path="Administrativo > Sin relevancia clinica",
+        tokens_count=15,
+        keywords=[],
+        custom_questions=[],
+        specialty="general",
+        content_type="markdown",
+        _rag_score=0.9,
+        document=SimpleNamespace(source_file="docs/66_motor_operativo_critico_transversal_urgencias.md"),
+    )
+
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (1, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: (
+            [chunk],
+            {"vector_search_latency_ms": "2"},
+            "hybrid",
+        ),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Neutropenia febril oncologica: pasos 0-10 y 10-60.",
+        response_mode="clinical",
+        effective_specialty="oncology",
+        matched_domains=[],
+    )
+
+    assert llm_called["value"] is False
+    assert answer is not None
+    assert "No hay evidencia interna suficiente" in answer
+    assert trace["rag_generation_mode"] == "safe_wrapper_abstain"
+    assert trace["rag_safe_wrapper_triggered"] == "1"
+
+
+def test_build_rag_sources_prioritizes_high_score_before_source_type():
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    chunks = [
+        {
+            "section": "Documento PDF menos relevante",
+            "source": "docs/pdf_raw/guia_A.pdf",
+            "text": "Texto clinico de soporte A con menor relevancia.",
+            "score": 0.21,
+        },
+        {
+            "section": "Documento markdown mas relevante",
+            "source": "docs/73_motor_operativo_nefrologia_urgencias.md",
+            "text": "Hiperkalemia con QRS ancho requiere accion inmediata.",
+            "score": 0.89,
+        },
+    ]
+    sources = orchestrator._build_rag_knowledge_sources(chunks)
+    assert sources
+    assert sources[0]["source"] == "docs/73_motor_operativo_nefrologia_urgencias.md"
+
+
+def test_force_extractive_only_mode_skips_llm_and_returns_extractive(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    llm_called = {"value": False}
+
+    def fake_llm(**kwargs):  # noqa: ARG001
+        llm_called["value"] = True
+        return "respuesta llm", {"llm_used": "true"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.LLMChatProvider.generate_answer",
+        fake_llm,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_FORCE_EXTRACTIVE_ONLY",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED",
+        True,
+    )
+
+    chunk = SimpleNamespace(
+        id=1201,
+        chunk_text=(
+            "Neutropenia febril en oncologia: iniciar hemocultivos, antibiotico precoz y "
+            "monitorizacion hemodinamica en primera hora."
+        ),
+        section_path="Oncologia > Neutropenia febril",
+        tokens_count=32,
+        keywords=[],
+        custom_questions=[],
+        specialty="oncology",
+        content_type="markdown",
+        _rag_score=0.88,
+        document=SimpleNamespace(source_file="docs/76_motor_operativo_oncologia_urgencias.md"),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (1, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: ([chunk], {"vector_search_latency_ms": "2"}, "hybrid"),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Neutropenia febril oncologica: pasos iniciales",
+        response_mode="clinical",
+        effective_specialty="oncology",
+        matched_domains=[],
+    )
+
+    assert llm_called["value"] is False
+    assert answer is not None
+    assert trace["rag_status"] == "success"
+    assert trace["rag_generation_mode"] == "extractive_forced_mode"
+    assert trace["rag_llm_skipped_reason"] == "force_extractive_only"
+    assert trace["llm_error"] == "ForcedExtractiveMode"
+
+
+def test_search_backend_relaxes_specialty_filter_when_no_hits(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    calls: list[str | None] = []
+    recovered_chunk = SimpleNamespace(id=2201, _rag_score=0.61)
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_RETRIEVER_BACKEND",
+        "legacy",
+    )
+
+    def fake_search_hybrid(query, db, *, k, specialty_filter=None):  # noqa: ARG001
+        calls.append(specialty_filter)
+        if specialty_filter:
+            return [], {"hybrid_search_chunks_found": "0"}
+        return [recovered_chunk], {"hybrid_search_chunks_found": "1"}
+
+    monkeypatch.setattr(orchestrator.legacy_retriever, "search_hybrid", fake_search_hybrid)
+
+    chunks, trace, strategy = orchestrator._search_with_configured_backend(
+        query="Consulta con termino de especialidad sin cobertura puntual",
+        k=2,
+        specialty_filter="oncology",
+    )
+
+    assert strategy == "hybrid_specialty_relaxation"
+    assert len(chunks) == 1
+    assert calls == ["oncology", None]
+
+    assert trace["rag_retriever_specialty_relaxation"] == "1"
+    assert trace["rag_retriever_specialty_original"] == "oncology"
+
+
+def test_qa_shortcut_hit_skips_domain_and_backend_search(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace(query=lambda *args, **kwargs: None))
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (2, {"rag_adaptive_k_enabled": "0"}),
+    )
+
+    shortcut_chunk = SimpleNamespace(
+        id=401,
+        chunk_text=(
+            "En neutropenia febril oncologica se recomienda toma de cultivos "
+            "y antibioterapia empirica precoz."
+        ),
+        section_path="Oncologia > Neutropenia febril",
+        tokens_count=22,
+        keywords=["neutropenia", "fiebre"],
+        custom_questions=["Neutropenia febril oncologica: pasos iniciales"],
+        specialty="oncology",
+        content_type="markdown",
+        _rag_score=0.92,
+        document=SimpleNamespace(source_file="docs/76_motor_operativo_oncologia_urgencias.md"),
+    )
+
+    monkeypatch.setattr(
+        orchestrator,
+        "_match_precomputed_qa_chunks",
+        lambda query, specialty_filter, k: (
+            [shortcut_chunk],
+            {
+                "rag_qa_shortcut_enabled": "1",
+                "rag_qa_shortcut_hit": "1",
+                "rag_qa_shortcut_hits": "1",
+                "rag_qa_shortcut_top_score": "0.920",
+            },
+        ),
+    )
+
+    def fail_domain(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError("domain search should be skipped after qa shortcut hit")
+
+    def fail_backend(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError("backend retrieval should be skipped after qa shortcut hit")
+
+    monkeypatch.setattr(orchestrator.legacy_retriever, "search_by_domain", fail_domain)
+    monkeypatch.setattr(orchestrator, "_search_with_configured_backend", fail_backend)
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Neutropenia febril oncologica: pasos iniciales",
+        response_mode="clinical",
+        effective_specialty="oncology",
+        matched_domains=["oncology"],
+    )
+
+    assert answer is not None
+    assert trace["rag_status"] == "success"
+    assert trace["rag_retrieval_strategy"] == "qa_shortcut"
+    assert trace["rag_qa_shortcut_hit"] == "1"
+
+
+def test_qa_shortcut_matching_returns_chunk_for_precomputed_questions(db_session, monkeypatch):
+    orchestrator = RAGOrchestrator(db=db_session)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_MIN_SCORE",
+        0.45,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_TOP_K",
+        2,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_MAX_CANDIDATES",
+        50,
+    )
+
+    doc = ClinicalDocument(
+        title="Motor Oncologia",
+        source_file="docs/76_motor_operativo_oncologia_urgencias.md",
+        specialty="oncology",
+        version=1,
+        content_hash="1" * 64,
+    )
+    db_session.add(doc)
+    db_session.flush()
+
+    db_session.add(
+        DocumentChunk(
+            document_id=doc.id,
+            chunk_text=(
+                "En neutropenia febril oncologica se debe iniciar monitorizacion, "
+                "hemocultivos y antibioterapia empirica."
+            ),
+            chunk_index=0,
+            section_path="Oncologia > Neutropenia febril",
+            tokens_count=24,
+            chunk_embedding=b"test",
+            keywords=["neutropenia", "fiebre", "oncologia"],
+            custom_questions=[
+                "Neutropenia febril oncologica: pasos iniciales y fuentes internas"
+            ],
+            specialty="oncology",
+            content_type="paragraph",
+        )
+    )
+    db_session.commit()
+
+    chunks, trace = orchestrator._match_precomputed_qa_chunks(
+        query="Neutropenia febril oncologica: pasos iniciales",
+        specialty_filter="oncology",
+        k=2,
+    )
+
+    assert chunks
+    assert trace["rag_qa_shortcut_hit"] == "1"
+    assert trace["rag_qa_shortcut_hits"] in {"1", "2"}
+
+
+def test_qa_shortcut_matching_allows_chunks_without_specialty(db_session, monkeypatch):
+    orchestrator = RAGOrchestrator(db=db_session)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_MIN_SCORE",
+        0.30,
+    )
+
+    doc = ClinicalDocument(
+        title="Guia General",
+        source_file="docs/48_flujo_extremo_a_extremo_episodio_urgencias.md",
+        specialty=None,
+        version=1,
+        content_hash="2" * 64,
+    )
+    db_session.add(doc)
+    db_session.flush()
+
+    db_session.add(
+        DocumentChunk(
+            document_id=doc.id,
+            chunk_text=(
+                "En shock septico con lactato alto se prioriza bundle inicial con cultivos, "
+                "antibiotico temprano y soporte hemodinamico."
+            ),
+            chunk_index=0,
+            section_path="Operativa critica > Sepsis",
+            tokens_count=30,
+            chunk_embedding=b"test",
+            keywords=["shock", "septico", "lactato"],
+            custom_questions=["Shock septico: bundle inicial y pasos operativos"],
+            specialty=None,
+            content_type="paragraph",
+        )
+    )
+    db_session.commit()
+
+    chunks, trace = orchestrator._match_precomputed_qa_chunks(
+        query="Shock septico con lactato alto: bundle inicial",
+        specialty_filter="general",
+        k=2,
+    )
+
+    assert chunks
+    assert trace["rag_qa_shortcut_hit"] == "1"
+
+
+def test_generic_fallback_domain_skips_domain_search(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace(query=lambda *args, **kwargs: None))
+
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", False)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+
+    def fail_domain_search(*args, **kwargs):  # noqa: ARG001
+        raise AssertionError("domain search should be skipped in generic fallback mode")
+
+    monkeypatch.setattr(orchestrator.legacy_retriever, "search_by_domain", fail_domain_search)
+
+    chunk = SimpleNamespace(
+        id=998,
+        chunk_text="Manejo inicial de dolor toracico con troponina positiva.",
+        section_path="SCASEST > Ruta inicial",
+        tokens_count=14,
+        keywords=[],
+        custom_questions=["Dolor toracico con troponina positiva: ruta inicial"],
+        specialty="scasest",
+        content_type="paragraph",
+        _rag_score=0.81,
+        document=SimpleNamespace(source_file="docs/49_motor_scasest_urgencias.md"),
+    )
+
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (2, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: ([chunk], {"hybrid_search_chunks_found": "1"}, "hybrid"),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Dolor toracico con troponina positiva",
+        response_mode="clinical",
+        effective_specialty="general",
+        matched_domains=["critical_ops"],
+    )
+
+    assert answer is not None
+    assert trace["rag_domain_search_skipped"] == "1"
+    assert trace["rag_domain_search_skip_reason"] == "generic_domain_fallback_bypass"

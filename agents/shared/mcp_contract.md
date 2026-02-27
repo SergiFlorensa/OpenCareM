@@ -59,3 +59,9 @@
 - Sin cambios en herramientas MCP (`list_tasks`, `create_task`, `get_task`, `update_task`, `delete_task`, `tasks_stats_count`, `openapi_schema`).
 - Sin cambios de transporte (`stdio`) ni variables de entorno MCP.
 - Impacto esperado: nulo para clientes MCP; cambios solo en flujo interno de contribucion.
+
+## TM-189
+
+- Cambios MCP: no aplica.
+- No se agregan herramientas MCP ni cambios de contrato MCP server.
+- Impacto esperado: ninguno en `mcp_server/`.

@@ -3,6 +3,7 @@ Utilities para ensamblar contexto RAG.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from app.services.llm_chat_provider import LLMChatProvider
@@ -155,3 +156,103 @@ class RAGContextAssembler:
             combined_trace.update(retrieval_trace)
         combined_trace["rag_assembled_chunks"] = str(len(chunks_dicts))
         return chunks_dicts, combined_trace
+
+    @staticmethod
+    def compress_rag_context(
+        *,
+        query: str,
+        chunks: list[dict[str, Any]],
+        max_chars_per_chunk: int,
+    ) -> tuple[list[dict[str, Any]], dict[str, str]]:
+        """
+        Comprime contexto para reducir ruido/token budget:
+        conserva frases con mayor solape lexical con la consulta.
+        """
+        if not chunks:
+            return chunks, {
+                "rag_context_compressed": "0",
+                "rag_context_original_chars": "0",
+                "rag_context_compressed_chars": "0",
+            }
+
+        query_tokens = {
+            token
+            for token in re.findall(r"[a-z0-9áéíóúñ]+", (query or "").lower())
+            if len(token) > 3
+        }
+        compressed_chunks: list[dict[str, Any]] = []
+        original_chars = 0
+        compressed_chars = 0
+
+        for chunk in chunks:
+            original_text = str(chunk.get("text") or "")
+            original_chars += len(original_text)
+            compressed_text = RAGContextAssembler._compress_text_by_query_overlap(
+                original_text,
+                query_tokens=query_tokens,
+                max_chars=max_chars_per_chunk,
+            )
+            compressed_chars += len(compressed_text)
+            compact_chunk = dict(chunk)
+            compact_chunk["text"] = compressed_text
+            compressed_chunks.append(compact_chunk)
+
+        trace = {
+            "rag_context_compressed": "1",
+            "rag_context_original_chars": str(original_chars),
+            "rag_context_compressed_chars": str(compressed_chars),
+            "rag_context_compression_ratio": (
+                f"{(compressed_chars / max(1, original_chars)):.3f}"
+            ),
+        }
+        return compressed_chunks, trace
+
+    @staticmethod
+    def _compress_text_by_query_overlap(
+        text: str,
+        *,
+        query_tokens: set[str],
+        max_chars: int,
+    ) -> str:
+        if len(text) <= max_chars:
+            return text
+
+        sentences = [
+            sentence.strip()
+            for sentence in re.split(r"(?<=[\.\!\?\:\;])\s+", text)
+            if sentence and sentence.strip()
+        ]
+        if not sentences:
+            return text[:max_chars]
+
+        scored: list[tuple[float, int, str]] = []
+        for idx, sentence in enumerate(sentences):
+            tokens = {
+                token
+                for token in re.findall(r"[a-z0-9áéíóúñ]+", sentence.lower())
+                if len(token) > 3
+            }
+            overlap = 0.0
+            if query_tokens and tokens:
+                overlap = len(query_tokens.intersection(tokens)) / max(1, len(query_tokens))
+            length_bonus = min(0.15, len(sentence) / 1200.0)
+            score = overlap + length_bonus
+            scored.append((score, idx, sentence))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        selected: list[tuple[int, str]] = []
+        char_budget = 0
+        for _score, idx, sentence in scored:
+            extra_len = len(sentence) + (1 if selected else 0)
+            if char_budget + extra_len > max_chars and selected:
+                continue
+            selected.append((idx, sentence))
+            char_budget += extra_len
+            if char_budget >= max_chars:
+                break
+
+        if not selected:
+            return text[:max_chars]
+        selected.sort(key=lambda item: item[0])
+        compressed = " ".join(sentence for _, sentence in selected).strip()
+        return compressed[:max_chars]

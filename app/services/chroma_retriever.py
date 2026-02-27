@@ -66,10 +66,9 @@ class ChromaRetriever:
                 return [], trace
 
             chunks_by_id: dict[str, DocumentChunk] = {}
-            ids: list[str] = []
-            embeddings: list[list[float]] = []
-            documents: list[str] = []
-            metadatas: list[dict[str, str]] = []
+            prepared_rows: list[
+                tuple[str, list[float], str, dict[str, str], DocumentChunk]
+            ] = []
 
             for chunk in candidates:
                 try:
@@ -78,21 +77,23 @@ class ChromaRetriever:
                     if len(embedding_array) == 0:
                         continue
                     chunk_id = str(chunk.id)
-                    ids.append(chunk_id)
-                    embeddings.append([float(value) for value in embedding_array])
-                    documents.append(str(chunk.chunk_text or ""))
-                    metadatas.append(
-                        {
-                            "chunk_id": chunk_id,
-                            "specialty": str(chunk.specialty or ""),
-                            "section_path": str(chunk.section_path or ""),
-                        }
+                    prepared_rows.append(
+                        (
+                            chunk_id,
+                            [float(value) for value in embedding_array],
+                            str(chunk.chunk_text or ""),
+                            {
+                                "chunk_id": chunk_id,
+                                "specialty": str(chunk.specialty or ""),
+                                "section_path": str(chunk.section_path or ""),
+                            },
+                            chunk,
+                        )
                     )
-                    chunks_by_id[chunk_id] = chunk
                 except (TypeError, ValueError):
                     continue
 
-            if not ids:
+            if not prepared_rows:
                 trace["chroma_chunks_found"] = "0"
                 trace["chroma_error"] = "empty_candidate_embeddings"
                 return [], trace
@@ -101,6 +102,29 @@ class ChromaRetriever:
             trace.update(embedding_trace)
             if not query_vector:
                 trace["chroma_error"] = "empty_query_embedding"
+                return [], trace
+            query_dimension = len(query_vector)
+
+            ids: list[str] = []
+            embeddings: list[list[float]] = []
+            documents: list[str] = []
+            metadatas: list[dict[str, str]] = []
+            discarded_dimension_mismatch = 0
+            for chunk_id, embedding, document, metadata, chunk in prepared_rows:
+                if len(embedding) != query_dimension:
+                    discarded_dimension_mismatch += 1
+                    continue
+                ids.append(chunk_id)
+                embeddings.append(embedding)
+                documents.append(document)
+                metadatas.append(metadata)
+                chunks_by_id[chunk_id] = chunk
+
+            if not ids:
+                trace["chroma_chunks_found"] = "0"
+                trace["chroma_error"] = "dimension_mismatch_all_candidates"
+                trace["chroma_query_dimension"] = str(query_dimension)
+                trace["chroma_discarded_dimension_mismatch"] = str(discarded_dimension_mismatch)
                 return [], trace
 
             client = chromadb.Client()
@@ -149,6 +173,8 @@ class ChromaRetriever:
                     "chroma_chunks_found": str(len(result)),
                     "chroma_latency_ms": str(latency_ms),
                     "chroma_metric": "cosine",
+                    "chroma_query_dimension": str(query_dimension),
+                    "chroma_discarded_dimension_mismatch": str(discarded_dimension_mismatch),
                 }
             )
             return result, trace

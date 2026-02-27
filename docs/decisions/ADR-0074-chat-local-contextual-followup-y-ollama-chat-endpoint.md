@@ -1,4 +1,4 @@
-# ADR-0074: Continuidad contextual local y priorizacion de endpoint chat en Ollama
+﻿# ADR-0074: Continuidad contextual local y priorizacion de endpoint chat en Ollama
 
 - Fecha: 2026-02-16
 - Estado: Aprobado
@@ -39,7 +39,7 @@ Aplicar tres cambios sobre el motor local (sin APIs de pago):
 
 ## Mitigaciones
 
-- Perfil recomendado para 16GB (`llama3.1:8b`, `num_ctx=4096`, `top_p=0.9`).
+- Perfil recomendado para 16GB (`phi3:mini`, `num_ctx=4096`, `top_p=0.9`).
 - Trazabilidad ampliada (`llm_endpoint`, `query_expanded`).
 - Fallback determinista disponible sin romper contrato.
 
@@ -47,3 +47,4 @@ Aplicar tres cambios sobre el motor local (sin APIs de pago):
 
 - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/core/config.py app/tests/test_care_tasks_api.py`
 - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_continuity_filters_control_facts_from_memory or chat_follow_up_query_reuses_previous_context_for_domain_matching or chat_message"`
+

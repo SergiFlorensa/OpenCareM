@@ -64,6 +64,8 @@ from app.schemas.chest_xray_support import (
     ChestXRaySupportRequest,
 )
 from app.schemas.clinical_chat import (
+    CareTaskClinicalChatAsyncCreateResponse,
+    CareTaskClinicalChatAsyncStatusResponse,
     CareTaskClinicalChatHistoryItemResponse,
     CareTaskClinicalChatMemoryResponse,
     CareTaskClinicalChatMessageRequest,
@@ -253,6 +255,8 @@ __all__ = [
     "CareTaskChestXRaySupportResponse",
     "CareTaskClinicalChatMessageRequest",
     "CareTaskClinicalChatMessageResponse",
+    "CareTaskClinicalChatAsyncCreateResponse",
+    "CareTaskClinicalChatAsyncStatusResponse",
     "CareTaskClinicalChatHistoryItemResponse",
     "CareTaskClinicalChatMemoryResponse",
     "CardioRiskProtocolRequest",
