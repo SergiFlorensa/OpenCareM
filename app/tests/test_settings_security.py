@@ -695,3 +695,19 @@ def test_rejects_invalid_qa_shortcut_max_candidates():
             CLINICAL_CHAT_RAG_QA_SHORTCUT_MAX_CANDIDATES=5,
             BACKEND_CORS_ORIGINS=["http://localhost:5173"],
         )
+
+
+def test_rejects_invalid_multi_intent_max_segments():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS"):
+        Settings(
+            CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS=0,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_action_min_score():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_ACTION_MIN_SCORE"):
+        Settings(
+            CLINICAL_CHAT_RAG_ACTION_MIN_SCORE=1.5,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )

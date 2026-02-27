@@ -853,3 +853,13 @@
 - Riesgos de datos:
   - posible sesgo por seleccionar historico reciente; el set debe regenerarse periodicamente.
   - no incluir PHI adicional fuera de lo ya registrado en `care_task_chat_messages`.
+
+## TM-199
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Persistencia:
+  - sin nuevas tablas/columnas.
+  - cambios solo de logica runtime de retrieval, scoring y composicion de respuesta.
+- Riesgos de datos:
+  - umbrales estrictos de actionability pueden reducir recall de snippets validos si no se calibran por subdominio.
+  - la segmentacion multi-intento depende de marcadores lexicales; consultas muy cortas pueden no segmentar.

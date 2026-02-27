@@ -1712,3 +1712,22 @@
     - `clarification_gate_reason`
     - `clarification_suggestions`
 
+## TM-199 (segmentacion multi-intento + actionability rerank)
+
+- Endpoint afectado:
+  - `POST /care-tasks/{task_id}/chat/messages`
+- Contrato externo:
+  - sin cambios de schema request/response.
+  - no se agregan endpoints.
+- Cambios internos:
+  - nueva estrategia de retrieval `multi_intent_hybrid` cuando la consulta compuesta se segmenta por dominios.
+  - nuevos settings de control:
+    - `CLINICAL_CHAT_RAG_MULTI_INTENT_*`
+    - `CLINICAL_CHAT_RAG_ACTION_*`
+  - nuevas trazas opcionales para auditoria:
+    - `rag_multi_intent_*`
+    - umbrales de calidad por subdominio (`quality_threshold_attention_*`)
+  - composicion extractiva prioriza frases accionables y ancla fuentes con `section + source leaf`.
+- Riesgos de contrato:
+  - clientes con parseo estricto de `interpretability_trace` deben tolerar claves opcionales nuevas.
+

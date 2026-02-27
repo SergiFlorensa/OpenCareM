@@ -772,6 +772,12 @@ class ClinicalChatService:
         "paciente",
         "plan",
     }
+    _DOMAIN_QUALITY_THRESHOLDS = {
+        "sepsis": {"answer_min": 0.35, "context_min": 0.40, "grounded_min": 0.40},
+        "oncology": {"answer_min": 0.35, "context_min": 0.38, "grounded_min": 0.38},
+        "pediatrics_neonatology": {"answer_min": 0.36, "context_min": 0.40, "grounded_min": 0.40},
+        "scasest": {"answer_min": 0.34, "context_min": 0.38, "grounded_min": 0.38},
+    }
     _WEB_SPAM_TERMS = {
         "miracle",
         "cure",
@@ -901,6 +907,45 @@ class ClinicalChatService:
         return round(min(0.15, citations_found / max_citations * 0.15), 3)
 
     @classmethod
+    def _resolve_quality_thresholds(
+        cls,
+        matched_domains: list[str],
+    ) -> dict[str, float]:
+        thresholds = {
+            "degraded_answer_min": 0.25,
+            "degraded_grounded_min": 0.20,
+            "attention_answer_min": 0.40,
+            "attention_context_min": 0.35,
+            "attention_grounded_min": 0.35,
+        }
+        for raw_domain in matched_domains or []:
+            domain_key = cls._normalize(str(raw_domain or ""))
+            domain_thresholds = cls._DOMAIN_QUALITY_THRESHOLDS.get(domain_key)
+            if not domain_thresholds:
+                continue
+            thresholds["attention_answer_min"] = max(
+                thresholds["attention_answer_min"],
+                float(domain_thresholds["answer_min"]),
+            )
+            thresholds["attention_context_min"] = max(
+                thresholds["attention_context_min"],
+                float(domain_thresholds["context_min"]),
+            )
+            thresholds["attention_grounded_min"] = max(
+                thresholds["attention_grounded_min"],
+                float(domain_thresholds["grounded_min"]),
+            )
+            thresholds["degraded_answer_min"] = max(
+                thresholds["degraded_answer_min"],
+                float(domain_thresholds["answer_min"]) - 0.10,
+            )
+            thresholds["degraded_grounded_min"] = max(
+                thresholds["degraded_grounded_min"],
+                float(domain_thresholds["grounded_min"]) - 0.12,
+            )
+        return thresholds
+
+    @classmethod
     def _build_quality_metrics(
         cls,
         *,
@@ -950,16 +995,36 @@ class ClinicalChatService:
             ),
             3,
         )
+        thresholds = cls._resolve_quality_thresholds(matched_domains)
         quality_status = "ok"
-        if answer_relevance < 0.25 or groundedness < 0.2:
+        if (
+            answer_relevance < float(thresholds["degraded_answer_min"])
+            or groundedness < float(thresholds["degraded_grounded_min"])
+        ):
             quality_status = "degraded"
-        elif answer_relevance < 0.4 or context_relevance < 0.35 or groundedness < 0.35:
+        elif (
+            answer_relevance < float(thresholds["attention_answer_min"])
+            or context_relevance < float(thresholds["attention_context_min"])
+            or groundedness < float(thresholds["attention_grounded_min"])
+        ):
             quality_status = "attention"
         return {
             "answer_relevance": answer_relevance,
             "context_relevance": context_relevance,
             "groundedness": groundedness,
             "quality_status": quality_status,
+            "quality_threshold_attention_answer_min": round(
+                float(thresholds["attention_answer_min"]),
+                3,
+            ),
+            "quality_threshold_attention_context_min": round(
+                float(thresholds["attention_context_min"]),
+                3,
+            ),
+            "quality_threshold_attention_grounded_min": round(
+                float(thresholds["attention_grounded_min"]),
+                3,
+            ),
         }
 
     @classmethod
@@ -1520,7 +1585,11 @@ class ClinicalChatService:
             distance = max(0, (total - 1) - idx)
             recency = math.exp(-cls._HISTORY_REWRITE_RECENCY_ALPHA * distance)
             normalized_turn = cls._normalize(user_query)
-            focus_bonus = 1.0 if any(h in normalized_turn for h in cls._REWRITE_FOCUS_HINTS) else 0.0
+            focus_bonus = (
+                1.0
+                if any(h in normalized_turn for h in cls._REWRITE_FOCUS_HINTS)
+                else 0.0
+            )
             # Score HAM (0..1+): mezcla interpretable y barata en CPU.
             score = (0.58 * overlap) + (0.32 * recency) + (0.10 * focus_bonus)
             scored_turns.append((round(score, 4), user_query))
@@ -2836,13 +2905,17 @@ class ClinicalChatService:
         for item in actions[:3]:
             lines.append(f"- {item}")
         if not actions[:3]:
-            lines.append("- Estabilizar via aerea, respiracion y circulacion con monitorizacion continua.")
+            lines.append(
+                "- Estabilizar via aerea, respiracion y circulacion con monitorizacion continua."
+            )
 
         lines.append("Prioridades 10-60 minutos:")
         for item in actions[3:6]:
             lines.append(f"- {item}")
         if not actions[3:6]:
-            lines.append("- Completar pruebas objetivo y reevaluar respuesta a intervenciones iniciales.")
+            lines.append(
+                "- Completar pruebas objetivo y reevaluar respuesta a intervenciones iniciales."
+            )
 
         lines.append("Escalado y seguridad:")
         lines.append("- Escalar de inmediato ante deterioro clinico o criterios de alto riesgo.")

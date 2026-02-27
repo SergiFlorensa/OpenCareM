@@ -12,6 +12,23 @@
 
 ## Items activos
 
+- ID: TM-199
+
+- Objetivo: Mejorar calidad de recuperacion/ensamblado del chat clinico con segmentacion multi-intento, reranking accionable y anclaje fino de fuentes (sin activar cambios de embeddings).
+
+- Alcance: `.env.example`, `app/core/config.py`, `app/services/rag_orchestrator.py`, `app/services/clinical_chat_service.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_settings_security.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-193, TM-194.
+
+- Evidencia:
+
+  - `./venv/Scripts/python.exe -m ruff check app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/core/config.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
 - ID: TM-197
 
 - Objetivo: Modernizar UI del frontend de chat con stack de componentes actual (Tailwind + daisyUI + iconos), manteniendo funcionalidad anonima.

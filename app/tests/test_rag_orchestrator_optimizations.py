@@ -868,3 +868,110 @@ def test_generic_fallback_domain_skips_domain_search(monkeypatch):
     assert answer is not None
     assert trace["rag_domain_search_skipped"] == "1"
     assert trace["rag_domain_search_skip_reason"] == "generic_domain_fallback_bypass"
+
+
+def test_multi_intent_segment_plan_detects_compound_query(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MULTI_INTENT_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS",
+        4,
+    )
+    plan, trace = RAGOrchestrator._build_multi_intent_segment_plan(
+        query=(
+            "Paciente oncologico con neutropenia febril y sepsis con hipotension refractaria "
+            "en primeras horas."
+        ),
+        effective_specialty="general",
+        matched_domains=["critical_ops"],
+    )
+
+    assert len(plan) >= 2
+    assert trace["rag_multi_intent_plan_size"] != "0"
+    specialties = {str(item.get("specialty_filter")) for item in plan}
+    assert "oncology" in specialties or "sepsis" in specialties
+
+
+def test_multi_intent_search_merges_chunks_from_each_segment():
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+
+    chunk_a = SimpleNamespace(id=201, _rag_score=0.50)
+    chunk_b = SimpleNamespace(id=301, _rag_score=0.40)
+
+    responses = iter(
+        [
+            ([chunk_a], {"hybrid_search_chunks_found": "1"}, "hybrid"),
+            ([chunk_b], {"hybrid_search_chunks_found": "1"}, "hybrid"),
+        ]
+    )
+    orchestrator._search_with_configured_backend = lambda **kwargs: next(responses)  # type: ignore[method-assign]
+
+    selected, trace = orchestrator._search_multi_intent_segments(
+        segment_plan=[
+            {
+                "segment": "neutropenia febril oncologica",
+                "specialty_filter": "oncology",
+                "top_probability": 0.8,
+            },
+            {
+                "segment": "sepsis con hipotension refractaria",
+                "specialty_filter": "sepsis",
+                "top_probability": 0.7,
+            },
+        ],
+        k=3,
+        keyword_only=False,
+    )
+
+    assert len(selected) == 2
+    assert trace["rag_multi_intent_chunks"] == "2"
+    assert trace["rag_multi_intent_segment_1_hits"] == "1"
+    assert trace["rag_multi_intent_segment_2_hits"] == "1"
+
+
+def test_extractive_answer_prioritizes_actionable_sentences_over_aux_noise():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Sepsis con hipotension: acciones iniciales",
+        matched_domains=["sepsis"],
+        chunks=[
+            {
+                "text": (
+                    "El paciente ha sido y puede estar en evaluacion general durante todo el turno "
+                    "sin accion operativa concreta. "
+                    "Iniciar bundle de sepsis con hemocultivos, antibiotico precoz y "
+                    "monitorizacion hemodinamica continua."
+                ),
+                "section": "Sepsis > Bundle inicial",
+                "source": "docs/47_motor_sepsis_urgencias.md",
+                "score": 0.8,
+            }
+        ],
+    )
+
+    assert answer is not None
+    lowered = answer.lower()
+    assert "iniciar bundle de sepsis" in lowered
+    assert "ha sido y puede estar" not in lowered
+
+
+def test_extractive_answer_source_anchor_includes_source_leaf():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Neutropenia febril oncologica",
+        matched_domains=["oncology"],
+        chunks=[
+            {
+                "text": (
+                    "En neutropenia febril oncologica se debe iniciar antibioterapia empirica "
+                    "precoz y hemocultivos."
+                ),
+                "section": "Oncologia > Neutropenia febril",
+                "source": "docs/76_motor_operativo_oncologia_urgencias.md",
+                "score": 0.7,
+            }
+        ],
+    )
+
+    assert answer is not None
+    assert "(76_motor_operativo_oncologia_urgencias.md)" in answer

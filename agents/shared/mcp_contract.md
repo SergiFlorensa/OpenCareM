@@ -65,3 +65,9 @@
 - Cambios MCP: no aplica.
 - No se agregan herramientas MCP ni cambios de contrato MCP server.
 - Impacto esperado: ninguno en `mcp_server/`.
+
+## TM-199
+
+- Cambios MCP: no aplica.
+- No se agregan herramientas MCP ni cambios de contrato MCP server.
+- Impacto esperado: ninguno en `mcp_server/`; cambio acotado a pipeline interno de chat clinico.

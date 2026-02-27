@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.document_chunk import DocumentChunk
 from app.services.chroma_retriever import ChromaRetriever
+from app.services.clinical_svm_domain_service import ClinicalSVMDomainService
 from app.services.elastic_retriever import ElasticRetriever
 from app.services.llamaindex_retriever import LlamaIndexRetriever
 from app.services.llm_chat_provider import LLMChatProvider
@@ -35,6 +36,110 @@ logger = logging.getLogger(__name__)
 
 class RAGOrchestrator:
     """Orquestador principal del pipeline RAG."""
+
+    _MULTI_INTENT_DOMAIN_CATALOG: list[dict[str, object]] = [
+        {
+            "key": "oncology",
+            "label": "Oncologia",
+            "summary": "Neutropenia febril, toxicidad y complicaciones de tratamiento.",
+            "keywords": ["oncologia", "oncologico", "cancer", "quimioterapia", "neutropenia"],
+        },
+        {
+            "key": "sepsis",
+            "label": "Sepsis",
+            "summary": "Bundle inicial y escalado hemodinamico.",
+            "keywords": ["sepsis", "lactato", "qsofa", "hipotension", "noradrenalina"],
+        },
+        {
+            "key": "pediatrics_neonatology",
+            "label": "Pediatria y neonatologia",
+            "summary": "Urgencias pediatricas y neonatales.",
+            "keywords": ["pediatria", "neonato", "lactante", "nino", "nina", "vacunacion"],
+        },
+        {
+            "key": "gynecology_obstetrics",
+            "label": "Ginecologia y obstetricia",
+            "summary": "Sangrado, embarazo y riesgo materno fetal.",
+            "keywords": [
+                "obstetricia",
+                "ginecologia",
+                "gestante",
+                "embarazo",
+                "preeclampsia",
+                "ectopico",
+            ],
+        },
+        {
+            "key": "scasest",
+            "label": "SCASEST",
+            "summary": "Sindromes coronarios agudos sin elevacion ST.",
+            "keywords": ["scasest", "troponina", "angina", "grace", "isquemia"],
+        },
+        {
+            "key": "critical_ops",
+            "label": "Operativa critica",
+            "summary": "ABC, monitorizacion y escalado inmediato.",
+            "keywords": ["shock", "abc", "via aerea", "inestabilidad", "monitorizacion"],
+        },
+    ]
+    _SEGMENT_SPLIT_PATTERN = re.compile(
+        r"(?:[;\n]+|\s(?:ademas|adem[aá]s|junto\s+con|asociado\s+a|concomitante\s+con)\s+)",
+        flags=re.IGNORECASE,
+    )
+    _SOFT_CONNECTOR_PATTERN = re.compile(
+        r"\s(?:y|e|mas|m[aá]s)\s+",
+        flags=re.IGNORECASE,
+    )
+    _ACTION_STOPWORDS = {
+        "paciente",
+        "caso",
+        "general",
+        "situacion",
+        "valoracion",
+        "manejo",
+        "clinico",
+        "clinica",
+        "tiempo",
+        "urgencias",
+    }
+    _AUXILIARY_TOKENS = {
+        "ser",
+        "estar",
+        "haber",
+        "hay",
+        "ha",
+        "han",
+        "fue",
+        "es",
+        "son",
+        "era",
+        "eran",
+        "esta",
+        "estan",
+        "debe",
+        "deben",
+        "puede",
+        "pueden",
+        "podria",
+        "podrian",
+    }
+    _ACTION_TOKENS = {
+        "activar",
+        "administrar",
+        "ajustar",
+        "aislar",
+        "confirmar",
+        "escalar",
+        "iniciar",
+        "monitorizar",
+        "reevaluar",
+        "solicitar",
+        "titular",
+        "valorar",
+        "vigilar",
+        "derivar",
+        "priorizar",
+    }
 
     def __init__(self, db: Session):
         self.db = db
@@ -178,6 +283,24 @@ class RAGOrchestrator:
                         trace["domain_search_filtered_out"] = str(len(domain_chunks))
                 if retrieved_chunks:
                     retrieval_strategy = "domain"
+
+            if not retrieved_chunks:
+                segment_plan, segment_trace = self._build_multi_intent_segment_plan(
+                    query=retrieval_query,
+                    effective_specialty=effective_specialty,
+                    matched_domains=matched_domains,
+                )
+                trace.update(segment_trace)
+                if segment_plan:
+                    segment_chunks, segment_backend_trace = self._search_multi_intent_segments(
+                        segment_plan=segment_plan,
+                        k=k,
+                        keyword_only=retrieval_keyword_only,
+                    )
+                    trace.update(segment_backend_trace)
+                    if segment_chunks:
+                        retrieved_chunks = segment_chunks
+                        retrieval_strategy = "multi_intent_hybrid"
 
             if not retrieved_chunks:
                 if retrieval_keyword_only:
@@ -1010,6 +1133,202 @@ class RAGOrchestrator:
             reason="legacy_empty_with_specialty",
         )
 
+    @classmethod
+    def _normalize_segment_text(cls, text: str) -> str:
+        compact = re.sub(r"\s+", " ", str(text or "")).strip()
+        compact = compact.strip(" ,.;:-")
+        return compact
+
+    @classmethod
+    def _detect_domain_markers(cls, text: str) -> set[str]:
+        normalized = str(text or "").lower()
+        hits: set[str] = set()
+        for item in cls._MULTI_INTENT_DOMAIN_CATALOG:
+            key = str(item.get("key") or "").strip()
+            if not key:
+                continue
+            for keyword in item.get("keywords", []) or []:
+                marker = str(keyword or "").strip().lower()
+                if marker and marker in normalized:
+                    hits.add(key)
+                    break
+        return hits
+
+    @classmethod
+    def _segment_multi_intent_query(cls, query: str) -> list[str]:
+        normalized_query = cls._normalize_segment_text(query)
+        if not normalized_query:
+            return []
+
+        max_segments = int(settings.CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS)
+        min_chars = int(settings.CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_SEGMENT_CHARS)
+        initial = [
+            cls._normalize_segment_text(item)
+            for item in cls._SEGMENT_SPLIT_PATTERN.split(normalized_query)
+        ]
+        initial = [item for item in initial if len(item) >= min_chars]
+        if len(initial) > 1:
+            return initial[:max_segments]
+
+        marker_domains = cls._detect_domain_markers(normalized_query)
+        if len(marker_domains) < 2:
+            return [normalized_query]
+
+        soft_segments = [
+            cls._normalize_segment_text(item)
+            for item in cls._SOFT_CONNECTOR_PATTERN.split(normalized_query)
+        ]
+        soft_segments = [item for item in soft_segments if len(item) >= min_chars]
+        if len(soft_segments) <= 1:
+            return [normalized_query]
+        return soft_segments[:max_segments]
+
+    @classmethod
+    def _build_multi_intent_segment_plan(
+        cls,
+        *,
+        query: str,
+        effective_specialty: str,
+        matched_domains: list[str],
+    ) -> tuple[list[dict[str, Any]], dict[str, str]]:
+        trace: dict[str, str] = {
+            "rag_multi_intent_enabled": (
+                "1" if settings.CLINICAL_CHAT_RAG_MULTI_INTENT_ENABLED else "0"
+            )
+        }
+        if not settings.CLINICAL_CHAT_RAG_MULTI_INTENT_ENABLED:
+            trace["rag_multi_intent_plan_size"] = "0"
+            return [], trace
+
+        segments = cls._segment_multi_intent_query(query)
+        trace["rag_multi_intent_segments_detected"] = str(len(segments))
+        if len(segments) <= 1:
+            trace["rag_multi_intent_plan_size"] = "0"
+            return [], trace
+
+        min_probability = float(settings.CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_DOMAIN_PROBABILITY)
+        plan: list[dict[str, Any]] = []
+        for segment in segments:
+            svm_assessment = ClinicalSVMDomainService.analyze_query(
+                query=segment,
+                domain_catalog=cls._MULTI_INTENT_DOMAIN_CATALOG,
+                matched_domains=matched_domains,
+                effective_specialty=effective_specialty,
+            )
+            top_domain = str(svm_assessment.get("top_domain") or "").strip().lower()
+            top_probability = float(svm_assessment.get("top_probability") or 0.0)
+            specialty_filter = str(effective_specialty or "").strip().lower()
+            if top_domain and top_probability >= min_probability:
+                specialty_filter = top_domain
+            plan.append(
+                {
+                    "segment": segment,
+                    "top_domain": top_domain or "none",
+                    "top_probability": top_probability,
+                    "specialty_filter": specialty_filter or effective_specialty,
+                }
+            )
+
+        domain_votes = {
+            item["specialty_filter"]
+            for item in plan
+            if str(item.get("specialty_filter") or "").strip().lower() not in {"", "general", "*"}
+        }
+        if len(plan) <= 1 or len(domain_votes) <= 1:
+            trace["rag_multi_intent_plan_size"] = "0"
+            trace["rag_multi_intent_domain_votes"] = str(len(domain_votes))
+            return [], trace
+
+        trace["rag_multi_intent_plan_size"] = str(len(plan))
+        trace["rag_multi_intent_domain_votes"] = str(len(domain_votes))
+        trace["rag_multi_intent_domains"] = ",".join(
+            sorted(
+                {
+                    str(item.get("top_domain") or "none")
+                    for item in plan
+                    if str(item.get("top_domain") or "none") != "none"
+                }
+            )[:6]
+        ) or "none"
+        return plan, trace
+
+    def _search_multi_intent_segments(
+        self,
+        *,
+        segment_plan: list[dict[str, Any]],
+        k: int,
+        keyword_only: bool,
+    ) -> tuple[list[Any], dict[str, str]]:
+        trace: dict[str, str] = {"rag_multi_intent_search_used": "1"}
+        if not segment_plan:
+            trace["rag_multi_intent_chunks"] = "0"
+            return [], trace
+
+        per_segment_k = max(1, min(k, 2))
+        collected_chunks: list[Any] = []
+        segment_strategies: list[str] = []
+        for index, segment_item in enumerate(segment_plan, start=1):
+            query = str(segment_item.get("segment") or "").strip()
+            if not query:
+                continue
+            specialty_filter = str(segment_item.get("specialty_filter") or "").strip()
+            top_probability = float(segment_item.get("top_probability") or 0.0)
+            try:
+                chunks, backend_trace, strategy = self._search_with_configured_backend(
+                    query=query,
+                    k=per_segment_k,
+                    specialty_filter=specialty_filter,
+                    keyword_only=keyword_only,
+                )
+            except TypeError:
+                chunks, backend_trace, strategy = self._search_with_configured_backend(
+                    query=query,
+                    k=per_segment_k,
+                    specialty_filter=specialty_filter,
+                )
+            segment_strategies.append(strategy)
+            trace[f"rag_multi_intent_segment_{index}_strategy"] = strategy
+            trace[f"rag_multi_intent_segment_{index}_specialty"] = specialty_filter or "general"
+            trace[f"rag_multi_intent_segment_{index}_hits"] = str(len(chunks))
+            for key, value in backend_trace.items():
+                if key in {"rag_sources"}:
+                    continue
+                trace[f"rag_multi_intent_segment_{index}_{key}"] = str(value)
+            boost = min(0.08, top_probability * 0.10)
+            for chunk in chunks:
+                base_score = float(getattr(chunk, "_rag_score", 0.0) or 0.0)
+                setattr(chunk, "_rag_score", base_score + boost)
+                collected_chunks.append(chunk)
+
+        if not collected_chunks:
+            trace["rag_multi_intent_chunks"] = "0"
+            return [], trace
+
+        deduped_by_id: dict[str, Any] = {}
+        for chunk in collected_chunks:
+            chunk_id = str(getattr(chunk, "id", "") or "")
+            if not chunk_id:
+                chunk_id = str(id(chunk))
+            existing = deduped_by_id.get(chunk_id)
+            if existing is None:
+                deduped_by_id[chunk_id] = chunk
+                continue
+            existing_score = float(getattr(existing, "_rag_score", 0.0) or 0.0)
+            new_score = float(getattr(chunk, "_rag_score", 0.0) or 0.0)
+            if new_score > existing_score:
+                deduped_by_id[chunk_id] = chunk
+
+        ranked_chunks = sorted(
+            deduped_by_id.values(),
+            key=lambda item: float(getattr(item, "_rag_score", 0.0) or 0.0),
+            reverse=True,
+        )
+        max_return = max(1, min(int(settings.CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD), max(k, 4)))
+        selected = ranked_chunks[:max_return]
+        trace["rag_multi_intent_chunks"] = str(len(selected))
+        trace["rag_multi_intent_strategies"] = ",".join(segment_strategies[:6]) or "none"
+        return selected, trace
+
     @staticmethod
     def _tokenize_qa_text(value: str) -> list[str]:
         return re.findall(r"[a-z0-9#\-\+/]+", str(value or "").lower())
@@ -1288,6 +1607,42 @@ class RAGOrchestrator:
         }
 
     @classmethod
+    def _tokenize_for_actions(cls, text: str) -> list[str]:
+        return re.findall(r"[a-z0-9]{2,}", str(text or "").lower())
+
+    @classmethod
+    def _clinical_actionability_score(
+        cls,
+        *,
+        text: str,
+        overlap_score: float,
+        retrieval_score: float,
+        evidence_score: float,
+    ) -> tuple[float, float]:
+        tokens = cls._tokenize_for_actions(text)
+        if not tokens:
+            return 0.0, 1.0
+        filtered = [token for token in tokens if token not in cls._ACTION_STOPWORDS]
+        if not filtered:
+            return 0.0, 1.0
+
+        aux_hits = sum(1 for token in filtered if token in cls._AUXILIARY_TOKENS)
+        action_hits = sum(1 for token in filtered if token in cls._ACTION_TOKENS)
+        aux_ratio = float(aux_hits) / float(max(1, len(filtered)))
+        action_density = min(1.0, float(action_hits) / 3.0)
+        lexical_density = min(1.0, float(len(set(filtered))) / float(len(filtered)))
+
+        score = (
+            (0.35 * float(overlap_score))
+            + (0.25 * float(evidence_score))
+            + (0.20 * float(retrieval_score))
+            + (0.12 * float(action_density))
+            + (0.08 * float(lexical_density))
+            - (0.18 * max(0.0, aux_ratio - 0.35))
+        )
+        return max(0.0, min(1.0, round(score, 4))), round(aux_ratio, 4)
+
+    @classmethod
     def _query_overlap_score(cls, *, query_tokens: set[str], text: str) -> float:
         if not query_tokens:
             return 0.0
@@ -1338,7 +1693,12 @@ class RAGOrchestrator:
             "diálisis",
         )
         term_hits = sum(1 for term in evidence_terms if term in normalized)
-        numeric_hits = len(re.findall(r"(?:>=|<=|>|<)?\s*\d+(?:[.,]\d+)?\s*(?:mmhg|mmol/l|mg/dl|%)?", normalized))
+        numeric_hits = len(
+            re.findall(
+                r"(?:>=|<=|>|<)?\s*\d+(?:[.,]\d+)?\s*(?:mmhg|mmol/l|mg/dl|%)?",
+                normalized,
+            )
+        )
         score = min(1.0, (term_hits * 0.12) + (numeric_hits * 0.06))
         return round(score, 4)
 
@@ -1396,6 +1756,9 @@ class RAGOrchestrator:
         lines.append("Prioridades 0-10 minutos:")
 
         query_tokens = cls._tokenize_for_relevance(query)
+        action_focus_enabled = bool(settings.CLINICAL_CHAT_RAG_ACTION_FOCUS_ENABLED)
+        action_min_score = float(settings.CLINICAL_CHAT_RAG_ACTION_MIN_SCORE)
+        action_max_aux_ratio = float(settings.CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO)
         sentence_candidates: list[dict[str, Any]] = []
         for chunk in chunks[: max_items * 4]:
             cleaned = cls._clean_snippet_text(str(chunk.get("text") or ""), max_chars=260)
@@ -1418,6 +1781,20 @@ class RAGOrchestrator:
                 tau = 0.60
                 delta = 0.40
                 relevance = (tau * extractive_relevance) + (delta * generative_proxy)
+                actionability, aux_ratio = cls._clinical_actionability_score(
+                    text=sentence,
+                    overlap_score=overlap,
+                    retrieval_score=retrieval_score,
+                    evidence_score=evidence,
+                )
+                if action_focus_enabled:
+                    if actionability < action_min_score:
+                        continue
+                    if (
+                        aux_ratio > action_max_aux_ratio
+                        and actionability < (action_min_score + 0.12)
+                    ):
+                        continue
                 sentence_candidates.append(
                     {
                         "text": sentence.rstrip(" .") + ".",
@@ -1428,6 +1805,8 @@ class RAGOrchestrator:
                         "generative_proxy": generative_proxy,
                         "relevance": round(relevance, 4),
                         "evidence": evidence,
+                        "actionability": actionability,
+                        "aux_ratio": aux_ratio,
                     }
                 )
 
@@ -1444,7 +1823,9 @@ class RAGOrchestrator:
         # Stage 2: evidencia util (accionabilidad)
         for item in stage1:
             item["evidence_rank_score"] = round(
-                (0.7 * float(item["relevance"])) + (0.3 * float(item["evidence"])),
+                (0.55 * float(item["relevance"]))
+                + (0.25 * float(item["evidence"]))
+                + (0.20 * float(item.get("actionability", 0.0))),
                 4,
             )
         stage2 = sorted(stage1, key=lambda item: float(item["evidence_rank_score"]), reverse=True)[
@@ -1468,7 +1849,8 @@ class RAGOrchestrator:
             item["final_score"] = round(
                 (0.65 * float(item["evidence_rank_score"]))
                 + (0.20 * float(item["centrality"]))
-                + (0.15 * float(item["retrieval"])),
+                + (0.10 * float(item["retrieval"]))
+                + (0.05 * float(item.get("actionability", 0.0))),
                 4,
             )
 
@@ -1516,17 +1898,26 @@ class RAGOrchestrator:
         for action in extracted_actions[:2]:
             lines.append(f"- {action}")
         if not extracted_actions[:2]:
-            lines.append("- Estabilizar ABC, monitorizacion continua y reevaluacion clinica seriada.")
+            lines.append(
+                "- Estabilizar ABC, monitorizacion continua y reevaluacion clinica seriada."
+            )
 
         lines.append("Prioridades 10-60 minutos:")
         for action in extracted_actions[2:5]:
             lines.append(f"- {action}")
         if not extracted_actions[2:5]:
-            lines.append("- Completar pruebas objetivo y ajustar plan segun respuesta clinica inicial.")
+            lines.append(
+                "- Completar pruebas objetivo y ajustar plan segun respuesta clinica inicial."
+            )
 
         lines.append("Escalado y seguridad:")
-        lines.append("- Escalar de forma inmediata si hay inestabilidad hemodinamica, respiratoria o neurologica.")
-        lines.append("- Mantener trazabilidad de decisiones y validar cada paso con protocolo local.")
+        lines.append(
+            "- Escalar de forma inmediata si hay inestabilidad hemodinamica, "
+            "respiratoria o neurologica."
+        )
+        lines.append(
+            "- Mantener trazabilidad de decisiones y validar cada paso con protocolo local."
+        )
         normalized_query = query.lower()
         dose_intent = ("dosis" in normalized_query) or ("posologia" in normalized_query)
         has_dose_evidence = any(
@@ -1551,11 +1942,17 @@ class RAGOrchestrator:
             if "/api/" in source_norm or source_norm.startswith("app/"):
                 continue
             seen_sources.add(source)
-            lines.append(f"- {section}")
+            source_leaf = source_norm.split("/")[-1] if "/" in source_norm else source_norm
+            if source_leaf and source_leaf != section.lower():
+                lines.append(f"- {section} ({source_leaf})")
+            else:
+                lines.append(f"- {section}")
             cited += 1
             if cited >= max_items:
                 break
-        lines.append("Validar con protocolo local, estado dinamico del paciente y juicio clinico humano.")
+        lines.append(
+            "Validar con protocolo local, estado dinamico del paciente y juicio clinico humano."
+        )
         return "\n".join(lines)
 
     @classmethod

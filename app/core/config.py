@@ -117,6 +117,13 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_RAG_QA_SHORTCUT_MIN_SCORE: float = 0.24
     CLINICAL_CHAT_RAG_QA_SHORTCUT_TOP_K: int = 2
     CLINICAL_CHAT_RAG_QA_SHORTCUT_MAX_CANDIDATES: int = 80
+    CLINICAL_CHAT_RAG_MULTI_INTENT_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS: int = 4
+    CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_SEGMENT_CHARS: int = 18
+    CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_DOMAIN_PROBABILITY: float = 0.18
+    CLINICAL_CHAT_RAG_ACTION_FOCUS_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_ACTION_MIN_SCORE: float = 0.26
+    CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO: float = 0.60
     CLINICAL_CHAT_RAG_MAX_TOTAL_LATENCY_MS: int = 3000
     CLINICAL_CHAT_RAG_LLM_MIN_REMAINING_BUDGET_MS: int = 700
     CLINICAL_CHAT_RAG_PARALLEL_HYBRID_ENABLED: bool = True
@@ -429,6 +436,22 @@ class Settings(BaseSettings):
             raise ValueError(
                 "CLINICAL_CHAT_RAG_QA_SHORTCUT_MAX_CANDIDATES debe estar entre 20 y 2000."
             )
+        if not (1 <= self.CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS <= 8):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS debe estar entre 1 y 8."
+            )
+        if not (8 <= self.CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_SEGMENT_CHARS <= 120):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_SEGMENT_CHARS debe estar entre 8 y 120."
+            )
+        if not (0 <= self.CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_DOMAIN_PROBABILITY <= 1):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_DOMAIN_PROBABILITY debe estar entre 0 y 1."
+            )
+        if not (0 <= self.CLINICAL_CHAT_RAG_ACTION_MIN_SCORE <= 1):
+            raise ValueError("CLINICAL_CHAT_RAG_ACTION_MIN_SCORE debe estar entre 0 y 1.")
+        if not (0 <= self.CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO <= 1):
+            raise ValueError("CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO debe estar entre 0 y 1.")
         if not (1000 <= self.CLINICAL_CHAT_RAG_MAX_TOTAL_LATENCY_MS <= 60000):
             raise ValueError(
                 "CLINICAL_CHAT_RAG_MAX_TOTAL_LATENCY_MS debe estar entre 1000 y 60000."

@@ -1295,3 +1295,19 @@
   - `./venv/Scripts/python.exe -m app.scripts.sync_chunks_to_elastic --recreate-index`
 - Seguridad y resiliencia:
   - si Elastic falla/no responde, el backend cae automaticamente a `legacy` sin romper el chat.
+
+## TM-199 - Notas de despliegue
+
+- Sin migraciones Alembic.
+- Variables nuevas/relevantes:
+  - `CLINICAL_CHAT_RAG_MULTI_INTENT_ENABLED=true|false`
+  - `CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS=1..8`
+  - `CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_SEGMENT_CHARS=8..120`
+  - `CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_DOMAIN_PROBABILITY=0..1`
+  - `CLINICAL_CHAT_RAG_ACTION_FOCUS_ENABLED=true|false`
+  - `CLINICAL_CHAT_RAG_ACTION_MIN_SCORE=0..1`
+  - `CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO=0..1`
+- Requisito operativo:
+  - reiniciar `uvicorn` tras cambios de `.env`.
+- Recomendacion post-deploy:
+  - monitorizar en trazas `rag_multi_intent_plan_size`, `rag_multi_intent_chunks` y `quality_threshold_attention_*` para calibracion por subdominio.
