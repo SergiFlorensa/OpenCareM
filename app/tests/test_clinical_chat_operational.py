@@ -93,6 +93,21 @@ def test_history_attention_rewrite_prioritizes_relevant_turns():
     assert "Consulta de seguimiento: y su dosis de heparina?" in effective
 
 
+def test_short_standalone_clinical_query_does_not_rewrite_with_unrelated_history():
+    effective, expanded = ClinicalChatService._compose_effective_query(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        recent_dialogue=[
+            {
+                "user_query": "Que tratamientos oncologicos son mas conocidos",
+                "assistant_answer": "Quimioterapia e inmunoterapia.",
+            }
+        ],
+    )
+
+    assert expanded is False
+    assert effective == "Paciente con dolor abdominal: datos clave y escalado"
+
+
 def test_semantic_parser_and_dst_recovers_entity_from_history():
     parsed = ClinicalChatService._resolve_dialog_state(
         query="y su dosis?",
@@ -175,6 +190,34 @@ def test_evidence_first_answer_splits_compound_domains_into_blocks():
     assert "Bloque Sepsis:" in answer
     assert "Bloque Oncologia:" in answer
     assert "Fuentes internas exactas:" in answer
+
+
+def test_catalog_knowledge_sources_prefers_operational_abdomen_chunk(monkeypatch):
+    monkeypatch.setattr(
+        ClinicalChatService,
+        "_load_doc_chunks",
+        classmethod(
+            lambda cls, source_path: [
+                (
+                    "2. Imagen y pronostico: Triada critica dolor + hipotension + gas portal "
+                    "+ neumatosis gastrica. Signo de Courvoisier."
+                ),
+                (
+                    "3. Abdomen agudo y cirugia: exploracion abdominal, signos peritoneales, "
+                    "reevaluacion y escalado quirurgico."
+                ),
+            ]
+        ),
+    )
+
+    sources = ClinicalChatService._build_catalog_knowledge_sources(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        matched_domains=[{"key": "gastro_hepato", "label": "Gastro-hepato"}],
+        max_internal_sources=4,
+    )
+
+    assert sources
+    assert "abdomen agudo" in sources[0]["snippet"].lower()
 
 
 def test_clarifying_answer_renders_suggestions_block():
@@ -961,6 +1004,49 @@ def test_llm_provider_prefers_ollama_chat_endpoint_in_native_style(monkeypatch):
     assert answer == "Respuesta desde chat"
     assert called[0] == "api/chat"
     assert trace["llm_endpoint"] == "chat"
+
+
+def test_llm_provider_native_clinical_reserves_almost_all_budget_for_primary_chat(monkeypatch):
+    captured_calls: list[tuple[str, float | None]] = []
+
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        captured_calls.append((endpoint, timeout_seconds))
+        raise TimeoutError("simulated slow cpu")
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        response_mode="clinical",
+        effective_specialty="gastro_hepato",
+        tool_mode="chat",
+        matched_domains=["gastro_hepato"],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+        timeout_budget_seconds_override=45.0,
+    )
+
+    assert answer is None
+    assert captured_calls
+    first_endpoint, first_timeout = captured_calls[0]
+    assert first_endpoint == "api/chat"
+    assert first_timeout is not None and first_timeout >= 80.0
+    assert trace["llm_error"] == "TimeoutError"
 
 
 def test_llm_provider_native_style_uses_ollama_runtime_defaults(monkeypatch):
@@ -1768,6 +1854,23 @@ def test_chat_e2e_quality_gate_applies_to_rag_answer_too(client, monkeypatch):
         "app.services.clinical_chat_service.settings.CLINICAL_CHAT_GUARDRAILS_ENABLED",
         False,
     )
+    monkeypatch.setattr(
+        ClinicalChatService,
+        "_build_validated_knowledge_sources",
+        classmethod(
+            lambda cls, db, query, effective_specialty, matched_domains, max_internal_sources: [
+                {
+                    "type": "internal_catalog",
+                    "title": "Gastro-hepato",
+                    "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                    "snippet": (
+                        "Ante dolor abdominal en urgencias, priorizar constantes, exploracion "
+                        "abdominal, signos peritoneales y analitica dirigida."
+                    ),
+                }
+            ]
+        ),
+    )
 
     def fake_process(self, **kwargs):  # noqa: ARG001
         return (
@@ -1959,12 +2062,9 @@ def test_chat_e2e_relaxed_mode_keeps_rag_answer_when_validation_warns(client, mo
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["answer"] == expected_answer
-    assert (
-        "llm_quality_gate=rag_validation_warning_fallback"
-        not in payload["interpretability_trace"]
-    )
-    assert any(item == "pipeline_profile=evaluation" for item in payload["interpretability_trace"])
+    assert payload["answer"] != expected_answer
+    assert "llm_quality_gate=rag_validation_warning_fallback" in payload["interpretability_trace"]
+    assert any(item == "pipeline_profile=strict" for item in payload["interpretability_trace"])
 
 
 def test_chat_e2e_repairs_degraded_answer_with_evidence_first(client, monkeypatch):
@@ -2033,6 +2133,331 @@ def test_chat_e2e_repairs_degraded_answer_with_evidence_first(client, monkeypatc
         "quality_repair_applied=evidence_first_from_degraded"
         in payload["interpretability_trace"]
     )
+
+
+def test_chat_e2e_repairs_degraded_extractive_rag_answer_with_evidence_first(
+    client,
+    monkeypatch,
+):
+    headers = _auth_headers(client, "chat_extract_repair_user")
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso dolor abdominal generico",
+            "clinical_priority": "high",
+            "specialty": "digestive",
+            "patient_reference": "PAC-GASTRO-EXTRACTIVE-1",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_RAG_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_GUARDRAILS_ENABLED",
+        False,
+    )
+
+    def fake_process(self, **kwargs):  # noqa: ARG001
+        return (
+            (
+                "Resumen operativo basado en evidencia interna (RAG extractivo).\n"
+                "Prioridades 0-10 minutos:\n"
+                "- La ausencia de excrecion intestinal en gammagrafia hepatica previa "
+                "administracion de fenobarbital apoya el diagnostico."
+            ),
+            {
+                "rag_status": "success",
+                "rag_validation_status": "valid",
+                "rag_chunks_retrieved": "2",
+                "llm_used": "false",
+                "rag_sources": [
+                    {
+                        "type": "rag_chunk",
+                        "title": "Colestasis",
+                        "source": "docs/pdf_raw/gastro_hepato/28_colestasis_11dd455a7f.pdf",
+                        "snippet": (
+                            "La ausencia de excrecion intestinal en gammagrafia hepatica "
+                            "previa administracion de fenobarbital apoya el diagnostico."
+                        ),
+                    },
+                    {
+                        "type": "rag_chunk",
+                        "title": "Motor Operativo Gastro-Hepato en Urgencias > Dolor abdominal",
+                        "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                        "snippet": (
+                            "Ante dolor abdominal en urgencias, priorizar constantes, "
+                            "exploracion abdominal, signos peritoneales y analitica dirigida."
+                        ),
+                    },
+                ],
+            },
+        )
+
+    monkeypatch.setattr(RAGOrchestrator, "process_query_with_rag", fake_process)
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={
+            "query": "Paciente con dolor abdominal: datos clave y escalado",
+            "session_id": "session-gastro-extractive-repair",
+            "enable_active_interrogation": False,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"].startswith(
+        "Resumen operativo basado en evidencia interna (no diagnostico)."
+    )
+    assert "fenobarbital" not in payload["answer"].lower()
+    assert "constantes" in payload["answer"].lower()
+    assert (
+        "quality_repair_applied=evidence_first_from_degraded"
+        in payload["interpretability_trace"]
+    )
+
+
+def test_chat_e2e_prefers_evidence_first_when_rag_is_extractive_after_llm_failure(
+    client,
+    monkeypatch,
+):
+    headers = _auth_headers(client, "chat_extract_llm_failure_user")
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso dolor abdominal con fallo LLM",
+            "clinical_priority": "high",
+            "specialty": "digestive",
+            "patient_reference": "PAC-GASTRO-LLM-FAIL-1",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_RAG_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_GUARDRAILS_ENABLED",
+        False,
+    )
+
+    def fake_process(self, **kwargs):  # noqa: ARG001
+        return (
+            (
+                "Resumen operativo basado en evidencia interna (RAG extractivo).\n"
+                "Prioridades 0-10 minutos:\n"
+                "- Datos de laboratorio Patron de colestasis con aumento de bilirrubina directa."
+            ),
+            {
+                "rag_status": "success",
+                "rag_validation_status": "valid",
+                "rag_generation_mode": "extractive_fallback_llm_error",
+                "rag_chunks_retrieved": "2",
+                "llm_used": "false",
+                "llm_error": "URLError",
+                "rag_sources": [
+                    {
+                        "type": "rag_chunk",
+                        "title": "Colestasis",
+                        "source": "docs/pdf_raw/gastro_hepato/28_colestasis_11dd455a7f.pdf",
+                        "snippet": "Patron de colestasis con aumento de bilirrubina directa.",
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(RAGOrchestrator, "process_query_with_rag", fake_process)
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={
+            "query": "Paciente con dolor abdominal: datos clave y escalado",
+            "session_id": "session-gastro-llm-failure",
+            "enable_active_interrogation": False,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"].startswith(
+        "Resumen operativo basado en evidencia interna (no diagnostico)."
+    )
+    assert "colestasis" not in payload["answer"].lower()
+    assert (
+        "rag_candidate_rejected=extractive_llm_failure_prefers_evidence_first"
+        in payload["interpretability_trace"]
+    )
+    assert "clinical_fallback_mode=evidence_first" in payload["interpretability_trace"]
+
+
+def test_filter_knowledge_sources_for_current_turn_prefers_operational_md_in_single_domain():
+    filtered = ClinicalChatService._filter_knowledge_sources_for_current_turn(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        matched_domains=[{"key": "gastro_hepato", "label": "Gastro-hepato"}],
+        knowledge_sources=[
+            {
+                "type": "rag_chunk",
+                "title": "Colestasis",
+                "source": "docs/pdf_raw/gastro_hepato/28_colestasis_11dd455a7f.pdf",
+                "snippet": "Patron de colestasis con aumento de bilirrubina directa.",
+            },
+            {
+                "type": "internal_catalog",
+                "domain": "gastro_hepato",
+                "title": "Motor Operativo Gastro-Hepato en Urgencias > Dolor abdominal",
+                "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                "snippet": (
+                    "Ante dolor abdominal en urgencias, priorizar constantes, "
+                    "exploracion abdominal, signos peritoneales y analitica dirigida."
+                ),
+            },
+        ],
+    )
+
+    assert len(filtered) == 1
+    assert filtered[0]["source"].endswith(
+        "68_motor_operativo_gastro_hepato_urgencias.md"
+    )
+
+
+def test_build_catalog_knowledge_sources_prefers_neutral_abdominal_chunk(monkeypatch):
+    monkeypatch.setattr(
+        ClinicalChatService,
+        "_DOMAIN_KNOWLEDGE_INDEX",
+        {
+            "gastro_hepato": [
+                {
+                    "title": "Gastro-hepato",
+                    "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                }
+            ]
+        },
+    )
+    monkeypatch.setattr(
+        ClinicalChatService,
+        "_load_doc_chunks",
+        classmethod(
+            lambda cls, source_path: [  # noqa: ARG005
+                (
+                    "Abdomen agudo y cirugia: priorizar constantes, exploracion abdominal, "
+                    "signos peritoneales, analitica dirigida, decision de imagen y reevaluacion."
+                ),
+                (
+                    "Patron de diverticulitis aguda no oclusiva. Alerta de complicacion en "
+                    "hernia crural con obstruccion/incarceracion. Criterios de colecistectomia."
+                ),
+            ]
+        ),
+    )
+
+    sources = ClinicalChatService._build_catalog_knowledge_sources(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        matched_domains=[{"key": "gastro_hepato", "label": "Gastro-hepato"}],
+        max_internal_sources=1,
+    )
+
+    assert sources
+    assert "constantes" in sources[0]["snippet"].lower()
+    assert "diverticul" not in sources[0]["snippet"].lower()
+
+
+def test_chat_e2e_current_turn_keeps_only_current_domain_channel(client, monkeypatch):
+    headers = _auth_headers(client, "chat_channel_switch_user")
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Cambio de canal clinico",
+            "clinical_priority": "high",
+            "specialty": "oncology",
+            "patient_reference": "PAC-CHANNEL-SWITCH-1",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+        headers=headers,
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_RAG_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_GUARDRAILS_ENABLED",
+        False,
+    )
+
+    first = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={
+            "query": "Tratamientos oncologicos mas conocidos",
+            "session_id": "session-channel-switch",
+            "enable_active_interrogation": False,
+        },
+        headers=headers,
+    )
+    assert first.status_code == 200
+
+    def fake_process(self, **kwargs):  # noqa: ARG001
+        return (
+            (
+                "Resumen operativo basado en evidencia interna (RAG extractivo).\n"
+                "Prioridades 0-10 minutos:\n"
+                "- Datos de laboratorio Patron de colestasis con aumento de bilirrubina directa."
+            ),
+            {
+                "rag_status": "success",
+                "rag_validation_status": "valid",
+                "rag_generation_mode": "extractive_fallback_llm_error",
+                "llm_used": "false",
+                "llm_error": "URLError",
+                "rag_sources": [
+                    {
+                        "type": "rag_chunk",
+                        "title": "Colestasis",
+                        "source": "docs/pdf_raw/gastro_hepato/28_colestasis_11dd455a7f.pdf",
+                        "snippet": "Patron de colestasis con aumento de bilirrubina directa.",
+                    },
+                    {
+                        "type": "rag_chunk",
+                        "title": "Oncologia > Neutropenia febril",
+                        "source": "docs/76_motor_operativo_oncologia_urgencias.md",
+                        "snippet": "Activar ruta de neutropenia febril.",
+                    },
+                ],
+            },
+        )
+
+    monkeypatch.setattr(RAGOrchestrator, "process_query_with_rag", fake_process)
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={
+            "query": "Paciente con dolor abdominal: datos clave y escalado",
+            "session_id": "session-channel-switch",
+            "enable_active_interrogation": False,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert "oncologia" not in payload["answer"].lower()
+    assert "colestasis" not in payload["answer"].lower()
+    assert "gastro" in payload["answer"].lower() or "abdominal" in payload["answer"].lower()
+    assert "matched_domains=gastro_hepato" in payload["interpretability_trace"]
 
 
 def test_chat_e2e_uses_rag_candidate_when_llm_synthesis_fails(client, monkeypatch):
@@ -2649,6 +3074,20 @@ def test_llm_answer_quality_gate_rejects_bracket_placeholder():
             "**Caso Nefrologico**\n\n"
             "Paciente: [Informacion personal del paciente]\n\n"
             "1) Accion inmediata.\n2) Accion consolidada.\n3) Fuentes internas."
+        ),
+        response_mode="clinical",
+    ) is False
+
+
+def test_llm_answer_quality_gate_rejects_bibliographic_reference_style():
+    assert ClinicalChatService._is_actionable_llm_answer(
+        answer=(
+            "**Analisis del caso**\n"
+            "1) Priorizacion inicial y monitorizacion.\n"
+            "2) Reevaluacion clinica y escalado.\n"
+            "Referencias\n"
+            "* Colestasis. (2023). Gastro-hepato.\n"
+            "* Revista Latinoamericana de Cirugia. (2019)."
         ),
         response_mode="clinical",
     ) is False

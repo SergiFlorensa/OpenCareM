@@ -12,6 +12,146 @@
 
 ## Items activos
 
+- ID: TM-218
+
+- Objetivo: Reducir la sobre-especificidad dentro del canal clinico para consultas genericas, penalizando subdiagnosticos concretos cuando la query no los pide y favoreciendo chunks neutros de exploracion, constantes, reevaluacion e imagen.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/rag_orchestrator.py`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-217.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "neutral_abdominal_chunk or current_turn_keeps_only_current_domain_channel" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py -k "over_specific_subdiagnosis_for_generic_abdominal_query or extractive_answer_prefers_operational_doc_for_generic_symptom_query" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py`
+
+- Riesgos pendientes identificados:
+
+  - La penalizacion por especificidad se basa en heuristicas lexicas; algun subdiagnostico util podria bajar demasiado si la query es corta pero realmente ya lo presupone.
+  - Otros dominios pueden requerir listas especificas de marcadores neutros/especificos ademas de `gastro_hepato`.
+
+- ID: TM-217
+
+- Objetivo: Eliminar interferencias sistémicas fuera del RAG que degradaban la calidad del chat clinico, forzando `strict` en la API publica y eliminando del prompt LLM instrucciones ambiguas que inducian referencias libres o bibliografia inventada.
+
+- Alcance: `frontend/src/App.tsx`, `app/api/care_tasks.py`, `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, api-agent, frontend-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-216.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "rag_relaxed_mode or bibliographic_reference_style or current_turn_keeps_only_current_domain_channel" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/api/care_tasks.py app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py`
+  - `npm --prefix frontend run build`
+  - Analisis del request real: `frontend/src/App.tsx` enviaba `pipeline_relaxed_mode: true`, lo que activaba `pipeline_profile=evaluation` en el backend publico.
+
+- Riesgos pendientes identificados:
+
+  - Clientes externos que no usen el frontend pueden seguir intentando prompts adversariales, aunque la API publica ya no acepta `pipeline_relaxed_mode=true`.
+  - El modelo base puede seguir generar detalles demasiado concretos si la fuente interna del canal ya trae contenido muy especifico; eso requiere seguir afinando chunking y neutralidad del motor operativo.
+
+- ID: TM-216
+
+- Objetivo: Forzar aislamiento por canal clinico en cada turno del chat para que una consulta se resuelva solo con fuentes del dominio actual y, en consultas genericas operativas de dominio unico, priorice el motor operativo del canal frente a PDFs especificos que contaminen la respuesta.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/rag_orchestrator.py`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-215.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "current_turn_keeps_only_current_domain_channel or filter_knowledge_sources_for_current_turn_prefers_operational_md_in_single_domain or prefers_evidence_first_when_rag_is_extractive_after_llm_failure" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py -k "filter_chunks_for_current_turn_domain_prefers_operational_md_for_single_domain or build_rag_sources_prefers_operational_docs_over_pdf_when_scores_tie or extractive_answer_prefers_operational_doc_for_generic_symptom_query" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/rag_orchestrator.py app/tests/test_rag_orchestrator_optimizations.py`
+  - Sonda local via `TestClient` con cambio de tema en la misma sesion: turno 1 oncologia, turno 2 `Paciente con dolor abdominal: datos clave y escalado` -> `effective_specialty=gastro_hepato`, `matched_domains=gastro_hepato`, `internal_sources=1`, `rag_current_turn_domain_filter=1`, respuesta final sin bloque `Oncologia` ni snippet de `Colestasis`.
+
+- Riesgos pendientes identificados:
+
+  - El filtro por canal actual depende de que el dominio del turno quede bien identificado en `matched_domains`; si el routing falla antes, el aislamiento no puede corregir un dominio mal clasificado.
+  - En consultas realmente compuestas y bien justificadas, el sistema mantiene mezcla multibloque; si se quiere aislamiento todavia mas estricto habra que introducir descomposicion explicita de subconsultas.
+
+- ID: TM-215
+
+- Objetivo: Evitar que consultas clinicas genericas queden atrapadas en fallback extractivo deficiente por budget pre-LLM irreal o por PDF especifico dominante, reforzando expansion por especialidad, presupuesto nativo de Ollama y preferencia por `evidence_first` cuando el LLM falla.
+
+- Alcance: `app/services/rag_orchestrator.py`, `app/services/clinical_chat_service.py`, `.env`, `.env.example`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_clinical_chat_operational.py`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-214.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_clinical_chat_operational.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_clinical_chat_operational.py`
+  - Sonda local via `TestClient` con query `Paciente con dolor abdominal: datos clave y escalado`: salida final apoyada en `Gastro-hepato` y bloque `Abdomen agudo y cirugia`, sin retorno al PDF de colestasis.
+  - Reproduccion de topic shift en la misma sesion: turno 1 oncologia, turno 2 dolor abdominal -> `query_expanded=0`, `matched_domains=gastro_hepato`, sin bloque `Oncologia`.
+
+- Riesgos pendientes identificados:
+
+  - Si Ollama no esta levantado, la mejora cae a `evidence_first` y no a sintesis nativa del modelo; esto es un fallback seguro, no equivalencia completa con chat nativo.
+  - La expansion por especialidad puede requerir calibracion adicional por subdominio para no introducir terminos demasiado agresivos en consultas muy breves.
+
+- ID: TM-214
+
+- Objetivo: Corregir respuestas RAG extractivas degradadas en consultas clinicas genericas, priorizando motores operativos frente a PDFs especificos y permitiendo reparacion `evidence_first` cuando el extractivo no responde a la intencion real.
+
+- Alcance: `app/services/rag_orchestrator.py`, `app/services/clinical_chat_service.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_clinical_chat_operational.py`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-212.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_clinical_chat_operational.py`
+
+- Riesgos pendientes identificados:
+
+  - El sesgo hacia motores operativos en consultas genericas puede ocultar PDFs especificos si la pregunta es demasiado corta pero en realidad si buscaba una entidad concreta.
+  - La reparacion `evidence_first` depende de que `knowledge_sources` incluya al menos una fuente operativa bien alineada con la consulta.
+
+- ID: TM-213
+
+- Objetivo: Rehacer la interfaz del frontend del chat para que el lenguaje visual se aplique a toda la pantalla y no solo al lateral, manteniendo intacta la logica actual de casos, sesiones y envio de mensajes.
+
+- Alcance: `frontend/src/App.tsx`, `frontend/src/styles.css`.
+
+- Agentes involucrados: orchestrator, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-208.
+
+- Evidencia:
+
+  - `npm --prefix frontend run build`
+
+- Riesgos pendientes identificados:
+
+  - El rediseño depende de utilidades Tailwind/DaisyUI ya presentes; cualquier desajuste de clases se detecta en build pero no sustituye una validacion visual manual en navegador.
+  - La vista de chat usa `assistant_answer` como texto plano; si mas adelante se renderiza markdown enriquecido, el espaciado puede requerir ajuste adicional.
+
 - ID: TM-212
 
 - Objetivo: Corregir enrutado clínico para consultas oftalmológicas por lenguaje natural (síntomas oculares) y eliminar exposición de rutas internas (`docs/`, `/api/v1/`, nombres de fichero) en texto de respuesta del chat.

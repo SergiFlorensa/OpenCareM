@@ -938,6 +938,17 @@ class ClinicalChatService:
     _WEB_SHINGLE_SIZE = 3
     _WEB_NEAR_DUP_SIGNATURE_THRESHOLD = 0.85
     _DOC_CHUNK_CACHE: dict[str, list[str]] = {}
+    _GENERIC_CLINICAL_SPECIFICITY_MARKERS: tuple[str, ...] = (
+        "diverticul",
+        "hernia crural",
+        "colecistect",
+        "vesicula en porcelana",
+        "fenobarbital",
+        "colestasis",
+        "incarceracion",
+        "obstruccion intestinal",
+        "perforacion",
+    )
 
     @staticmethod
     def _normalize(text: str) -> str:
@@ -1741,15 +1752,37 @@ class ClinicalChatService:
         query_tokens = cls._tokenize(query)
         if not recent_dialogue:
             return query, False
-        is_follow_up = len(query_tokens) <= 8 or any(
+        short_query = len(query_tokens) <= 8
+        explicit_follow_up_hint = any(
             hint in normalized_query for hint in cls._FOLLOW_UP_HINTS
         )
         has_context_reference = any(
             hint in normalized_query for hint in cls._CONTEXTUAL_REFERENCE_HINTS
         )
         has_focus_hint = any(hint in normalized_query for hint in cls._REWRITE_FOCUS_HINTS)
+        standalone_domain_hits = cls._count_domain_keyword_hits(query)
+        standalone_case_markers = (
+            "paciente",
+            "dolor",
+            "fiebre",
+            "disnea",
+            "cefalea",
+            "vomito",
+            "vomitos",
+            "nausea",
+            "nauseas",
+            "hemorrag",
+            "ocular",
+        )
+        standalone_clinical_case = bool(
+            standalone_domain_hits > 0
+            and any(marker in normalized_query for marker in standalone_case_markers)
+        )
         looks_interrogative = "?" in query or query.strip().lower().startswith(
             ("que", "qué", "como", "cómo", "cual", "cuál")
+        )
+        is_follow_up = explicit_follow_up_hint or (
+            short_query and not standalone_clinical_case
         )
         is_contextual_query = (
             is_follow_up
@@ -2136,6 +2169,19 @@ class ClinicalChatService:
         max_internal_sources: int,
     ) -> list[dict[str, str]]:
         query_tokens = cls._tokenize(query)
+        normalized_query = cls._normalize(query)
+        generic_operational_query = any(
+            marker in normalized_query
+            for marker in (
+                "datos clave",
+                "escalado",
+                "pasos",
+                "que hacer",
+                "manejo",
+                "acciones",
+                "prioridades",
+            )
+        )
         ranked: list[tuple[int, dict[str, str]]] = []
         for domain in matched_domains:
             domain_key = str(domain["key"])
@@ -2144,7 +2190,80 @@ class ClinicalChatService:
                 best_score = 0
                 best_chunk = ""
                 for chunk in cls._load_doc_chunks(source_path):
-                    score = len(query_tokens.intersection(cls._tokenize(chunk)))
+                    chunk_tokens = cls._tokenize(chunk)
+                    normalized_chunk = cls._normalize(chunk)
+                    score = len(query_tokens.intersection(chunk_tokens))
+                    if generic_operational_query:
+                        operational_markers = (
+                            "manejo",
+                            "prioridad",
+                            "prioridades",
+                            "abdomen agudo",
+                            "exploracion",
+                            "reevaluacion",
+                            "cirugia",
+                            "algoritmo",
+                            "escalado",
+                        )
+                        non_operational_markers = (
+                            "validacion",
+                            "riesgos pendientes",
+                            "imagen y pronostico",
+                            "cambios implementados",
+                            "gas portal",
+                            "neumatosis gastrica",
+                            "courvoisier",
+                            "aerobilia",
+                            "triada critica",
+                        )
+                        score += sum(
+                            2 for marker in operational_markers if marker in normalized_chunk
+                        )
+                        score -= sum(
+                            2 for marker in non_operational_markers if marker in normalized_chunk
+                        )
+                        query_has_specific_marker = any(
+                            marker in normalized_query
+                            for marker in cls._GENERIC_CLINICAL_SPECIFICITY_MARKERS
+                        )
+                        if not query_has_specific_marker:
+                            score -= sum(
+                                3
+                                for marker in cls._GENERIC_CLINICAL_SPECIFICITY_MARKERS
+                                if marker in normalized_chunk
+                            )
+                            neutral_markers = (
+                                "constantes",
+                                "signos de alarma",
+                                "exploracion abdominal",
+                                "signos peritoneales",
+                                "analitica",
+                                "imagen",
+                                "reevaluacion",
+                                "escalado digestivo",
+                                "escalado quirurgico",
+                            )
+                            score += sum(
+                                3 for marker in neutral_markers if marker in normalized_chunk
+                            )
+                    if (
+                        domain_key == "gastro_hepato"
+                        and any(
+                            token in normalized_query
+                            for token in ("abdomen", "abdominal", "estomago", "epigastr")
+                        )
+                    ):
+                        gastro_markers = (
+                            "abdomen agudo",
+                            "cirugia",
+                            "exploracion abdominal",
+                            "peritone",
+                            "obstruccion",
+                            "reevaluacion",
+                        )
+                        score += sum(
+                            3 for marker in gastro_markers if marker in normalized_chunk
+                        )
                     if score > best_score:
                         best_score = score
                         best_chunk = chunk
@@ -2185,6 +2304,110 @@ class ClinicalChatService:
             }
             for domain in matched_domains[:max_internal_sources]
         ]
+
+    @staticmethod
+    def _is_generic_operational_query(query: str) -> bool:
+        normalized_query = ClinicalChatService._normalize(query)
+        return any(
+            marker in normalized_query
+            for marker in (
+                "datos clave",
+                "escalado",
+                "pasos",
+                "que hacer",
+                "que podemos hacer",
+                "manejo",
+                "acciones",
+                "prioridades",
+                "recomendaciones",
+                "seguimiento",
+                "a donde derivamos",
+                "derivamos",
+            )
+        )
+
+    @classmethod
+    def _source_domain_hits(
+        cls,
+        *,
+        source: dict[str, str],
+        domain_candidates: list[tuple[str, str]],
+    ) -> list[str]:
+        source_blob = " ".join(
+            [
+                str(source.get("domain") or ""),
+                str(source.get("title") or ""),
+                str(source.get("source") or ""),
+                str(source.get("snippet") or ""),
+            ]
+        )
+        normalized_blob = cls._normalize(source_blob)
+        blob_tokens = cls._quality_tokens(source_blob)
+        hits: list[str] = []
+        for key, label in domain_candidates:
+            score = 0
+            key_tokens = [token for token in key.split("_") if token]
+            score += sum(1 for token in key_tokens if token in normalized_blob)
+            label_tokens = cls._quality_tokens(label)
+            if label_tokens:
+                score += sum(1 for token in label_tokens if token in blob_tokens)
+            if score > 0:
+                hits.append(key)
+        return hits
+
+    @classmethod
+    def _filter_knowledge_sources_for_current_turn(
+        cls,
+        *,
+        query: str,
+        matched_domains: list[dict[str, object]],
+        knowledge_sources: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        if not knowledge_sources:
+            return knowledge_sources
+        domain_candidates: list[tuple[str, str]] = []
+        for domain in matched_domains:
+            key = cls._normalize(str(domain.get("key") or "")).strip()
+            label = str(domain.get("label") or domain.get("key") or "").strip()
+            if not key or not label:
+                continue
+            if key in {"general", "critical_ops", "administrative"}:
+                continue
+            domain_candidates.append((key, label))
+        if not domain_candidates:
+            return knowledge_sources
+
+        strict_single_domain = len(domain_candidates) == 1
+        target_domain = domain_candidates[0][0] if strict_single_domain else ""
+        filtered: list[dict[str, str]] = []
+        unmatched: list[dict[str, str]] = []
+        for source in knowledge_sources:
+            domain_hits = cls._source_domain_hits(
+                source=source,
+                domain_candidates=domain_candidates,
+            )
+            if strict_single_domain:
+                if target_domain in domain_hits:
+                    filtered.append(source)
+                elif not domain_hits:
+                    unmatched.append(source)
+            elif domain_hits:
+                filtered.append(source)
+
+        if strict_single_domain:
+            if cls._is_generic_operational_query(query):
+                operational_sources = [
+                    source
+                    for source in filtered
+                    if str(source.get("source") or "").lower().endswith(".md")
+                ]
+                if operational_sources:
+                    return operational_sources
+            if filtered:
+                return filtered
+            return unmatched or knowledge_sources
+
+        return filtered or knowledge_sources
 
     @staticmethod
     def _source_is_active(source: ClinicalKnowledgeSource) -> bool:
@@ -3419,10 +3642,10 @@ class ClinicalChatService:
         title = cls._normalize(str(source.get("title") or ""))
         if "docs/decisions/" in locator:
             return (3, -len(title))
-        if "docs/pdf_raw/" in locator:
-            return (0, -len(title))
         if locator.startswith("docs/"):
-            return (1, -len(title))
+            if "docs/pdf_raw/" in locator:
+                return (1, -len(title))
+            return (0, -len(title))
         return (2, -len(title))
 
     @classmethod
@@ -3450,6 +3673,16 @@ class ClinicalChatService:
             return False
         if response_mode != "clinical":
             return len(text) >= 24
+        forbidden_reference_markers = (
+            "\nreferencias",
+            "\nreferencia bibliografica",
+            "\nreferencias bibliograficas",
+            "\nfuentes internas relevantes",
+        )
+        if any(marker in normalized for marker in forbidden_reference_markers):
+            return False
+        if re.search(r"\(\s*(?:19|20)\d{2}\s*\)\.", text):
+            return False
         if any(token in text for token in ("[edad]", "[dato]", "[x]", "[xxx]")):
             return False
         if re.search(r"\[[^\]]{2,80}\]", text):
@@ -4047,6 +4280,13 @@ class ClinicalChatService:
                 knowledge_sources,
                 limit=max(payload.max_internal_sources, 10),
             )
+        raw_internal_sources_count = len(knowledge_sources)
+        if response_mode == "clinical":
+            knowledge_sources = cls._filter_knowledge_sources_for_current_turn(
+                query=effective_query,
+                matched_domains=matched_domain_records,
+                knowledge_sources=knowledge_sources,
+            )
         security_findings = [
             item.to_dict()
             for item in audit_chat_security(
@@ -4085,6 +4325,7 @@ class ClinicalChatService:
             f"patient_history_used={1 if patient_summary else 0}",
             f"matched_domains={','.join(matched_domains) if matched_domains else 'none'}",
             f"matched_endpoints={','.join(matched_endpoints) if matched_endpoints else 'none'}",
+            f"internal_sources_pre_filter={raw_internal_sources_count}",
             f"internal_sources={len(knowledge_sources)}",
             f"web_sources={len(web_sources)}",
             f"endpoint_recommendations={len(endpoint_recommendations)}",
@@ -4366,6 +4607,11 @@ class ClinicalChatService:
                 pipeline_relaxed_mode=pipeline_relaxed_mode,
             )
             rag_sources = rag_trace.get("rag_sources")
+            rag_extractive_llm_failure = (
+                str(rag_trace.get("rag_generation_mode", "")).startswith("extractive_")
+                and str(rag_trace.get("llm_used", "false")) == "false"
+                and bool(str(rag_trace.get("llm_error") or "").strip())
+            )
             if isinstance(rag_sources, list):
                 normalized_rag_sources: list[dict[str, str]] = []
                 for item in rag_sources:
@@ -4382,11 +4628,21 @@ class ClinicalChatService:
                                 "url": str(item.get("url") or ""),
                             }
                         )
-                knowledge_sources = cls._merge_source_lists(
-                    knowledge_sources,
-                    normalized_rag_sources,
-                    limit=max(payload.max_internal_sources, 8),
-                )
+                if rag_extractive_llm_failure and knowledge_sources:
+                    interpretability_trace.append(
+                        "rag_sources_merge=skipped_extract_fallback_prefers_catalog"
+                    )
+                else:
+                    knowledge_sources = cls._merge_source_lists(
+                        knowledge_sources,
+                        normalized_rag_sources,
+                        limit=max(payload.max_internal_sources, 8),
+                    )
+                    knowledge_sources = cls._filter_knowledge_sources_for_current_turn(
+                        query=effective_query,
+                        matched_domains=matched_domain_records,
+                        knowledge_sources=knowledge_sources,
+                    )
             if rag_answer:
                 rag_candidate_answer = rag_answer
                 rag_llm_trace = {
@@ -4395,10 +4651,12 @@ class ClinicalChatService:
                     if isinstance(key, str) and key.startswith("llm_")
                 }
                 rag_validation_status = str(rag_trace.get("rag_validation_status", "valid"))
-                if rag_llm_trace:
+                if rag_llm_trace.get("llm_used") == "true":
                     llm_answer = rag_answer
                     llm_trace.update(rag_llm_trace)
                     llm_trace.setdefault("llm_origin", "rag_orchestrator")
+                elif rag_llm_trace:
+                    llm_trace.update(rag_llm_trace)
                 elif settings.CLINICAL_CHAT_LLM_ENABLED:
                     knowledge_sources = cls._merge_source_lists(
                         knowledge_sources,
@@ -4691,12 +4949,25 @@ class ClinicalChatService:
         use_evidence_first_fallback = (
             response_mode == "clinical"
             and not interrogatory_short_circuit
-            and rag_chunks_retrieved > 0
             and len(knowledge_sources) > 0
+            and (rag_chunks_retrieved > 0 or bool(rag_candidate_answer))
         )
+        rag_extract_fallback_on_llm_failure = (
+            response_mode == "clinical"
+            and bool(rag_candidate_answer)
+            and str(rag_trace.get("rag_generation_mode", "")).startswith("extractive_")
+            and str(rag_trace.get("llm_used", "false")) == "false"
+            and bool(str(rag_trace.get("llm_error") or "").strip())
+            and use_evidence_first_fallback
+        )
+        if rag_extract_fallback_on_llm_failure:
+            interpretability_trace.append(
+                "rag_candidate_rejected=extractive_llm_failure_prefers_evidence_first"
+            )
         rag_candidate_usable = (
             response_mode == "clinical"
             and bool(rag_candidate_answer)
+            and not rag_extract_fallback_on_llm_failure
             and (
                 pipeline_relaxed_mode
                 or rag_validation_status in {"valid", "warning_insufficient_chunks"}
@@ -4862,11 +5133,16 @@ class ClinicalChatService:
         )
         should_repair_degraded_with_evidence = (
             response_mode == "clinical"
-            and quality_metrics.get("quality_status") == "degraded"
+            and quality_metrics.get("quality_status") in {"degraded", "attention"}
             and use_evidence_first_fallback
             and not pipeline_relaxed_mode
             and not rag_answer_authoritative
-            and not answer.startswith("Resumen operativo basado en evidencia interna")
+            and (
+                not answer.startswith("Resumen operativo basado en evidencia interna")
+                or answer.startswith(
+                    "Resumen operativo basado en evidencia interna (RAG extractivo)."
+                )
+            )
         )
         if should_repair_degraded_with_evidence:
             answer = cls._render_evidence_first_clinical_answer(

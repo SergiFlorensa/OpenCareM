@@ -152,7 +152,9 @@ class LLMChatProvider:
                     "Responde en espanol, natural y directo. "
                     "No des diagnostico definitivo ni inventes datos. "
                     f"Especialidad principal detectada: {effective_specialty}. "
-                    "Si hay evidencia interna, usala y citala brevemente al final."
+                    "Si hay evidencia interna, integrala solo si es relevante. "
+                    "Cita al final solo fuentes internas exactas disponibles. "
+                    "No inventes bibliografia, revistas, anos ni referencias externas."
                 )
             return ""
         if response_mode == "clinical":
@@ -169,7 +171,9 @@ class LLMChatProvider:
                 "1) Objetivo clinico, 2) Pasos operativos iniciales, "
                 "3) Riesgos/verificacion humana, "
                 "4) Fuentes internas utilizadas. "
-                "Incluye al menos 3 pasos numerados y menciona explicitamente las fuentes usadas. "
+                "Incluye al menos 3 pasos numerados y cita solo fuentes internas exactas "
+                "que esten disponibles en el contexto. "
+                "No inventes bibliografia, revistas, anos ni referencias no presentes. "
                 "No uses placeholders como [edad], [dato], [x]. "
                 "No uses respuestas de rechazo generico del tipo "
                 "'no puedo proporcionar asesoramiento medico'. "
@@ -260,7 +264,8 @@ class LLMChatProvider:
         if response_mode == "clinical":
             lines.append(
                 "Reglas de respuesta clinica: no inventes diagnosticos, no uses placeholders, "
-                "incluye pasos numerados y una seccion final 'Fuentes internas utilizadas'."
+                "incluye pasos numerados y una seccion final 'Fuentes internas exactas'. "
+                "No generes bibliografia ni referencias externas."
             )
         lines.append("Responde en espanol.")
         return "\n".join(lines)
@@ -299,7 +304,8 @@ class LLMChatProvider:
         if response_mode == "clinical":
             lines.append(
                 "Instruccion: responde con tu estilo normal, integra solo evidencia "
-                "interna relevante y menciona fuentes usadas de forma breve."
+                "interna relevante y cita solo fuentes internas exactas disponibles "
+                "de forma breve. No inventes bibliografia ni referencias externas."
             )
         return "\n".join(lines)
 
@@ -582,8 +588,9 @@ class LLMChatProvider:
             # Reserva extra para completar respuestas conversacionales en CPU local.
             timeout_budget_seconds = max(timeout_budget_seconds, 180.0)
         elif native_prefer_chat and response_mode == "clinical":
-            # En flujo clinico con RAG, evitar caida prematura a extractivo por timeout corto.
-            timeout_budget_seconds = max(timeout_budget_seconds, 20.0)
+            # En flujo clinico nativo sobre CPU local, dar margen amplio al primer intento
+            # para evitar abortar /api/chat antes de que Ollama termine de decodificar.
+            timeout_budget_seconds = max(timeout_budget_seconds, 90.0)
         primary_call_timeout = max(2.0, timeout_budget_seconds * 0.55)
         secondary_call_timeout = max(2.0, timeout_budget_seconds * 0.30)
         quick_recovery_timeout = max(2.0, timeout_budget_seconds * 0.15)
@@ -595,9 +602,9 @@ class LLMChatProvider:
                 secondary_call_timeout = max(2.0, timeout_budget_seconds * 0.15)
                 quick_recovery_timeout = max(2.0, timeout_budget_seconds * 0.25)
             else:
-                primary_call_timeout = max(2.0, timeout_budget_seconds * 0.85)
-                secondary_call_timeout = max(2.0, timeout_budget_seconds * 0.10)
-                quick_recovery_timeout = max(2.0, timeout_budget_seconds * 0.05)
+                primary_call_timeout = max(8.0, timeout_budget_seconds * 0.97)
+                secondary_call_timeout = max(4.0, min(12.0, timeout_budget_seconds * 0.02))
+                quick_recovery_timeout = max(3.0, min(8.0, timeout_budget_seconds * 0.01))
 
         def _remaining_timeout_seconds() -> float:
             elapsed = time.perf_counter() - started_at

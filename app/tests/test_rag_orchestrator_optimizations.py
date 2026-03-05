@@ -182,6 +182,79 @@ def test_extractive_answer_coarse_to_fine_prefers_actionable_sentences():
     assert "antibiotico" in lowered
 
 
+def test_extractive_answer_prefers_operational_doc_for_generic_symptom_query():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        matched_domains=["gastro_hepato"],
+        chunks=[
+            {
+                "text": (
+                    "La ausencia de excrecion intestinal en gammagrafia hepatica tras "
+                    "fenobarbital apoya el diagnostico, pero su especificidad es limitada."
+                ),
+                "section": "Colestasis neonatal",
+                "source_title": "Colestasis",
+                "source": "docs/pdf_raw/gastro_hepato/28_colestasis_11dd455a7f.pdf",
+                "score": 0.91,
+            },
+            {
+                "text": (
+                    "Ante dolor abdominal en urgencias se debe priorizar constantes, "
+                    "exploracion abdominal, signos peritoneales, analitica dirigida y "
+                    "reevaluacion para decidir escalado digestivo o quirurgico."
+                ),
+                "section": "Gastro-Hepato > Dolor abdominal",
+                "source_title": "Motor Operativo Gastro-Hepato en Urgencias",
+                "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                "score": 0.73,
+            },
+        ],
+    )
+
+    assert answer is not None
+    lowered = answer.lower()
+    assert "dolor abdominal" in lowered
+    assert "constantes" in lowered
+    assert "fenobarbital" not in lowered
+
+
+def test_extractive_answer_avoids_over_specific_subdiagnosis_for_generic_abdominal_query():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        matched_domains=["gastro_hepato"],
+        chunks=[
+            {
+                "text": (
+                    "Patron de diverticulitis aguda no oclusiva con alerta de complicacion "
+                    "en hernia crural con obstruccion e indicaciones de colecistectomia."
+                ),
+                "section": "Abdomen agudo y cirugia",
+                "source_title": "Motor Operativo Gastro-Hepato en Urgencias",
+                "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                "score": 0.90,
+            },
+            {
+                "text": (
+                    "Ante dolor abdominal en urgencias se debe priorizar constantes, "
+                    "exploracion abdominal, signos peritoneales, analitica dirigida, "
+                    "decision de imagen y reevaluacion para escalado."
+                ),
+                "section": "Abdomen agudo y cirugia",
+                "source_title": "Motor Operativo Gastro-Hepato en Urgencias",
+                "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                "score": 0.72,
+            },
+        ],
+    )
+
+    assert answer is not None
+    lowered = answer.lower()
+    assert "constantes" in lowered
+    assert "exploracion abdominal" in lowered
+    assert "diverticul" not in lowered
+    assert "hernia crural" not in lowered
+
+
 def test_query_overlap_log_scaling_rewards_relevant_sentence():
     short_score = RAGOrchestrator._query_overlap_score(
         query_tokens={"sepsis", "lactato"},
@@ -379,7 +452,7 @@ def test_select_retriever_backend_supports_elastic_with_specialty():
     assert reason == "specialty_semantic_priority"
 
 
-def test_rag_latency_budget_skips_llm_and_uses_extractive_fallback(monkeypatch):
+def test_non_native_rag_latency_budget_skips_llm_and_uses_extractive_fallback(monkeypatch):
     orchestrator = RAGOrchestrator(db=SimpleNamespace())
     llm_called = {"value": False}
 
@@ -392,6 +465,10 @@ def test_rag_latency_budget_skips_llm_and_uses_extractive_fallback(monkeypatch):
         fake_llm,
     )
     monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        False,
+    )
     monkeypatch.setattr(
         "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_FORCE_EXTRACTIVE_ONLY",
         False,
@@ -986,6 +1063,60 @@ def test_build_rag_sources_prioritizes_high_score_before_source_type():
     assert sources[0]["source"] == "docs/73_motor_operativo_nefrologia_urgencias.md"
 
 
+def test_build_rag_sources_prefers_operational_docs_over_pdf_when_scores_tie():
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    chunks = [
+        {
+            "section": "Documento PDF especifico",
+            "source": "docs/pdf_raw/gastro_hepato/28_colestasis_11dd455a7f.pdf",
+            "text": "Fenobarbital y gammagrafia hepatica en contexto de colestasis.",
+            "score": 0.72,
+        },
+        {
+            "section": "Motor operativo gastro-hepato",
+            "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+            "text": "Dolor abdominal en urgencias: prioridades, reevaluacion y escalado.",
+            "score": 0.72,
+        },
+    ]
+
+    sources = orchestrator._build_rag_knowledge_sources(chunks)
+
+    assert sources
+    assert sources[0]["source"] == "docs/68_motor_operativo_gastro_hepato_urgencias.md"
+
+
+def test_filter_chunks_for_current_turn_domain_prefers_operational_md_for_single_domain():
+    filtered, trace = RAGOrchestrator._filter_chunks_for_current_turn_domain(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        matched_domains=["gastro_hepato"],
+        effective_specialty="gastro_hepato",
+        chunks=[
+            {
+                "source": "docs/pdf_raw/gastro_hepato/28_colestasis_11dd455a7f.pdf",
+                "source_title": "Colestasis",
+                "section": "Colestasis",
+                "text": "Patron de colestasis con aumento de bilirrubina directa.",
+                "score": 0.92,
+            },
+            {
+                "source": "docs/68_motor_operativo_gastro_hepato_urgencias.md",
+                "source_title": "Motor Operativo Gastro-Hepato en Urgencias",
+                "section": "Abdomen agudo y cirugia",
+                "text": (
+                    "Ante dolor abdominal se priorizan constantes, exploracion abdominal, "
+                    "signos peritoneales y reevaluacion."
+                ),
+                "score": 0.74,
+            },
+        ],
+    )
+
+    assert trace["rag_current_turn_domain_filter"] == "1"
+    assert len(filtered) == 1
+    assert filtered[0]["source"] == "docs/68_motor_operativo_gastro_hepato_urgencias.md"
+
+
 def test_build_rag_sources_excludes_non_clinical_chat_docs():
     orchestrator = RAGOrchestrator(db=SimpleNamespace())
     chunks = [
@@ -1066,6 +1197,32 @@ def test_infer_query_intents_detects_referral_followup_and_similar_cases():
     assert "control evolutivo" in expansion_terms
     assert "casos comparables" in expansion_terms
     assert trace["rag_query_intents_detected"] != "none"
+
+
+def test_build_retrieval_query_expands_generic_abdominal_query_for_gastro_specialty():
+    retrieval_query, trace = RAGOrchestrator._build_retrieval_query(
+        query="Paciente con dolor abdominal: datos clave y escalado",
+        query_complexity="medium",
+        effective_specialty="gastro_hepato",
+        intent_expansion_terms=["escalado", "reevaluacion"],
+    )
+
+    assert "abdomen agudo" in retrieval_query
+    assert "exploracion abdominal" in retrieval_query
+    assert trace["rag_retrieval_query_specialty_expanded"] == "1"
+    assert "abdomen agudo" in trace["rag_retrieval_query_specialty_terms"]
+
+
+def test_dynamic_budget_caps_native_ollama_for_clinical_rag():
+    resolved = RAGOrchestrator._resolve_dynamic_llm_min_remaining_budget_ms(
+        configured_budget_ms=2900,
+        query_complexity="medium",
+        pre_context_relevance=0.14,
+        budget_total_ms=3000,
+        native_ollama_style=True,
+    )
+
+    assert resolved == 350
 
 
 def test_force_extractive_only_mode_skips_llm_and_returns_extractive(monkeypatch):

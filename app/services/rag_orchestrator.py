@@ -176,6 +176,67 @@ class RAGOrchestrator:
         "follow_up": ("seguimiento", "reevaluacion", "monitorizacion", "control evolutivo"),
         "similar_cases": ("casos comparables", "patrones similares", "experiencia previa"),
     }
+    _SPECIALTY_RETRIEVAL_EXPANSIONS: dict[str, dict[str, tuple[str, ...]]] = {
+        "gastro_hepato": {
+            "triggers": (
+                "abdomen",
+                "abdominal",
+                "dolor abdominal",
+                "estomago",
+                "epigastrio",
+                "nausea",
+                "nauseas",
+                "vomito",
+                "vomitos",
+            ),
+            "terms": (
+                "abdomen agudo",
+                "exploracion abdominal",
+                "defensa abdominal",
+                "peritonismo",
+                "red flags abdominales",
+                "reevaluacion seriada",
+                "criterios quirurgicos",
+                "escalado quirurgico",
+            ),
+        },
+        "ophthalmology": {
+            "triggers": (
+                "ojo",
+                "ocular",
+                "oftalmo",
+                "oftalmologia",
+                "dolor ocular",
+                "vision",
+                "fotofobia",
+            ),
+            "terms": (
+                "agudeza visual",
+                "tincion fluoresceina",
+                "presion intraocular",
+                "lampara de hendidura",
+                "signos de alarma ocular",
+                "derivacion oftalmologia urgente",
+            ),
+        },
+        "scasest": {
+            "triggers": (
+                "dolor toracico",
+                "pecho",
+                "toracico",
+                "torax",
+                "opresivo",
+            ),
+            "terms": (
+                "ecg 10 minutos",
+                "troponinas seriadas",
+                "estratificacion riesgo",
+                "monitorizacion cardiaca",
+                "sindrome coronario agudo",
+                "criterios derivacion hemodinamica",
+            ),
+        },
+    }
     _SEGMENT_SPLIT_PATTERN = re.compile(
         r"(?:[;\n]+|\s(?:ademas|adem[aá]s|junto\s+con|asociado\s+a|concomitante\s+con)\s+)",
         flags=re.IGNORECASE,
@@ -347,6 +408,17 @@ class RAGOrchestrator:
         "codex_cli",
         "agent_system",
     )
+    _GENERIC_CLINICAL_SPECIFICITY_MARKERS = (
+        "diverticul",
+        "hernia crural",
+        "colecistect",
+        "vesicula en porcelana",
+        "fenobarbital",
+        "colestasis",
+        "incarceracion",
+        "obstruccion intestinal",
+        "perforacion",
+    )
 
     def __init__(self, db: Session):
         self.db = db
@@ -448,6 +520,10 @@ class RAGOrchestrator:
                 or fact_only_mode_enabled
             )
             trace["rag_fact_only_mode_enabled"] = "1" if fact_only_mode_enabled else "0"
+            native_ollama_style = bool(
+                settings.CLINICAL_CHAT_LLM_PROVIDER == "ollama"
+                and settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
+            )
             configured_llm_min_remaining_budget_ms = int(
                 settings.CLINICAL_CHAT_RAG_LLM_MIN_REMAINING_BUDGET_MS
             )
@@ -455,7 +531,10 @@ class RAGOrchestrator:
                 settings.CLINICAL_CHAT_RAG_DETERMINISTIC_ROUTING_ENABLED
                 and (
                     force_extractive_only
-                    or configured_llm_min_remaining_budget_ms >= 2000
+                    or (
+                        configured_llm_min_remaining_budget_ms >= 2000
+                        and not native_ollama_style
+                    )
                 )
                 and query_complexity == "complex"
             )
@@ -467,6 +546,7 @@ class RAGOrchestrator:
             retrieval_query, compact_trace = self._build_retrieval_query(
                 query=query,
                 query_complexity=query_complexity,
+                effective_specialty=effective_specialty,
                 intent_expansion_terms=intent_expansion_terms,
             )
             trace.update(compact_trace)
@@ -760,6 +840,13 @@ class RAGOrchestrator:
                 chunks=chunk_dicts,
             )
             trace.update(ecorag_trace)
+            chunk_dicts, current_turn_trace = self._filter_chunks_for_current_turn_domain(
+                query=query,
+                chunks=chunk_dicts,
+                matched_domains=matched_domains,
+                effective_specialty=effective_specialty,
+            )
+            trace.update(current_turn_trace)
 
             rag_sources = self._build_rag_knowledge_sources(chunk_dicts)
             augmented_sources = self._merge_sources(knowledge_sources, rag_sources)
@@ -864,15 +951,9 @@ class RAGOrchestrator:
                 configured_budget_ms=configured_llm_min_remaining_budget_ms,
                 query_complexity=query_complexity,
                 pre_context_relevance=pre_context_relevance,
+                budget_total_ms=budget_total_ms,
+                native_ollama_style=native_ollama_style,
             )
-            native_ollama_style = bool(
-                settings.CLINICAL_CHAT_LLM_PROVIDER == "ollama"
-                and settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
-            )
-            if native_ollama_style:
-                # En estilo nativo priorizamos calidad conversacional sobre un budget
-                # extremadamente estricto antes del pase LLM.
-                min_remaining_for_llm_ms = min(min_remaining_for_llm_ms, 900)
             elapsed_pre_llm_ms = round((time.perf_counter() - started_at) * 1000, 2)
             remaining_pre_llm_ms = max(0.0, float(budget_total_ms) - elapsed_pre_llm_ms)
             trace.update(
@@ -1382,15 +1463,33 @@ class RAGOrchestrator:
         *,
         query: str,
         query_complexity: str,
+        effective_specialty: str | None = None,
         intent_expansion_terms: list[str] | None = None,
     ) -> tuple[str, dict[str, str]]:
         trace: dict[str, str] = {
             "rag_retrieval_query_compacted": "0",
             "rag_retrieval_query_compact_reason": "not_required",
+            "rag_retrieval_query_specialty_expanded": "0",
+            "rag_retrieval_query_specialty_terms": "none",
         }
+        query_tokens = cls._tokenize_for_relevance(query)
+        specialty_terms = cls._specialty_retrieval_terms(
+            query=query,
+            query_tokens=query_tokens,
+            effective_specialty=effective_specialty,
+        )
+        if specialty_terms:
+            trace["rag_retrieval_query_specialty_expanded"] = "1"
+            trace["rag_retrieval_query_specialty_terms"] = ",".join(specialty_terms[:8])
+
         if not settings.CLINICAL_CHAT_RAG_DETERMINISTIC_ROUTING_ENABLED:
+            if specialty_terms:
+                return f"{query} {' '.join(specialty_terms[:4])}".strip(), trace
             return query, trace
         if query_complexity != "complex":
+            if specialty_terms:
+                trace["rag_retrieval_query_compact_reason"] = "specialty_expansion_only"
+                return f"{query} {' '.join(specialty_terms[:4])}".strip(), trace
             return query, trace
 
         stopwords = {
@@ -1416,6 +1515,8 @@ class RAGOrchestrator:
             tokens.extend(
                 [str(item).lower() for item in intent_expansion_terms if str(item).strip()]
             )
+        if specialty_terms:
+            tokens.extend([str(item).lower() for item in specialty_terms if str(item).strip()])
         prioritized = [
             token
             for token in tokens
@@ -1438,14 +1539,49 @@ class RAGOrchestrator:
         trace["rag_retrieval_query_terms"] = ",".join(selected)
         return compact_query, trace
 
+    @classmethod
+    def _specialty_retrieval_terms(
+        cls,
+        *,
+        query: str,
+        query_tokens: set[str],
+        effective_specialty: str | None,
+    ) -> list[str]:
+        specialty_key = str(effective_specialty or "").strip().lower()
+        if not specialty_key:
+            return []
+        config = cls._SPECIALTY_RETRIEVAL_EXPANSIONS.get(specialty_key)
+        if not config:
+            return []
+        if not cls._is_generic_operational_query(query=query, query_tokens=query_tokens):
+            return []
+        normalized_query = str(query or "").lower()
+        triggers = tuple(str(item).lower() for item in config.get("triggers", ()))
+        trigger_hit = any(trigger in normalized_query for trigger in triggers) or any(
+            trigger in query_tokens for trigger in triggers
+        )
+        if not trigger_hit:
+            return []
+        terms: list[str] = []
+        for term in config.get("terms", ()):
+            normalized_term = str(term).strip().lower()
+            if not normalized_term or normalized_term in terms:
+                continue
+            terms.append(normalized_term)
+        return terms[:6]
+
     @staticmethod
     def _resolve_dynamic_llm_min_remaining_budget_ms(
         *,
         configured_budget_ms: int,
         query_complexity: str,
         pre_context_relevance: float,
+        budget_total_ms: int,
+        native_ollama_style: bool,
     ) -> int:
         dynamic_budget = max(200, int(configured_budget_ms))
+        if budget_total_ms > 0:
+            dynamic_budget = min(dynamic_budget, max(300, int(budget_total_ms * 0.75)))
         if query_complexity == "simple":
             dynamic_budget = min(dynamic_budget, 900)
         elif query_complexity == "medium":
@@ -1455,6 +1591,11 @@ class RAGOrchestrator:
             dynamic_budget = max(dynamic_budget, 1800)
         elif pre_context_relevance < 0.22:
             dynamic_budget = max(dynamic_budget, 1500)
+        if native_ollama_style:
+            native_budget_cap = 350
+            if budget_total_ms > 0:
+                native_budget_cap = max(250, min(350, int(budget_total_ms * 0.12)))
+            dynamic_budget = min(dynamic_budget, native_budget_cap)
         return dynamic_budget
 
     def _apply_mmr_rerank(
@@ -1650,6 +1791,81 @@ class RAGOrchestrator:
             and normalized_domains[0] == "critical_ops"
             and normalized_specialty in {"", "general", "*"}
         )
+
+    @staticmethod
+    def _is_current_turn_generic_operational_query(query: str) -> bool:
+        normalized_query = str(query or "").strip().lower()
+        return any(
+            marker in normalized_query
+            for marker in (
+                "datos clave",
+                "escalado",
+                "pasos",
+                "que hacer",
+                "manejo",
+                "acciones",
+                "prioridades",
+                "recomendaciones",
+                "seguimiento",
+                "deriv",
+            )
+        )
+
+    @classmethod
+    def _filter_chunks_for_current_turn_domain(
+        cls,
+        *,
+        query: str,
+        chunks: list[dict[str, Any]],
+        matched_domains: list[str],
+        effective_specialty: str,
+    ) -> tuple[list[dict[str, Any]], dict[str, str]]:
+        if not chunks:
+            return chunks, {"rag_current_turn_domain_filter": "0"}
+        concrete_domains = [
+            str(item).strip().lower()
+            for item in (matched_domains or [])
+            if str(item).strip().lower() not in {"", "critical_ops", "general", "administrative"}
+        ]
+        if len(concrete_domains) != 1:
+            return chunks, {"rag_current_turn_domain_filter": "0"}
+
+        domain_aliases = cls._resolve_domain_aliases(matched_domains=matched_domains)
+        normalized_specialty = str(effective_specialty or "").strip().lower()
+        if normalized_specialty and normalized_specialty not in {"general", "*"}:
+            domain_aliases.add(normalized_specialty)
+
+        aligned: list[dict[str, Any]] = []
+        unknown: list[dict[str, Any]] = []
+        for chunk in chunks:
+            source_blob = " ".join(
+                [
+                    str(chunk.get("source") or ""),
+                    str(chunk.get("source_title") or ""),
+                    str(chunk.get("section") or ""),
+                    str(chunk.get("text") or ""),
+                ]
+            ).lower()
+            if any(alias in source_blob for alias in domain_aliases):
+                aligned.append(chunk)
+            else:
+                unknown.append(chunk)
+
+        filtered = aligned or unknown or chunks
+        dropped = max(0, len(chunks) - len(filtered))
+        if cls._is_current_turn_generic_operational_query(query):
+            operational = [
+                chunk
+                for chunk in filtered
+                if str(chunk.get("source") or "").lower().replace("\\", "/").endswith(".md")
+            ]
+            if operational:
+                dropped += max(0, len(filtered) - len(operational))
+                filtered = operational
+        return filtered, {
+            "rag_current_turn_domain_filter": "1",
+            "rag_current_turn_domain_filter_dropped": str(dropped),
+        }
 
     @classmethod
     def _drop_noisy_chunks(cls, chunks: list[Any]) -> tuple[list[Any], dict[str, str]]:
@@ -3323,6 +3539,106 @@ class RAGOrchestrator:
         # Hibrido proxy generativo: fluidez + cobertura.
         return round((0.40 * has_terminal_punct) + (0.30 * length_score) + (0.30 * coverage), 4)
 
+    @classmethod
+    def _is_generic_operational_query(cls, *, query: str, query_tokens: set[str]) -> bool:
+        normalized = str(query or "").lower()
+        operational_markers = (
+            "pasos",
+            "manejo",
+            "datos clave",
+            "escalado",
+            "recomend",
+            "que hacer",
+            "que podemos hacer",
+            "prioridades",
+            "valorar",
+            "seguimiento",
+            "monitorizacion",
+            "derivar",
+            "urgencias",
+        )
+        generic_tokens = {
+            "paciente",
+            "pacientes",
+            "dolor",
+            "abdominal",
+            "abdomen",
+            "pecho",
+            "ocular",
+            "ojo",
+            "rodilla",
+            "molestias",
+            "fiebre",
+            "vomitos",
+            "nauseas",
+            "caso",
+            "casos",
+            "urgencias",
+            "datos",
+            "clave",
+            "escalado",
+            "pasos",
+            "manejo",
+        }
+        marker_hits = sum(1 for marker in operational_markers if marker in normalized)
+        specific_tokens = [
+            token for token in query_tokens if len(token) >= 6 and token not in generic_tokens
+        ]
+        return marker_hits >= 1 and len(specific_tokens) <= 2
+
+    @classmethod
+    def _operational_source_bias(
+        cls,
+        *,
+        query: str,
+        query_tokens: set[str],
+        chunk: dict[str, Any],
+    ) -> float:
+        locator = str(chunk.get("source") or "").lower().replace("\\", "/")
+        section = str(chunk.get("section") or "").lower()
+        source_title = str(chunk.get("source_title") or "").lower()
+        payload = " ".join(item for item in [locator, section, source_title] if item)
+        operational_markers = (
+            "motor operativo",
+            "urgencias",
+            "prioridad",
+            "prioridades",
+            "pasos",
+            "algoritmo",
+            "manejo",
+            "escalado",
+            "bundle",
+            "ruta",
+            "monitor",
+            "evaluacion",
+            "reevalu",
+            "red flags",
+        )
+        source_focus = cls._query_overlap_score(
+            query_tokens=query_tokens,
+            text=f"{source_title} {section}",
+        )
+        generic_operational_query = cls._is_generic_operational_query(
+            query=query,
+            query_tokens=query_tokens,
+        )
+
+        bias = 0.0
+        if locator.startswith("docs/") and "docs/pdf_raw/" not in locator:
+            bias += 0.12
+        if any(marker in payload for marker in operational_markers):
+            bias += 0.12
+        bias += min(0.08, source_focus * 0.10)
+        if "docs/pdf_raw/" in locator:
+            bias -= 0.04
+            if generic_operational_query and not any(
+                marker in payload for marker in operational_markers
+            ):
+                bias -= 0.18
+            if generic_operational_query and source_focus < 0.18:
+                bias -= 0.08
+        return round(max(-0.28, min(0.28, bias)), 4)
+
     @staticmethod
     def _jaccard_similarity(left_tokens: set[str], right_tokens: set[str]) -> float:
         if not left_tokens or not right_tokens:
@@ -3514,6 +3830,11 @@ class RAGOrchestrator:
         lines.append("Prioridades 0-10 minutos:")
 
         query_tokens = cls._tokenize_for_relevance(query)
+        normalized_query = str(query or "").strip().lower()
+        generic_operational_query = cls._is_generic_operational_query(
+            query=query,
+            query_tokens=query_tokens,
+        )
         action_focus_enabled = bool(settings.CLINICAL_CHAT_RAG_ACTION_FOCUS_ENABLED)
         action_min_score = float(settings.CLINICAL_CHAT_RAG_ACTION_MIN_SCORE)
         action_max_aux_ratio = float(settings.CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO)
@@ -3523,6 +3844,11 @@ class RAGOrchestrator:
             cleaned = cls._clean_snippet_text(str(chunk.get("text") or ""), max_chars=260)
             retrieval_score = float(chunk.get("score") or 0.0)
             retrieval_score = max(0.0, min(1.0, retrieval_score))
+            source_bias = cls._operational_source_bias(
+                query=query,
+                query_tokens=query_tokens,
+                chunk=chunk,
+            )
             for sentence in cls._split_sentences(cleaned):
                 sentence = re.sub(r"^\s*(?:\d+[\).\-\s]+|[-*]+\s*)", "", sentence).strip()
                 if len(sentence) < 40 or cls._looks_like_non_clinical_noise(sentence):
@@ -3540,11 +3866,40 @@ class RAGOrchestrator:
                 tau = 0.60
                 delta = 0.40
                 relevance = (tau * extractive_relevance) + (delta * generative_proxy)
+                if generic_operational_query and not any(
+                    marker in normalized_query
+                    for marker in cls._GENERIC_CLINICAL_SPECIFICITY_MARKERS
+                ):
+                    normalized_sentence = str(sentence or "").strip().lower()
+                    specificity_penalty = sum(
+                        0.08
+                        for marker in cls._GENERIC_CLINICAL_SPECIFICITY_MARKERS
+                        if marker in normalized_sentence
+                    )
+                    neutral_bonus = sum(
+                        0.05
+                        for marker in (
+                            "constantes",
+                            "signos de alarma",
+                            "exploracion abdominal",
+                            "signos peritoneales",
+                            "analitica",
+                            "imagen",
+                            "reevaluacion",
+                            "escalado",
+                        )
+                        if marker in normalized_sentence
+                    )
+                    relevance = max(0.0, relevance - specificity_penalty + neutral_bonus)
                 actionability, aux_ratio = cls._clinical_actionability_score(
                     text=sentence,
                     overlap_score=overlap,
                     retrieval_score=retrieval_score,
                     evidence_score=evidence,
+                )
+                source_adjusted_relevance = round(
+                    max(0.0, min(1.0, relevance + source_bias)),
+                    4,
                 )
                 candidate = {
                     "text": sentence.rstrip(" .") + ".",
@@ -3554,6 +3909,8 @@ class RAGOrchestrator:
                     "extractive_relevance": round(extractive_relevance, 4),
                     "generative_proxy": generative_proxy,
                     "relevance": round(relevance, 4),
+                    "source_adjusted_relevance": source_adjusted_relevance,
+                    "source_bias": source_bias,
                     "evidence": evidence,
                     "actionability": actionability,
                     "aux_ratio": aux_ratio,
@@ -3567,6 +3924,8 @@ class RAGOrchestrator:
                         and actionability < (action_min_score + 0.12)
                     ):
                         continue
+                if generic_operational_query and source_bias < -0.18 and overlap < 0.34:
+                    continue
                 sentence_candidates.append(candidate)
 
         if not sentence_candidates:
@@ -3580,16 +3939,17 @@ class RAGOrchestrator:
         # Stage 1: relevancia (consulta -> evidencia candidata)
         stage1 = sorted(
             sentence_candidates,
-            key=lambda item: float(item["relevance"]),
+            key=lambda item: float(item.get("source_adjusted_relevance", item["relevance"])),
             reverse=True,
         )[: max_items * 4]
 
         # Stage 2: evidencia util (accionabilidad)
         for item in stage1:
             item["evidence_rank_score"] = round(
-                (0.55 * float(item["relevance"]))
+                (0.47 * float(item.get("source_adjusted_relevance", item["relevance"])))
                 + (0.25 * float(item["evidence"]))
-                + (0.20 * float(item.get("actionability", 0.0))),
+                + (0.18 * float(item.get("actionability", 0.0)))
+                + (0.10 * max(0.0, float(item.get("source_bias", 0.0)))),
                 4,
             )
         stage2 = sorted(stage1, key=lambda item: float(item["evidence_rank_score"]), reverse=True)[
@@ -3614,7 +3974,8 @@ class RAGOrchestrator:
                 (0.65 * float(item["evidence_rank_score"]))
                 + (0.20 * float(item["centrality"]))
                 + (0.10 * float(item["retrieval"]))
-                + (0.05 * float(item.get("actionability", 0.0))),
+                + (0.05 * float(item.get("actionability", 0.0)))
+                + (0.04 * float(item.get("source_bias", 0.0))),
                 4,
             )
 
@@ -3769,10 +4130,10 @@ class RAGOrchestrator:
         def source_priority(chunk: dict[str, Any]) -> tuple[int, int]:
             locator = str(chunk.get("source") or "").lower().replace("\\", "/")
             title = str(chunk.get("section") or "")
-            if "docs/pdf_raw/" in locator:
-                return (0, -len(title))
             if locator.startswith("docs/"):
-                return (1, -len(title))
+                if "docs/pdf_raw/" in locator:
+                    return (1, -len(title))
+                return (0, -len(title))
             return (2, -len(title))
 
         def ranking_key(chunk: dict[str, Any]) -> tuple[float, int, int]:

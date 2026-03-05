@@ -417,6 +417,7 @@ def create_care_task_chat_message(
     task = CareTaskService.get_care_task_by_id(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CareTask no encontrado")
+    payload = payload.model_copy(update={"pipeline_relaxed_mode": False})
 
     (
         message,
@@ -473,6 +474,7 @@ def create_care_task_chat_message_async(
     task = CareTaskService.get_care_task_by_id(db, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CareTask no encontrado")
+    payload = payload.model_copy(update={"pipeline_relaxed_mode": False})
 
     job = ClinicalChatAsyncService.enqueue_job(
         care_task_id=task.id,
