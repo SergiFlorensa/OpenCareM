@@ -2876,50 +2876,145 @@ class ClinicalChatService:
     ) -> str:
         prioritized_sources = sorted(knowledge_sources, key=cls._source_priority)
         lines: list[str] = ["Resumen operativo basado en evidencia interna (no diagnostico)."]
-        lines.append("Prioridades 0-10 minutos:")
         query_tokens = cls._quality_tokens(query)
-        ranked_actions: list[tuple[float, str]] = []
+        ranked_actions: list[tuple[float, str, str]] = []
+        domain_candidates: list[tuple[str, str]] = []
+        for domain in matched_domains[:4]:
+            key = cls._normalize(str(domain.get("key") or "")).strip()
+            label = str(domain.get("label") or domain.get("key") or "").strip()
+            if not key or not label:
+                continue
+            if key in {"general", "critical_ops", "administrative"}:
+                continue
+            domain_candidates.append((key, label))
+
+        def resolve_action_domain(source: dict[str, str], action_text: str) -> str:
+            if not domain_candidates:
+                return "general"
+            source_blob = " ".join(
+                [
+                    str(source.get("title") or ""),
+                    str(source.get("source") or ""),
+                    str(source.get("snippet") or ""),
+                    action_text,
+                ]
+            )
+            normalized_blob = cls._normalize(source_blob)
+            best_key = "general"
+            best_hits = 0
+            for key, label in domain_candidates:
+                hit = 0
+                key_tokens = [token for token in key.split("_") if token]
+                if any(token in normalized_blob for token in key_tokens):
+                    hit += 1
+                label_tokens = cls._quality_tokens(label)
+                if (
+                    label_tokens
+                    and cls._overlap_recall(
+                        label_tokens,
+                        cls._quality_tokens(source_blob),
+                    )
+                    > 0
+                ):
+                    hit += 1
+                if hit > best_hits:
+                    best_hits = hit
+                    best_key = key
+            return best_key
+
         for source in prioritized_sources[:10]:
-            snippet = cls._clean_evidence_snippet(str(source.get("snippet") or ""), max_chars=220)
+            snippet = cls._clean_evidence_snippet(
+                str(source.get("snippet") or ""),
+                max_chars=220,
+            )
             if len(snippet) < 30:
                 continue
-            action = re.sub(r"^\s*(?:\d+[\).\-\s]+|[-*]+\s*)", "", snippet[:220]).rstrip(" .,;")
+            action = re.sub(
+                r"^\s*(?:\d+[\).\-\s]+|[-*]+\s*)",
+                "",
+                snippet[:220],
+            ).rstrip(" .,;")
             if len(action) < 20:
                 continue
             overlap = cls._overlap_recall(query_tokens, cls._quality_tokens(action))
             if query_tokens and overlap <= 0.0:
                 continue
-            ranked_actions.append((overlap, f"{action}."))
+            action_domain = resolve_action_domain(source, action)
+            ranked_actions.append((overlap, f"{action}.", action_domain))
 
         ranked_actions.sort(key=lambda item: item[0], reverse=True)
         seen_actions: set[str] = set()
-        actions: list[str] = []
-        for _, action in ranked_actions:
+        actions: list[tuple[str, str]] = []
+        for _, action, action_domain in ranked_actions:
             norm_action = cls._normalize(action)
             if norm_action in seen_actions:
                 continue
             seen_actions.add(norm_action)
-            actions.append(action)
+            actions.append((action, action_domain))
             if len(actions) >= 6:
                 break
-        for item in actions[:3]:
-            lines.append(f"- {item}")
-        if not actions[:3]:
-            lines.append(
-                "- Estabilizar via aerea, respiracion y circulacion con monitorizacion continua."
-            )
+        multi_domain_mode = len(domain_candidates) >= 2
+        if multi_domain_mode:
+            actions_by_domain: dict[str, list[str]] = {
+                key: [] for key, _ in domain_candidates
+            }
+            for action_text, action_domain in actions:
+                domain_bucket = (
+                    action_domain
+                    if action_domain in actions_by_domain
+                    else domain_candidates[0][0]
+                )
+                actions_by_domain[domain_bucket].append(action_text)
+            for key, label in domain_candidates[:2]:
+                domain_actions = actions_by_domain.get(key, [])
+                lines.append(f"Bloque {label}:")
+                lines.append("Prioridades 0-10 minutos:")
+                for item in domain_actions[:2]:
+                    lines.append(f"- {item}")
+                if not domain_actions[:2]:
+                    lines.append(
+                        "- Sin evidencia operativa suficiente en este bloque; completar datos."
+                    )
+                lines.append("Prioridades 10-60 minutos:")
+                for item in domain_actions[2:4]:
+                    lines.append(f"- {item}")
+                if not domain_actions[2:4]:
+                    lines.append(
+                        "- Completar pruebas objetivo y reevaluar respuesta "
+                        "a intervenciones iniciales."
+                    )
+                lines.append("Escalado y seguridad:")
+                lines.append(
+                    f"- Escalar de inmediato ante deterioro clinico en {label.lower()}."
+                )
+                lines.append(
+                    "- Registrar decisiones y contrastar cada paso con protocolo local vigente."
+                )
+        else:
+            lines.append("Prioridades 0-10 minutos:")
+            for item, _domain in actions[:3]:
+                lines.append(f"- {item}")
+            if not actions[:3]:
+                lines.append(
+                    "- Estabilizar via aerea, respiracion y circulacion "
+                    "con monitorizacion continua."
+                )
 
-        lines.append("Prioridades 10-60 minutos:")
-        for item in actions[3:6]:
-            lines.append(f"- {item}")
-        if not actions[3:6]:
-            lines.append(
-                "- Completar pruebas objetivo y reevaluar respuesta a intervenciones iniciales."
-            )
+            lines.append("Prioridades 10-60 minutos:")
+            for item, _domain in actions[3:6]:
+                lines.append(f"- {item}")
+            if not actions[3:6]:
+                lines.append(
+                    "- Completar pruebas objetivo y reevaluar respuesta a intervenciones iniciales."
+                )
 
-        lines.append("Escalado y seguridad:")
-        lines.append("- Escalar de inmediato ante deterioro clinico o criterios de alto riesgo.")
-        lines.append("- Registrar decisiones y contrastar cada paso con protocolo local vigente.")
+            lines.append("Escalado y seguridad:")
+            lines.append(
+                "- Escalar de inmediato ante deterioro clinico o criterios de alto riesgo."
+            )
+            lines.append(
+                "- Registrar decisiones y contrastar cada paso con protocolo local vigente."
+            )
 
         lines.append("Fuentes internas exactas:")
         cited = 0
@@ -4036,6 +4131,7 @@ class ClinicalChatService:
             response_mode == "clinical"
             and not interrogatory_short_circuit
             and settings.CLINICAL_CHAT_UNCERTAINTY_GATE_ENABLED
+            and str(rag_trace.get("rag_status") or "") != "failed_exception"
         ):
             posterior_variance = float(math_assessment.get("posterior_variance_top") or 0.0)
             top_domain = str(math_assessment.get("top_domain") or "")
@@ -4050,11 +4146,12 @@ class ClinicalChatService:
                         top_domain=top_domain,
                         posterior_variance=posterior_variance,
                     )
-                    llm_trace = {
-                        "llm_used": "false",
-                        "llm_provider": "uncertainty_gate",
-                        "llm_endpoint": "abstain_insufficient_evidence",
-                    }
+                    llm_trace["llm_used"] = llm_trace.get("llm_used", "false")
+                    llm_trace["llm_provider"] = "uncertainty_gate"
+                    llm_trace["llm_endpoint"] = llm_trace.get(
+                        "llm_endpoint",
+                        "abstain_insufficient_evidence",
+                    )
                     uncertainty_gate_triggered = True
                     uncertainty_gate_reason = (
                         "high_variance_no_evidence"
@@ -4065,11 +4162,15 @@ class ClinicalChatService:
                     settings.CLINICAL_CHAT_UNCERTAINTY_GATE_FAILFAST_ON_RAG
                     and rag_success
                 ):
-                    llm_trace = {
-                        "llm_used": "false",
-                        "llm_provider": "uncertainty_gate",
-                        "llm_endpoint": "skip_llm_use_evidence_first",
-                    }
+                    llm_trace["llm_used"] = llm_trace.get("llm_used", "false")
+                    llm_trace["llm_provider"] = llm_trace.get(
+                        "llm_provider",
+                        "uncertainty_gate",
+                    )
+                    llm_trace["llm_endpoint"] = llm_trace.get(
+                        "llm_endpoint",
+                        "skip_llm_use_evidence_first",
+                    )
                     uncertainty_gate_triggered = True
                     uncertainty_gate_reason = (
                         "high_variance_failfast_on_rag"
@@ -4082,11 +4183,12 @@ class ClinicalChatService:
                     top_domain=top_domain,
                     posterior_variance=posterior_variance,
                 )
-                llm_trace = {
-                    "llm_used": "false",
-                    "llm_provider": "uncertainty_gate",
-                    "llm_endpoint": "abstain_high_uncertainty",
-                }
+                llm_trace["llm_used"] = llm_trace.get("llm_used", "false")
+                llm_trace["llm_provider"] = "uncertainty_gate"
+                llm_trace["llm_endpoint"] = llm_trace.get(
+                    "llm_endpoint",
+                    "abstain_high_uncertainty",
+                )
                 uncertainty_gate_triggered = True
                 uncertainty_gate_reason = "high_uncertainty_no_evidence"
         interpretability_trace.append(
@@ -4115,6 +4217,11 @@ class ClinicalChatService:
                 and settings.CLINICAL_CHAT_RAG_ENABLED
                 and settings.CLINICAL_CHAT_RAG_FORCE_EXTRACTIVE_ONLY
             )
+            rag_fact_only_mode = (
+                response_mode == "clinical"
+                and settings.CLINICAL_CHAT_RAG_ENABLED
+                and settings.CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED
+            )
             rag_failed_generation_with_llm_failure = (
                 response_mode == "clinical"
                 and str(rag_trace.get("rag_status", "")) == "failed_generation"
@@ -4122,10 +4229,13 @@ class ClinicalChatService:
             )
             rag_hard_fail_retrieval = (
                 response_mode == "clinical"
-                and str(rag_trace.get("rag_status", "")) in {"failed_retrieval", "failed_exception"}
+                and str(rag_trace.get("rag_status", "")) == "failed_retrieval"
+                and not query_expanded
             )
             if rag_force_extractive_only:
                 interpretability_trace.append("llm_second_pass_skipped=force_extractive_only")
+            elif rag_fact_only_mode:
+                interpretability_trace.append("llm_second_pass_skipped=fact_only_mode")
             elif rag_hard_fail_retrieval:
                 interpretability_trace.append("llm_second_pass_skipped=rag_failed_retrieval")
             elif rag_failed_generation_with_llm_failure:

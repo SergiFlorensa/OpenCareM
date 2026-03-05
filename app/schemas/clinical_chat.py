@@ -122,7 +122,7 @@ class CareTaskClinicalChatMessageResponse(BaseModel):
 
 
 class CareTaskClinicalChatPublicResponse(BaseModel):
-    """Respuesta publica de chat para frontend, sin trazas internas de backend."""
+    """Respuesta publica de chat para frontend con trazabilidad operacional."""
 
     care_task_id: int
     message_id: int
@@ -140,6 +140,8 @@ class CareTaskClinicalChatPublicResponse(BaseModel):
     effective_specialty: str
     matched_domains: list[str]
     knowledge_sources: list[dict[str, str]]
+    extracted_facts: list[str]
+    interpretability_trace: list[str]
     quality_metrics: CareTaskClinicalChatQualityMetrics
     non_diagnostic_warning: str
 

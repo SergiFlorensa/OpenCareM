@@ -303,7 +303,10 @@ def _sanitize_public_chat_answer(answer: str) -> str:
         compact_lines.append(line)
 
     cleaned = "\n".join(compact_lines).strip()
-    return cleaned or "No hay evidencia interna suficiente para una recomendacion operativa confiable."
+    return (
+        cleaned
+        or "No hay evidencia interna suficiente para una recomendacion operativa confiable."
+    )
 
 
 @router.post("/", response_model=CareTaskResponse, status_code=status.HTTP_201_CREATED)
@@ -441,6 +444,8 @@ def create_care_task_chat_message(
         matched_domains=list(message.matched_domains or []),
         effective_specialty=message.effective_specialty,
         knowledge_sources=list(message.knowledge_sources or []),
+        extracted_facts=list(message.extracted_facts or []),
+        interpretability_trace=list(_interpretability_trace or []),
         quality_metrics=quality_metrics,
         non_diagnostic_warning=(
             "Soporte operativo no diagnostico. Requiere validacion humana y protocolo local."

@@ -13,7 +13,7 @@ import math
 import time
 from pathlib import Path
 from typing import Optional
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from app.core.config import settings
@@ -25,6 +25,8 @@ class OllamaEmbeddingService:
     """Servicio de embeddings usando modelo Ollama local."""
 
     EMBEDDING_DIM = 384
+    MAX_INPUT_CHARS = 2000
+    WINDOW_OVERLAP_CHARS = 240
     CACHE_DIR = Path(".ollama_cache/embeddings")
 
     def __init__(self, model: Optional[str] = None, cache_enabled: bool = True):
@@ -44,6 +46,7 @@ class OllamaEmbeddingService:
             raise ValueError("Texto vacio")
 
         text_normalized = text.strip()
+        segments = self._split_for_embedding(text_normalized)
 
         if self.cache_enabled:
             vector, cache_hit = self._load_from_cache(text_normalized)
@@ -56,7 +59,26 @@ class OllamaEmbeddingService:
 
         started_at = time.perf_counter()
         try:
-            vector = self._call_ollama(text_normalized)
+            vectors: list[list[float]] = []
+            segment_errors = 0
+            for segment in segments:
+                try:
+                    vectors.append(self._call_ollama(segment))
+                except (
+                    HTTPError,
+                    URLError,
+                    TimeoutError,
+                    ValueError,
+                    OSError,
+                    json.JSONDecodeError,
+                ):
+                    segment_errors += 1
+                    vectors.append(self._fallback_vector(segment))
+
+            if not vectors:
+                raise ValueError("No se pudieron generar embeddings por segmentos")
+
+            vector = self._mean_pool(vectors)
             latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
             if self.cache_enabled:
                 self._save_to_cache(text_normalized, vector)
@@ -64,6 +86,8 @@ class OllamaEmbeddingService:
                 "embedding_source": "ollama",
                 "embedding_model": self.model,
                 "embedding_latency_ms": str(latency_ms),
+                "embedding_segment_count": str(len(segments)),
+                "embedding_segment_errors": str(segment_errors),
                 "cache_hit": "false",
             }
         except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError) as exc:
@@ -141,6 +165,39 @@ class OllamaEmbeddingService:
         digest = hashlib.sha256(text.encode("utf-8")).digest()
         raw = (digest * ((self.EMBEDDING_DIM // len(digest)) + 1))[: self.EMBEDDING_DIM]
         return [((value - 127.5) / 127.5) for value in raw]
+
+    def _split_for_embedding(self, text: str) -> list[str]:
+        """
+        Divide textos largos en ventanas para evitar `input length exceeds context`
+        en Ollama embeddings.
+        """
+        clean_text = " ".join(text.split())
+        if len(clean_text) <= self.MAX_INPUT_CHARS:
+            return [clean_text]
+
+        step = max(256, self.MAX_INPUT_CHARS - self.WINDOW_OVERLAP_CHARS)
+        segments: list[str] = []
+        start = 0
+        while start < len(clean_text):
+            end = min(len(clean_text), start + self.MAX_INPUT_CHARS)
+            segment = clean_text[start:end].strip()
+            if segment:
+                segments.append(segment)
+            if end >= len(clean_text):
+                break
+            start += step
+        return segments or [clean_text[: self.MAX_INPUT_CHARS]]
+
+    def _mean_pool(self, vectors: list[list[float]]) -> list[float]:
+        if not vectors:
+            return self._fallback_vector("")
+        dim = len(vectors[0])
+        accum = [0.0] * dim
+        for vector in vectors:
+            for idx, value in enumerate(vector[:dim]):
+                accum[idx] += float(value)
+        total = float(len(vectors))
+        return [value / total for value in accum]
 
     def _cache_key(self, text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()

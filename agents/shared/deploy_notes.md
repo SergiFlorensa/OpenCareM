@@ -1311,3 +1311,55 @@
   - reiniciar `uvicorn` tras cambios de `.env`.
 - Recomendacion post-deploy:
   - monitorizar en trazas `rag_multi_intent_plan_size`, `rag_multi_intent_chunks` y `quality_threshold_attention_*` para calibracion por subdominio.
+
+## TM-200 - Notas de despliegue
+
+- Sin migraciones Alembic.
+- Variables nuevas/relevantes:
+  - `CLINICAL_CHAT_RAG_HYDE_ENABLED=true|false`
+  - `CLINICAL_CHAT_RAG_VERIFIER_ENABLED=true|false`
+  - `CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE=0..1`
+  - `CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS=1..12`
+  - `CLINICAL_CHAT_RAG_VERIFIER_BM25_FALLBACK_ENABLED=true|false`
+  - `CLINICAL_CHAT_RAG_ECORAG_ENABLED=true|false`
+  - `CLINICAL_CHAT_RAG_ECORAG_MIN_EVIDENTIALITY=0..1`
+  - `CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS=1..12`
+- Requisito operativo:
+  - reiniciar `uvicorn` tras cambios de `.env`.
+- Recomendacion post-deploy:
+  - revisar `rag_verifier_passed`, `rag_verifier_reason`, `rag_ecorag_evidentiality_score` y `rag_safe_wrapper_reason` en trazas para calibrar precision/recall por subdominio.
+
+- TM-201 (RAG latencia/fact-only):
+
+  - Nuevas flags de configuracion:
+    - `CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED` (default `false`)
+    - `CLINICAL_CHAT_RAG_EARLY_GOAL_TEST_ENABLED` y umbrales `CLINICAL_CHAT_RAG_EARLY_GOAL_*`
+    - `CLINICAL_CHAT_RAG_QUERY_CACHE_ENABLED`, `CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS`, `CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES`
+  - Recomendacion para portatil local: activar `FACT_ONLY_MODE`, mantener `QUERY_CACHE_ENABLED=true` y ajustar TTL/size segun memoria disponible.
+  - Sin migraciones DB ni cambios de infraestructura obligatorios.
+
+- TM-202 (coherencia discursiva RAG):
+
+  - Nuevas flags de configuracion:
+    - `CLINICAL_CHAT_RAG_DISCOURSE_COHERENCE_ENABLED`
+    - `CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE`
+    - `CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO`
+    - `CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE`
+  - Recomendacion inicial de despliegue local:
+    - mantener `DISCOURSE_COHERENCE_ENABLED=true`,
+    - empezar con umbrales por defecto y revisar trazas `rag_discourse_*` por subdominio.
+  - Sin migraciones DB ni cambios de infraestructura obligatorios.
+
+- TM-203 (algoritmos discursivos explicitos en runtime):
+
+  - Se activa en la misma capa `CLINICAL_CHAT_RAG_DISCOURSE_COHERENCE_ENABLED=true`.
+  - Algoritmos aplicados por chunk recuperado:
+    - `EDU segmentation`,
+    - `TextTiling`,
+    - `Lexical chaining`,
+    - `LSA-like coherence`,
+    - `LCD local` con operaciones vectoriales,
+    - `Entity Grid`.
+  - Verificacion operativa sugerida:
+    - revisar en trazas `rag_discourse_top_texttiling`, `rag_discourse_top_lexical_chain`, `rag_discourse_top_lsa`, `rag_discourse_top_entity_grid`.
+

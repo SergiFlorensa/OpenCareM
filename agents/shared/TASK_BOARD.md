@@ -12,6 +12,76 @@
 
 ## Items activos
 
+- ID: TM-203
+
+- Objetivo: Implementar algoritmos discursivos explicitos en codigo (TextTiling, EDUs, cadenas lexicas, LCD con operaciones vectoriales y entity-grid) y conectarlos al reranking real del chat clinico.
+
+- Alcance: `app/services/rag_orchestrator.py`, `app/tests/test_rag_orchestrator_optimizations.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-202.
+
+- Evidencia:
+
+  - `./venv/Scripts/python.exe -m ruff check app/services/rag_orchestrator.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- ID: TM-202
+
+- Objetivo: Mejorar coherencia de respuesta RAG clinica offline con reranking discursivo (RST heuristico, centering de entidades y coherencia local/LCD) sobre evidencia interna.
+
+- Alcance: `.env.example`, `app/core/config.py`, `app/services/rag_orchestrator.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_settings_security.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-201.
+
+- Evidencia:
+
+  - `./venv/Scripts/python.exe -m ruff check app/core/config.py app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- ID: TM-201
+
+- Objetivo: Reducir latencia y evitar fallback razonado en RAG clinico local con modo fact-only, early-goal test y memoizacion con poda por estado resoluble.
+
+- Alcance: `.env.example`, `app/core/config.py`, `app/services/rag_orchestrator.py`, `app/services/clinical_chat_service.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_settings_security.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-200.
+
+- Evidencia:
+
+  - `./venv/Scripts/python.exe -m ruff check app/core/config.py app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- ID: TM-200
+
+- Objetivo: Endurecer pipeline RAG clinico con verificacion de evidencia tipo cross-encoder proxy, abstencion/fallback lexical y compresion iterativa por evidencialidad (ECoRAG-like), con citas granulares.
+
+- Alcance: `.env.example`, `app/core/config.py`, `app/services/rag_orchestrator.py`, `app/services/rag_prompt_builder.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_settings_security.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-199.
+
+- Evidencia:
+
+  - `./venv/Scripts/python.exe -m ruff check app/services/rag_orchestrator.py app/services/rag_prompt_builder.py app/core/config.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
 - ID: TM-199
 
 - Objetivo: Mejorar calidad de recuperacion/ensamblado del chat clinico con segmentacion multi-intento, reranking accionable y anclaje fino de fuentes (sin activar cambios de embeddings).

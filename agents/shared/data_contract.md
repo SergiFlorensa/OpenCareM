@@ -863,3 +863,36 @@
 - Riesgos de datos:
   - umbrales estrictos de actionability pueden reducir recall de snippets validos si no se calibran por subdominio.
   - la segmentacion multi-intento depende de marcadores lexicales; consultas muy cortas pueden no segmentar.
+
+## TM-200
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Persistencia:
+  - sin nuevas tablas/columnas.
+  - enriquecimiento de contexto en runtime con metadatos derivados (`source_title`, `source_page`).
+- Riesgos de datos:
+  - umbral de verificacion alto puede reducir recall en consultas cortas o terminologia variable.
+  - parseo de pagina por regex puede no detectar numeracion en todos los formatos de seccion.
+
+## TM-201
+
+- Sin cambios de modelo persistente ni migraciones.
+- Cache de RAG y poda de estado implementadas en memoria de proceso (no persistente).
+- Riesgo operativo: cache se reinicia al reiniciar proceso; comportamiento esperado para entorno local.
+
+## TM-202
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Los puntajes de coherencia discursiva se calculan en runtime y se guardan en atributos efimeros del chunk (`_rag_discourse_score`, `_rag_rst_role`, `_rag_argument_zone`, `_rag_lcd_score`).
+- Riesgo operativo: al ser heuristico, requiere ajuste por subdominio para equilibrar precision/recall.
+
+## TM-203
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Nuevos puntajes efimeros por chunk en runtime:
+  - `_rag_texttiling_score`
+  - `_rag_lexical_chain_score`
+  - `_rag_lsa_score`
+  - `_rag_entity_grid_score`
+- Riesgo operativo: aumento marginal de CPU por chunk; mitigado al ejecutarse sobre `top-k` ya recuperado.
+

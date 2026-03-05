@@ -2700,3 +2700,57 @@ Resultados:
   - `ruff`: OK.
   - `pytest`: `113 passed`.
 
+## TM-200 - Plan de validacion ejecutado
+
+- Alcance validado:
+  - `app/core/config.py`
+  - `app/services/rag_orchestrator.py`
+  - `app/services/rag_prompt_builder.py`
+  - `app/tests/test_rag_orchestrator_optimizations.py`
+  - `app/tests/test_settings_security.py`
+- Comandos ejecutados:
+  - `./venv/Scripts/python.exe -m ruff check app/services/rag_orchestrator.py app/services/rag_prompt_builder.py app/core/config.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+  - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+- Resultado:
+  - `ruff`: OK.
+  - `pytest`: `122 passed`.
+
+
+- Resultado TM-201:
+
+  - Backend RAG optimizado para portatil/local:
+    - modo fact-only (sin segundo pase LLM en chat),
+    - early-goal test en orquestador RAG para salida extractiva directa,
+    - cache de consultas con TTL + poda por subset para evitar recalculo.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/core/config.py app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- Resultado TM-202:
+
+  - RAG con capa de coherencia discursiva local:
+    - clasificacion heuristica `nucleus/satellite` (RST-like),
+    - enfoque de entidad saliente (centering theory),
+    - cohesión lexical + LCD local con discriminacion de orden de oraciones,
+    - reranking y filtrado de chunks con trazas `rag_discourse_*`.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/core/config.py app/services/rag_orchestrator.py app/services/clinical_chat_service.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- Resultado TM-203:
+
+  - Algoritmos explicitamente implementados y usados en runtime del chat:
+    - `EDU segmentation`,
+    - `TextTiling` (similitud coseno entre ventanas vecinas),
+    - `Lexical chaining`,
+    - `LCD` con operaciones vectoriales (`concat`, `diff`, `|diff|`, `prod`),
+    - `Entity Grid` para continuidad/shift de entidades.
+  - Integracion:
+    - reranking discursivo de chunks en `RAGOrchestrator` antes de ensamblado final.
+    - trazabilidad en `rag_discourse_top_texttiling`, `rag_discourse_top_lexical_chain`, `rag_discourse_top_lsa`, `rag_discourse_top_entity_grid`.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/services/rag_orchestrator.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+

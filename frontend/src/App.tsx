@@ -33,7 +33,14 @@ type ChatResponse = {
 };
 
 const STORAGE_API_KEY = "clinical_ops_api_base";
-const DEFAULT_API_BASE = "http://127.0.0.1:8010/api/v1";
+const LEGACY_API_BASE = "http://127.0.0.1:8010/api/v1";
+const DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1";
+
+function normalizeApiBase(raw: string | null): string {
+  const value = (raw || "").trim();
+  if (!value || value === LEGACY_API_BASE) return DEFAULT_API_BASE;
+  return value;
+}
 
 function formatError(detail: unknown, fallback: string): string {
   if (!detail) return fallback;
@@ -56,7 +63,9 @@ function buildSessionId(): string {
 }
 
 export default function App() {
-  const [apiBaseUrl, setApiBaseUrl] = useState(localStorage.getItem(STORAGE_API_KEY) || DEFAULT_API_BASE);
+  const [apiBaseUrl, setApiBaseUrl] = useState(() =>
+    normalizeApiBase(localStorage.getItem(STORAGE_API_KEY)),
+  );
   const [tasks, setTasks] = useState<CareTask[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isCasePickerOpen, setIsCasePickerOpen] = useState(false);
@@ -372,3 +381,4 @@ export default function App() {
     </main>
   );
 }
+

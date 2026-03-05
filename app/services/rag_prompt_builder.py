@@ -124,6 +124,14 @@ class RAGContextAssembler:
     """Convierte chunks ORM a estructuras serializables para prompts/traza."""
 
     @staticmethod
+    def _extract_page_hint(section_value: str) -> str:
+        normalized = str(section_value or "").lower()
+        match = re.search(r"(?:pag(?:ina)?|p)\.?\s*(\d{1,4})", normalized)
+        if not match:
+            return ""
+        return str(match.group(1)).strip()
+
+    @staticmethod
     def assemble_rag_context(
         retrieved_chunks: list[Any],
         *,
@@ -134,16 +142,24 @@ class RAGContextAssembler:
         for chunk in retrieved_chunks:
             document = getattr(chunk, "document", None)
             source = None
+            source_title = ""
             if document is not None:
                 source = getattr(document, "source_file", None)
+                source_title = str(getattr(document, "title", "") or "").strip()
+            section_value = str(getattr(chunk, "section_path", "") or "sin seccion")
+            if not source_title:
+                source_title = section_value
+            page_hint = RAGContextAssembler._extract_page_hint(section_value)
             chunk_dict = {
                 "id": int(getattr(chunk, "id")),
                 "text": str(getattr(chunk, "chunk_text", "")),
-                "section": str(getattr(chunk, "section_path", "") or "sin seccion"),
+                "section": section_value,
                 "score": float(getattr(chunk, "_rag_score", 0.0) or 0.0),
                 "keywords": list(getattr(chunk, "keywords", []) or []),
                 "questions": list(getattr(chunk, "custom_questions", []) or []),
                 "source": str(source or "catalogo interno"),
+                "source_title": source_title,
+                "source_page": page_hint,
                 "specialty": str(getattr(chunk, "specialty", "") or "general"),
                 "token_count": int(getattr(chunk, "tokens_count", 0) or 0),
             }

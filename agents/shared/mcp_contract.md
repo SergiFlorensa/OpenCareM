@@ -71,3 +71,28 @@
 - Cambios MCP: no aplica.
 - No se agregan herramientas MCP ni cambios de contrato MCP server.
 - Impacto esperado: ninguno en `mcp_server/`; cambio acotado a pipeline interno de chat clinico.
+
+## TM-200
+
+- Cambios MCP: no aplica.
+- No se agregan herramientas MCP ni cambios de contrato MCP server.
+- Impacto esperado: ninguno en `mcp_server/`; cambio acotado a verificacion y ensamblado interno de RAG.
+
+## TM-201
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP ni transporte.
+- Impacto esperado: ninguno en mcp_server/; mejora acotada al pipeline interno del chat clinico.
+
+## TM-202
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP, transporte ni contratos expuestos.
+- Impacto esperado: ninguno en `mcp_server/`; cambio acotado a ranking interno de evidencia en chat clinico.
+
+## TM-203
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP ni transporte.
+- Impacto esperado: ninguno en `mcp_server/`; cambios solo en procesamiento interno de texto en backend RAG.
+

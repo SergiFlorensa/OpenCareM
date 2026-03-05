@@ -149,6 +149,34 @@ def test_next_query_suggestions_are_generated_for_domain():
     assert len(set(suggestions)) == len(suggestions)
 
 
+def test_evidence_first_answer_splits_compound_domains_into_blocks():
+    answer = ClinicalChatService._render_evidence_first_clinical_answer(
+        care_task=SimpleNamespace(title="Caso compuesto"),
+        query="Oncologia con sepsis: prioridades iniciales",
+        matched_domains=[
+            {"key": "sepsis", "label": "Sepsis"},
+            {"key": "oncology", "label": "Oncologia"},
+        ],
+        matched_endpoints=[],
+        knowledge_sources=[
+            {
+                "title": "Sepsis > Bundle inicial > Pagina 4",
+                "source": "docs/47_motor_sepsis_urgencias.md",
+                "snippet": "Iniciar bundle de sepsis con hemocultivos y antibiotico precoz.",
+            },
+            {
+                "title": "Oncologia > Neutropenia febril > Pagina 9",
+                "source": "docs/76_motor_operativo_oncologia_urgencias.md",
+                "snippet": "Activar ruta de neutropenia febril y monitorizacion estrecha.",
+            },
+        ],
+    )
+
+    assert "Bloque Sepsis:" in answer
+    assert "Bloque Oncologia:" in answer
+    assert "Fuentes internas exactas:" in answer
+
+
 def test_clarifying_answer_renders_suggestions_block():
     answer = ClinicalChatService._render_clarifying_question_answer(
         question_text="¿Puedes aportar constantes y tiempo de evolucion?",

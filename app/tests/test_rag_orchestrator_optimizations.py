@@ -209,6 +209,146 @@ def test_generative_proxy_score_prefers_well_formed_sentence():
     assert good > poor
 
 
+def test_local_coherence_discriminator_prefers_natural_sentence_order():
+    ordered = (
+        "Sepsis con hipotension y lactato elevado en urgencias. "
+        "Por ello se debe activar bundle, extraer hemocultivos e iniciar antibiotico precoz. "
+        "Despues reevaluar perfusion y tendencia de lactato."
+    )
+    shuffled = (
+        "Despues reevaluar perfusion y tendencia de lactato. "
+        "Sepsis con hipotension y lactato elevado en urgencias. "
+        "Por ello se debe activar bundle, extraer hemocultivos e iniciar antibiotico precoz."
+    )
+
+    ordered_score = RAGOrchestrator._local_coherence_discriminator_score(ordered)
+    shuffled_score = RAGOrchestrator._local_coherence_discriminator_score(shuffled)
+
+    assert ordered_score >= shuffled_score
+
+
+def test_texttiling_topic_score_prefers_consistent_subtopic_blocks():
+    query_tokens = {"sepsis", "lactato", "antibiotico", "bundle"}
+    coherent_edus = [
+        "Sepsis con lactato elevado y signos de hipoperfusion en urgencias",
+        "Activar bundle, extraer hemocultivos e iniciar antibiotico precoz",
+        "Reevaluar lactato y perfusion despues de la reanimacion inicial",
+    ]
+    mixed_edus = [
+        "Sepsis con lactato elevado y signos de hipoperfusion en urgencias",
+        "Oncologia de mama y receptor HER2 en escenarios ambulatorios",
+        "Reevaluar lactato y perfusion despues de la reanimacion inicial",
+    ]
+
+    coherent_score = RAGOrchestrator._texttiling_topic_score(
+        query_tokens=query_tokens,
+        edus=coherent_edus,
+    )
+    mixed_score = RAGOrchestrator._texttiling_topic_score(
+        query_tokens=query_tokens,
+        edus=mixed_edus,
+    )
+    assert coherent_score > mixed_score
+
+
+def test_lexical_chain_cohesion_score_rewards_medical_chain_density():
+    query_tokens = {"sepsis", "lactato", "antibiotico", "cultivos"}
+    dense_edus = [
+        "Sepsis con lactato y lactatemia elevada en contexto infeccioso",
+        "Antibiotico precoz y cultivos en sepsis grave con hipoperfusion",
+        "Reevaluacion de lactato y respuesta al bundle de sepsis",
+    ]
+    sparse_edus = [
+        "Documento introductorio con contexto historico general",
+        "Descripcion de conceptos sin acciones clinicas operativas",
+        "Texto editorial sin campo semantico claro para urgencias",
+    ]
+
+    dense_score = RAGOrchestrator._lexical_chain_cohesion_score(
+        query_tokens=query_tokens,
+        edus=dense_edus,
+    )
+    sparse_score = RAGOrchestrator._lexical_chain_cohesion_score(
+        query_tokens=query_tokens,
+        edus=sparse_edus,
+    )
+    assert dense_score > sparse_score
+
+
+def test_entity_grid_coherence_prefers_continue_over_shift():
+    salient = {"sepsis", "lactato", "hipotension"}
+    continue_edus = [
+        "Sepsis con hipotension y lactato elevado en la llegada a urgencias",
+        "Sepsis con lactato persistente requiere reevaluacion hemodinamica continua",
+        "Sepsis refractaria con hipotension demanda escalado vasopresor precoz",
+    ]
+    shift_edus = [
+        "Sepsis con hipotension y lactato elevado en la llegada a urgencias",
+        "Trauma toracico cerrado con neumotorax a tension y drenaje",
+        "SCASEST de alto riesgo con troponina positiva y ECG dinamico",
+    ]
+
+    continue_score = RAGOrchestrator._entity_grid_coherence_score(
+        edus=continue_edus,
+        salient_entities=salient,
+    )
+    shift_score = RAGOrchestrator._entity_grid_coherence_score(
+        edus=shift_edus,
+        salient_entities=salient,
+    )
+    assert continue_score > shift_score
+
+
+def test_discourse_rerank_prioritizes_nucleus_action_chunk(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_DISCOURSE_COHERENCE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE",
+        0.10,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO",
+        0.50,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE",
+        0.10,
+    )
+
+    satellite = SimpleNamespace(
+        id=901,
+        chunk_text=(
+            "Introduccion historica y contexto editorial sobre la evolucion del concepto de sepsis."
+        ),
+        section_path="Sepsis > Introduccion y contexto",
+        _rag_score=0.95,
+    )
+    nucleus = SimpleNamespace(
+        id=902,
+        chunk_text=(
+            "Sepsis con hipotension y lactato alto: activar bundle, hemocultivos, antibiotico "
+            "precoz y reevaluacion hemodinamica."
+        ),
+        section_path="Sepsis > Protocolo operativo inicial",
+        _rag_score=0.55,
+    )
+
+    reranked, trace = orchestrator._apply_discourse_coherence_rerank(
+        query="Sepsis con lactato alto e hipotension",
+        chunks=[satellite, nucleus],
+    )
+
+    assert reranked
+    assert int(getattr(reranked[0], "id")) == 902
+    assert trace["rag_discourse_enabled"] == "1"
+    assert trace["rag_discourse_top_role"] == "nucleus"
+    assert "rag_discourse_top_texttiling" in trace
+    assert "rag_discourse_top_entity_grid" in trace
+
+
 def test_extractive_answer_adds_dose_safety_note_when_no_numeric_dose_found():
     answer = RAGOrchestrator._build_extractive_answer(
         query="Cual es la dosis de heparina en este contexto?",
@@ -316,6 +456,255 @@ def test_rag_latency_budget_skips_llm_and_uses_extractive_fallback(monkeypatch):
     assert trace["rag_status"] == "success"
     assert trace["rag_generation_mode"] == "extractive_fallback_llm_error"
     assert trace["rag_llm_skipped_reason"] == "latency_budget_exhausted_pre_llm"
+
+
+def test_early_goal_test_returns_extractive_answer_without_llm(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    llm_called = {"value": False}
+
+    def fake_llm(**kwargs):  # noqa: ARG001
+        llm_called["value"] = True
+        return "respuesta llm", {"llm_used": "true"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.LLMChatProvider.generate_answer",
+        fake_llm,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_TEST_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE",
+        0.1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_ACTIONABILITY",
+        0.1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_RETRIEVAL_SCORE",
+        0.1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QUERY_CACHE_ENABLED",
+        False,
+    )
+
+    chunk = SimpleNamespace(
+        id=501,
+        chunk_text=(
+            "Sepsis con hipotension y lactato elevado: activar bundle, hemocultivos y "
+            "antibiotico precoz en la primera hora."
+        ),
+        section_path="Sepsis > Bundle inicial",
+        tokens_count=28,
+        keywords=[],
+        custom_questions=[],
+        specialty="sepsis",
+        content_type="markdown",
+        _rag_score=0.92,
+        document=SimpleNamespace(source_file="docs/47_motor_sepsis_urgencias.md"),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (1, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: (
+            [chunk],
+            {"vector_search_latency_ms": "2"},
+            "hybrid",
+        ),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Sepsis con lactato alto e hipotension, pasos iniciales",
+        response_mode="clinical",
+        effective_specialty="sepsis",
+        matched_domains=[],
+    )
+
+    assert answer is not None
+    assert llm_called["value"] is False
+    assert trace["rag_generation_mode"] == "early_goal_extractive"
+    assert trace["rag_early_goal_triggered"] == "1"
+    assert trace["llm_used"] == "false"
+
+
+def test_query_cache_exact_hit_avoids_second_retrieval(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    retrieval_calls = {"value": 0}
+
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", False)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QUERY_CACHE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS",
+        300,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES",
+        256,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_TEST_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE",
+        0.1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_ACTIONABILITY",
+        0.1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_RETRIEVAL_SCORE",
+        0.1,
+    )
+
+    chunk = SimpleNamespace(
+        id=601,
+        chunk_text="Hiperkalemia con QRS ancho: administrar calcio IV y monitorizar ECG.",
+        section_path="Nefrologia > Hiperkalemia",
+        tokens_count=16,
+        keywords=[],
+        custom_questions=[],
+        specialty="nephrology",
+        content_type="markdown",
+        _rag_score=0.88,
+        document=SimpleNamespace(source_file="docs/73_motor_operativo_nefrologia_urgencias.md"),
+    )
+
+    def fake_search(query, k, specialty_filter):  # noqa: ARG001
+        retrieval_calls["value"] += 1
+        return [chunk], {"vector_search_latency_ms": "2"}, "hybrid"
+
+    monkeypatch.setattr(orchestrator, "_search_with_configured_backend", fake_search)
+
+    first_answer, first_trace = orchestrator.process_query_with_rag(
+        query="Hiperkalemia con QRS ancho en urgencias",
+        response_mode="clinical",
+        effective_specialty="nephrology",
+        matched_domains=[],
+    )
+    second_answer, second_trace = orchestrator.process_query_with_rag(
+        query="Hiperkalemia con QRS ancho en urgencias",
+        response_mode="clinical",
+        effective_specialty="nephrology",
+        matched_domains=[],
+    )
+
+    assert first_answer is not None
+    assert second_answer is not None
+    assert first_trace["rag_query_cache_hit"] == "0"
+    assert second_trace["rag_query_cache_hit"] == "1"
+    assert second_trace["rag_query_cache_hit_type"] == "exact"
+    assert retrieval_calls["value"] == 1
+
+
+def test_query_cache_subset_pruning_reuses_resolvable_state(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    retrieval_calls = {"value": 0}
+
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", False)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QUERY_CACHE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS",
+        300,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES",
+        256,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_TEST_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE",
+        0.1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_ACTIONABILITY",
+        0.1,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_RETRIEVAL_SCORE",
+        0.1,
+    )
+
+    chunk = SimpleNamespace(
+        id=701,
+        chunk_text=(
+            "Shock septico con lactato elevado e hipotension: activar bundle inicial, "
+            "hemocultivos y antibiotico precoz."
+        ),
+        section_path="Sepsis > Bundle inicial",
+        tokens_count=22,
+        keywords=[],
+        custom_questions=[],
+        specialty="sepsis",
+        content_type="markdown",
+        _rag_score=0.91,
+        document=SimpleNamespace(source_file="docs/47_motor_sepsis_urgencias.md"),
+    )
+
+    def fake_search(query, k, specialty_filter):  # noqa: ARG001
+        retrieval_calls["value"] += 1
+        return [chunk], {"vector_search_latency_ms": "2"}, "hybrid"
+
+    monkeypatch.setattr(orchestrator, "_search_with_configured_backend", fake_search)
+
+    first_answer, _ = orchestrator.process_query_with_rag(
+        query="Shock septico con lactato alto e hipotension refractaria, bundle inicial",
+        response_mode="clinical",
+        effective_specialty="sepsis",
+        matched_domains=[],
+    )
+    second_answer, second_trace = orchestrator.process_query_with_rag(
+        query="Shock lactato alto",
+        response_mode="clinical",
+        effective_specialty="sepsis",
+        matched_domains=[],
+    )
+
+    assert first_answer is not None
+    assert second_answer is not None
+    assert second_trace["rag_query_cache_hit"] == "1"
+    assert second_trace["rag_query_cache_hit_type"] == "subset_prune"
+    assert second_trace["rag_belief_state_pruned"] == "1"
+    assert retrieval_calls["value"] == 1
 
 
 def test_domain_search_is_skipped_when_query_is_long(monkeypatch):
@@ -975,3 +1364,168 @@ def test_extractive_answer_source_anchor_includes_source_leaf():
 
     assert answer is not None
     assert "(76_motor_operativo_oncologia_urgencias.md)" in answer
+
+
+def test_context_assembler_adds_title_and_page_metadata():
+    chunk = SimpleNamespace(
+        id=77,
+        chunk_text="En sepsis se debe iniciar bundle inicial y monitorizacion hemodinamica.",
+        section_path="Sepsis > Bundle inicial > Pagina 12",
+        _rag_score=0.81,
+        keywords=["sepsis", "bundle"],
+        custom_questions=[],
+        specialty="sepsis",
+        tokens_count=20,
+        document=SimpleNamespace(
+            source_file="docs/47_motor_sepsis_urgencias.md",
+            title="Motor de Sepsis Urgencias",
+        ),
+    )
+
+    assembled, trace = RAGContextAssembler.assemble_rag_context([chunk])
+
+    assert trace["rag_assembled_chunks"] == "1"
+    assert assembled[0]["source_title"] == "Motor de Sepsis Urgencias"
+    assert assembled[0]["source_page"] == "12"
+
+
+def test_verifier_filters_noise_chunks_with_cross_encoder_proxy(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_VERIFIER_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE",
+        0.50,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS",
+        1,
+    )
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+
+    relevant = SimpleNamespace(
+        id=901,
+        chunk_text=(
+            "Sepsis con hipotension y lactato elevado requiere iniciar bundle con "
+            "hemocultivos, antibiotico precoz y monitorizacion."
+        ),
+        section_path="Sepsis > Bundle inicial",
+        keywords=["sepsis", "lactato", "bundle"],
+        _rag_score=0.62,
+        document=SimpleNamespace(title="Motor de Sepsis"),
+    )
+    noise = SimpleNamespace(
+        id=902,
+        chunk_text="Cronologia administrativa del servicio y resumen editorial general.",
+        section_path="General > Historico",
+        keywords=["historico"],
+        _rag_score=0.71,
+        document=SimpleNamespace(title="Documento General"),
+    )
+
+    selected, trace = orchestrator._verify_retrieved_chunks(
+        query="Sepsis con lactato alto e hipotension, acciones inmediatas",
+        chunks=[noise, relevant],
+    )
+
+    assert trace["rag_verifier_passed"] == "1"
+    assert trace["rag_verifier_verified"] == "1"
+    assert len(selected) == 1
+    assert int(getattr(selected[0], "id")) == 901
+
+
+def test_verifier_enforces_minimum_verified_chunks(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_VERIFIER_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE",
+        0.45,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS",
+        2,
+    )
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    one_chunk = SimpleNamespace(
+        id=903,
+        chunk_text="Iniciar bundle de sepsis y antibioterapia en primera hora.",
+        section_path="Sepsis > Bundle inicial",
+        keywords=["sepsis", "bundle"],
+        _rag_score=0.73,
+        document=SimpleNamespace(title="Motor de Sepsis"),
+    )
+
+    selected, trace = orchestrator._verify_retrieved_chunks(
+        query="Sepsis con hipotension refractaria",
+        chunks=[one_chunk],
+    )
+
+    assert selected == []
+    assert trace["rag_verifier_passed"] == "0"
+    assert trace["rag_verifier_reason"] == "below_min_verified_chunks"
+
+
+def test_ecorag_reflection_reaches_threshold_with_compact_context(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ECORAG_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ECORAG_MIN_EVIDENTIALITY",
+        0.35,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS",
+        1,
+    )
+
+    selected, trace = RAGOrchestrator._apply_ecorag_evidential_reflection(
+        query="Sepsis con hipotension y lactato elevado",
+        chunks=[
+            {
+                "text": (
+                    "Sepsis con hipotension y lactato elevado: iniciar bundle, hemocultivos y "
+                    "antibiotico precoz en primera hora."
+                ),
+                "section": "Sepsis > Bundle inicial",
+                "source": "docs/47_motor_sepsis_urgencias.md",
+                "score": 0.84,
+            },
+            {
+                "text": "Resumen editorial general sin acciones clinicas concretas para el caso.",
+                "section": "General > Introduccion",
+                "source": "docs/37_contexto_operaciones_clinicas_urgencias_es.md",
+                "score": 0.41,
+            },
+        ],
+    )
+
+    assert selected
+    assert len(selected) == 1
+    assert trace["rag_ecorag_resolved"] == "1"
+
+
+def test_extractive_answer_source_anchor_includes_title_section_page():
+    answer = RAGOrchestrator._build_extractive_answer(
+        query="Sepsis con hipotension refractaria",
+        matched_domains=["sepsis"],
+        chunks=[
+            {
+                "text": (
+                    "Ante sepsis con hipotension refractaria, iniciar vasopresor, monitorizacion "
+                    "continua y reevaluacion hemodinamica."
+                ),
+                "section": "Sepsis > Escalado hemodinamico",
+                "source_title": "Motor de Sepsis Urgencias",
+                "source_page": "14",
+                "source": "docs/47_motor_sepsis_urgencias.md",
+                "score": 0.79,
+            }
+        ],
+    )
+
+    assert answer is not None
+    assert "Motor de Sepsis Urgencias > Sepsis > Escalado hemodinamico [p.14]" in answer

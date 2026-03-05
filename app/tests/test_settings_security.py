@@ -98,6 +98,74 @@ def test_rejects_invalid_context_min_ratio():
         )
 
 
+def test_rejects_invalid_early_goal_min_score():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE"):
+        Settings(
+            CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE=1.2,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_query_cache_ttl_seconds():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS"):
+        Settings(
+            CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS=5,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_query_cache_max_entries():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES"):
+        Settings(
+            CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES=4,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_allows_fact_only_mode():
+    settings = Settings(
+        CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED=True,
+        CLINICAL_CHAT_RAG_EARLY_GOAL_TEST_ENABLED=True,
+        BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+    )
+    assert settings.CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED is True
+
+
+def test_rejects_invalid_discourse_min_score():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE"):
+        Settings(
+            CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE=1.2,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_discourse_max_satellite_ratio():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO"):
+        Settings(
+            CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO=-0.1,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_discourse_lcd_min_score():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE"):
+        Settings(
+            CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE=1.1,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_allows_discourse_coherence_settings():
+    settings = Settings(
+        CLINICAL_CHAT_RAG_DISCOURSE_COHERENCE_ENABLED=True,
+        CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE=0.3,
+        CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO=0.5,
+        CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE=0.2,
+        BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+    )
+    assert settings.CLINICAL_CHAT_RAG_DISCOURSE_COHERENCE_ENABLED is True
+
+
 def test_rejects_invalid_pdf_parser_backend():
     with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_PARSER_BACKEND"):
         Settings(
@@ -709,5 +777,37 @@ def test_rejects_invalid_action_min_score():
     with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_ACTION_MIN_SCORE"):
         Settings(
             CLINICAL_CHAT_RAG_ACTION_MIN_SCORE=1.5,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_verifier_min_score():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE"):
+        Settings(
+            CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE=1.2,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_verifier_min_chunks():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS"):
+        Settings(
+            CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS=0,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_ecorag_min_evidentiality():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_ECORAG_MIN_EVIDENTIALITY"):
+        Settings(
+            CLINICAL_CHAT_RAG_ECORAG_MIN_EVIDENTIALITY=1.8,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_ecorag_min_chunks():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS"):
+        Settings(
+            CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS=0,
             BACKEND_CORS_ORIGINS=["http://localhost:5173"],
         )

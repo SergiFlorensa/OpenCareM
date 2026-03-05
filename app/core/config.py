@@ -113,6 +113,18 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED: bool = True
     CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_MAX_ITEMS: int = 5
     CLINICAL_CHAT_RAG_FORCE_EXTRACTIVE_ONLY: bool = False
+    CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED: bool = False
+    CLINICAL_CHAT_RAG_EARLY_GOAL_TEST_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE: float = 0.62
+    CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_ACTIONABILITY: float = 0.55
+    CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_RETRIEVAL_SCORE: float = 0.20
+    CLINICAL_CHAT_RAG_QUERY_CACHE_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS: int = 300
+    CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES: int = 256
+    CLINICAL_CHAT_RAG_DISCOURSE_COHERENCE_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE: float = 0.24
+    CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO: float = 0.60
+    CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE: float = 0.20
     CLINICAL_CHAT_RAG_QA_SHORTCUT_ENABLED: bool = True
     CLINICAL_CHAT_RAG_QA_SHORTCUT_MIN_SCORE: float = 0.24
     CLINICAL_CHAT_RAG_QA_SHORTCUT_TOP_K: int = 2
@@ -121,9 +133,17 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_RAG_MULTI_INTENT_MAX_SEGMENTS: int = 4
     CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_SEGMENT_CHARS: int = 18
     CLINICAL_CHAT_RAG_MULTI_INTENT_MIN_DOMAIN_PROBABILITY: float = 0.18
+    CLINICAL_CHAT_RAG_HYDE_ENABLED: bool = True
     CLINICAL_CHAT_RAG_ACTION_FOCUS_ENABLED: bool = True
     CLINICAL_CHAT_RAG_ACTION_MIN_SCORE: float = 0.26
     CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO: float = 0.60
+    CLINICAL_CHAT_RAG_VERIFIER_ENABLED: bool = False
+    CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE: float = 0.50
+    CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS: int = 2
+    CLINICAL_CHAT_RAG_VERIFIER_BM25_FALLBACK_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_ECORAG_ENABLED: bool = False
+    CLINICAL_CHAT_RAG_ECORAG_MIN_EVIDENTIALITY: float = 0.52
+    CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS: int = 2
     CLINICAL_CHAT_RAG_MAX_TOTAL_LATENCY_MS: int = 3000
     CLINICAL_CHAT_RAG_LLM_MIN_REMAINING_BUDGET_MS: int = 700
     CLINICAL_CHAT_RAG_PARALLEL_HYBRID_ENABLED: bool = True
@@ -225,7 +245,7 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_RAG_ELASTIC_API_KEY: str = ""
     CLINICAL_CHAT_UNCERTAINTY_GATE_ENABLED: bool = True
     CLINICAL_CHAT_UNCERTAINTY_GATE_MAX_VARIANCE: float = 0.24
-    CLINICAL_CHAT_UNCERTAINTY_GATE_FAILFAST_ON_RAG: bool = True
+    CLINICAL_CHAT_UNCERTAINTY_GATE_FAILFAST_ON_RAG: bool = False
     CLINICAL_CHAT_GUARDRAILS_ENABLED: bool = False
     CLINICAL_CHAT_GUARDRAILS_CONFIG_PATH: str = "app/guardrails"
     CLINICAL_CHAT_GUARDRAILS_FAIL_OPEN: bool = True
@@ -424,6 +444,34 @@ class Settings(BaseSettings):
             raise ValueError(
                 "CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_MAX_ITEMS debe ser >= 1."
             )
+        if not (0 <= self.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE <= 1):
+            raise ValueError("CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_SCORE debe estar entre 0 y 1.")
+        if not (0 <= self.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_ACTIONABILITY <= 1):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_ACTIONABILITY debe estar entre 0 y 1."
+            )
+        if not (0 <= self.CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_RETRIEVAL_SCORE <= 1):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_EARLY_GOAL_MIN_RETRIEVAL_SCORE debe estar entre 0 y 1."
+            )
+        if not (30 <= self.CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS <= 86400):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_QUERY_CACHE_TTL_SECONDS debe estar entre 30 y 86400."
+            )
+        if not (16 <= self.CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES <= 10000):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_QUERY_CACHE_MAX_ENTRIES debe estar entre 16 y 10000."
+            )
+        if not (0 <= self.CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE <= 1):
+            raise ValueError("CLINICAL_CHAT_RAG_DISCOURSE_MIN_SCORE debe estar entre 0 y 1.")
+        if not (0 <= self.CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO <= 1):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_DISCOURSE_MAX_SATELLITE_RATIO debe estar entre 0 y 1."
+            )
+        if not (0 <= self.CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE <= 1):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_DISCOURSE_LCD_MIN_SCORE debe estar entre 0 y 1."
+            )
         if not (0 <= self.CLINICAL_CHAT_RAG_QA_SHORTCUT_MIN_SCORE <= 1):
             raise ValueError(
                 "CLINICAL_CHAT_RAG_QA_SHORTCUT_MIN_SCORE debe estar entre 0 y 1."
@@ -452,6 +500,16 @@ class Settings(BaseSettings):
             raise ValueError("CLINICAL_CHAT_RAG_ACTION_MIN_SCORE debe estar entre 0 y 1.")
         if not (0 <= self.CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO <= 1):
             raise ValueError("CLINICAL_CHAT_RAG_ACTION_MAX_AUX_RATIO debe estar entre 0 y 1.")
+        if not (0 <= self.CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE <= 1):
+            raise ValueError("CLINICAL_CHAT_RAG_VERIFIER_MIN_SCORE debe estar entre 0 y 1.")
+        if not (1 <= self.CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS <= 12):
+            raise ValueError("CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS debe estar entre 1 y 12.")
+        if not (0 <= self.CLINICAL_CHAT_RAG_ECORAG_MIN_EVIDENTIALITY <= 1):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_ECORAG_MIN_EVIDENTIALITY debe estar entre 0 y 1."
+            )
+        if not (1 <= self.CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS <= 12):
+            raise ValueError("CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS debe estar entre 1 y 12.")
         if not (1000 <= self.CLINICAL_CHAT_RAG_MAX_TOTAL_LATENCY_MS <= 60000):
             raise ValueError(
                 "CLINICAL_CHAT_RAG_MAX_TOTAL_LATENCY_MS debe estar entre 1000 y 60000."
@@ -475,6 +533,16 @@ class Settings(BaseSettings):
         if self.CLINICAL_CHAT_RAG_MIN_CHUNKS > self.CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD:
             raise ValueError(
                 "CLINICAL_CHAT_RAG_MIN_CHUNKS no puede ser mayor que "
+                "CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD."
+            )
+        if self.CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS > self.CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD:
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_VERIFIER_MIN_CHUNKS no puede superar "
+                "CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD."
+            )
+        if self.CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS > self.CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD:
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_ECORAG_MIN_CHUNKS no puede superar "
                 "CLINICAL_CHAT_RAG_MAX_CHUNKS_HARD."
             )
         if not (0.0 <= self.CLINICAL_CHAT_RAG_MMR_LAMBDA <= 1.0):

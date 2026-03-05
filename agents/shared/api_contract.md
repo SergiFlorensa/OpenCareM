@@ -1731,3 +1731,50 @@
 - Riesgos de contrato:
   - clientes con parseo estricto de `interpretability_trace` deben tolerar claves opcionales nuevas.
 
+## TM-200 (verificacion de evidencia + ECoRAG iterativo)
+
+- Endpoint afectado:
+  - `POST /care-tasks/{task_id}/chat/messages`
+- Contrato externo:
+  - sin cambios en schema request/response.
+  - no se agregan endpoints.
+- Cambios internos:
+  - etapa de verificacion posterior a retrieval (`rag_verifier_*`) con score estilo cross-encoder proxy.
+  - fallback de recuperacion lexical (`keyword_only`) cuando no se alcanza evidencia verificada minima.
+  - abstencion segura cuando falta evidencia verificada y `safe_wrapper` esta activo.
+  - compresion/reflexion iterativa tipo ECoRAG sobre chunks (`rag_ecorag_*`).
+  - citas mas granulares usando metadatos `source_title + section + page`.
+- Riesgos de contrato:
+  - clientes con parseo estricto de `interpretability_trace` deben tolerar nuevas claves `rag_verifier_*` y `rag_ecorag_*`.
+
+
+## TM-201
+
+- Sin cambios de schema ni endpoints HTTP.
+- Cambio de comportamiento interno en POST /api/v1/care-tasks/{task_id}/chat/messages cuando RAG esta activo:
+  - modo opcional CLINICAL_CHAT_RAG_FACT_ONLY_MODE_ENABLED para respuesta extractiva determinista,
+  - corte temprano (early-goal test) en orquestador RAG,
+  - memoizacion de consultas con poda por estado resoluble (subset).
+- Compatibilidad: contratos de request/response se mantienen sin cambios rompedoras.
+
+
+## TM-202
+
+- Sin cambios de schema ni endpoints HTTP.
+- Cambio interno en pipeline de `POST /api/v1/care-tasks/{task_id}/chat/messages` (cuando RAG esta activo):
+  - reranking discursivo de chunks (`rag_discourse_*`),
+  - priorizacion heuristica de nucleos RST sobre satelites,
+  - foco por entidad saliente (centering) y discriminador de coherencia local (LCD proxy).
+- Compatibilidad: request/response sin cambios; solo se agregan trazas internas opcionales.
+
+## TM-203
+
+- Sin cambios de schema ni endpoints HTTP.
+- Se agregan calculos algoritmicos explicitos en el reranking interno de RAG:
+  - segmentacion EDU,
+  - TextTiling por cohesion lexical entre ventanas,
+  - cadenas lexicas,
+  - LCD local con operaciones vectoriales (concatenacion, diferencia, diferencia absoluta, producto),
+  - entity-grid para continuidad de entidades.
+- Compatibilidad: contrato externo estable; impacto visible en `interpretability_trace` via claves `rag_discourse_*`.
+
