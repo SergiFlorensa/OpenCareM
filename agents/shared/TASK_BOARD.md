@@ -12,6 +12,197 @@
 
 ## Items activos
 
+- ID: TM-212
+
+- Objetivo: Corregir enrutado clínico para consultas oftalmológicas por lenguaje natural (síntomas oculares) y eliminar exposición de rutas internas (`docs/`, `/api/v1/`, nombres de fichero) en texto de respuesta del chat.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/rag_orchestrator.py`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_rag_orchestrator_optimizations.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-211.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py`
+  - Validacion e2e local (query ocular): `effective_specialty=ophthalmology`, `matched_domains=ophthalmology`, sin `docs/`, sin `/api/v1/`, sin `(.md|.pdf)` en texto final.
+
+- Riesgos pendientes identificados:
+
+  - El matching por sintomas oculares puede requerir ajuste fino para evitar falsos positivos en texto no clinico con la palabra "ojo".
+  - La calidad factual final sigue dependiendo de la cobertura real del chunking/indexado en `pdf_raw` para cada subtema.
+
+- ID: TM-211
+
+- Objetivo: Endurecer coherencia clinica del chat (dominio/intencion/retrieval) para evitar respuestas cruzadas y ruido editorial, manteniendo salida nativa de Llama con contexto RAG relevante.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/rag_orchestrator.py`, `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_rag_orchestrator_optimizations.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-210.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py`
+  - Caso e2e reproducido y corregido: trazabilidad consistente de fallback clinico (`clinical_answer_quality_gate=final_structured_fallback`) cuando se degrada a salida estructurada.
+
+- Riesgos pendientes identificados:
+
+  - El gate de fallback estructurado deja traza explicita en mas escenarios clinicos; revisar dashboards/alertas si hay filtros que asuman menor frecuencia de `clinical_answer_quality_gate=*`.
+  - La deteccion de intencion se amplio con heuristicas lexicales; requiere seguimiento con regresion set para controlar falsos positivos en consultas ambiguas.
+
+- ID: TM-210
+
+- Objetivo: Igualar la salida nativa de `llama3.2:3b` en Ollama para evitar cortes, eliminando overrides de runtime en modo nativo y estabilizando latencia/circuit breaker en conversacion general.
+
+- Alcance: `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-209.
+
+- Evidencia:
+
+  - `ollama show llama3.2:3b --modelfile`
+  - `ollama show llama3.2:3b --parameters`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "llm_provider_native_style_uses_ollama_runtime_defaults or llm_provider_native_general_uses_quick_recovery_after_timeouts or llm_provider_prefers_ollama_chat_endpoint_in_native_style or llm_provider_recovers_after_primary_timeout" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m app.scripts.smoke_native_chat --seed 26 --turns 4` (`RESULT=PASS`)
+
+- Riesgos pendientes identificados:
+
+  - Con defaults nativos de Ollama, la latencia en CPU local puede subir en prompts largos; se mitigó elevando budget y evitando circuit-open en modo general.
+  - El flujo clínico mantiene gates/fallback de seguridad por diseño.
+
+- ID: TM-209
+
+- Objetivo: Asegurar modo conversacional nativo de Llama en consultas generales, eliminando inyeccion de contexto clinico en ese flujo y automatizando smoke e2e.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/scripts/smoke_native_chat.py`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_care_tasks_api.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-208.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/scripts/smoke_native_chat.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "llm_provider_native_general_uses_quick_recovery_after_timeouts or llm_provider_prefers_ollama_chat_endpoint_in_native_style" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_message_supports_general_conversation_mode" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m app.scripts.smoke_native_chat --seed 26 --turns 4` (`RESULT=PASS`)
+
+- Riesgos pendientes identificados:
+
+  - En CPU local, turnos generales largos pueden subir latencia (30-45s) cuando se activa `chat_continue`.
+  - El flujo clinico mantiene fallback extractivo RAG en ausencia de sintesis LLM, por diseno de seguridad.
+
+- ID: TM-208
+
+- Objetivo: Consolidar chat en modo unico (tool=`chat`), eliminar forzados por selector y priorizar salida nativa del modelo con RAG como contexto citado.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/core/config.py`, `frontend/src/App.tsx`, `.env`, `.env.example`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_care_tasks_api.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-205, TM-207.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py app/core/config.py`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "response_mode_is_not_forced_by_requested_tool or llm_provider_prefers_ollama_chat_endpoint_in_native_style or llm_provider_recovers_after_primary_timeout or uses_rag_candidate_when_llm_synthesis_fails or general_answer_for_simple_greeting_is_short_and_natural" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "single_chat_mode_even_if_other_tool_is_requested or supports_general_conversation_mode" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `npm --prefix frontend run build`
+
+- ID: TM-207
+
+- Objetivo: Priorizar estilo nativo del LLM en chat (sin plantilla rigida) y combinarlo con evidencia interna de especialidades cuando exista contexto RAG.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/llm_chat_provider.py`, `app/core/config.py`, `app/tests/test_clinical_chat_operational.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-205, TM-206.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "native_prompt_keeps_general_query_passthrough or general_answer_does_not_dump_json_snippet_for_social_query or general_answer_for_simple_greeting_is_short_and_natural or general_answer_suggests_domains_and_next_step_for_case_discovery or uses_rag_candidate_when_llm_synthesis_fails" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `npm --prefix frontend run build`
+
+- ID: TM-206
+
+- Objetivo: Corregir experiencia de smalltalk en chat general para evitar plantilla operativa en saludos simples (`hola`, `que tal`).
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/tests/test_clinical_chat_operational.py`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-205.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "general_answer_for_simple_greeting_is_short_and_natural or general_answer_does_not_dump_json_snippet_for_social_query or general_answer_suggests_domains_and_next_step_for_case_discovery" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- ID: TM-205
+
+- Objetivo: Habilitar modo de evaluacion del pipeline para pruebas conversacionales reales (sin bloqueos rigidos), manteniendo modo estricto por defecto.
+
+- Alcance: `app/schemas/clinical_chat.py`, `app/services/clinical_chat_service.py`, `app/services/rag_orchestrator.py`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `frontend/src/App.tsx`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-204.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m ruff check app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `npm --prefix frontend run build`
+
+- ID: TM-204
+
+- Objetivo: Corregir deriva de dominio y sobreescritura de respuesta RAG valida en chat clinico (caso `oftamologia`, mezcla `lactato`->`lactante`, fallback rigido no deseado).
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/tests/test_clinical_chat_operational.py`, `frontend/src/App.tsx`, contratos/docs.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-203.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "domain_matching_handles_typo_oftamologia_as_ophthalmology or domain_matching_prioritizes_direct_signal_and_avoids_fuzzy_domain_leak or chat_e2e_uses_rag_when_enabled or chat_e2e_quality_gate_applies_to_rag_answer_too or chat_e2e_fallback_when_rag_validation_warns" -o addopts=""`
+  - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `npm --prefix frontend run build`
+
 - ID: TM-203
 
 - Objetivo: Implementar algoritmos discursivos explicitos en codigo (TextTiling, EDUs, cadenas lexicas, LCD con operaciones vectoriales y entity-grid) y conectarlos al reranking real del chat clinico.

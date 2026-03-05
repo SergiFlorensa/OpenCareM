@@ -52,6 +52,9 @@ class CareTaskClinicalChatMessageRequest(BaseModel):
     max_history_messages: int = Field(default=6, ge=0, le=50)
     include_protocol_catalog: bool = True
     persist_extracted_facts: bool = True
+    # Modo de evaluacion para pruebas internas de calidad conversacional:
+    # desactiva guardas rigidas que pueden forzar salidas plantilladas.
+    pipeline_relaxed_mode: bool = False
     enable_active_interrogation: bool = False
     interrogation_max_turns: int = Field(default=3, ge=1, le=10)
     interrogation_confidence_threshold: float = Field(default=0.93, ge=0.5, le=0.99)

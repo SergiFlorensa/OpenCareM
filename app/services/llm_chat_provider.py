@@ -145,6 +145,16 @@ class LLMChatProvider:
         effective_specialty: str,
         tool_mode: str,
     ) -> str:
+        if settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED:
+            if response_mode == "clinical":
+                return (
+                    "Asistente clinico conversacional. "
+                    "Responde en espanol, natural y directo. "
+                    "No des diagnostico definitivo ni inventes datos. "
+                    f"Especialidad principal detectada: {effective_specialty}. "
+                    "Si hay evidencia interna, usala y citala brevemente al final."
+                )
+            return ""
         if response_mode == "clinical":
             return (
                 "Eres un copiloto clinico-operativo para urgencias. "
@@ -191,6 +201,13 @@ class LLMChatProvider:
         recent_dialogue: list[dict[str, str]],
         endpoint_results: list[dict[str, Any]],
     ) -> str:
+        if settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED:
+            return LLMChatProvider._build_native_user_prompt(
+                query=query,
+                response_mode=response_mode,
+                knowledge_sources=knowledge_sources,
+                endpoint_results=endpoint_results,
+            )
         safe_query = LLMChatProvider._sanitize_prompt_text(query)
         isolated_query = ExternalContentSecurity.sanitize_untrusted_text(
             safe_query,
@@ -246,6 +263,44 @@ class LLMChatProvider:
                 "incluye pasos numerados y una seccion final 'Fuentes internas utilizadas'."
             )
         lines.append("Responde en espanol.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _build_native_user_prompt(
+        *,
+        query: str,
+        response_mode: str,
+        knowledge_sources: list[dict[str, str]],
+        endpoint_results: list[dict[str, Any]],
+    ) -> str:
+        safe_query = LLMChatProvider._sanitize_prompt_text(query)[:1200]
+        lines: list[str] = [safe_query]
+        has_internal_context = bool(knowledge_sources) or bool(endpoint_results)
+        if response_mode != "clinical" and not has_internal_context:
+            return safe_query
+        if has_internal_context:
+            lines.append("")
+            lines.append("Contexto interno verificado (si aplica):")
+            if knowledge_sources:
+                lines.append(LLMChatProvider._compact_sources(knowledge_sources, limit=4))
+            else:
+                lines.append("- Sin fuentes internas adicionales")
+            if endpoint_results:
+                lines.append("Datos de endpoints internos:")
+                for result in endpoint_results[:3]:
+                    endpoint_name = str(result.get("endpoint") or "endpoint")
+                    snippet = LLMChatProvider._sanitize_prompt_text(
+                        str(result.get("snippet") or "")
+                    )
+                    if snippet:
+                        lines.append(f"- {endpoint_name}: {snippet[:180]}")
+                    else:
+                        lines.append(f"- {endpoint_name}")
+        if response_mode == "clinical":
+            lines.append(
+                "Instruccion: responde con tu estilo normal, integra solo evidencia "
+                "interna relevante y menciona fuentes usadas de forma breve."
+            )
         return "\n".join(lines)
 
     @staticmethod
@@ -311,15 +366,13 @@ class LLMChatProvider:
         recent_dialogue: list[dict[str, str]],
     ) -> tuple[list[dict[str, str]], dict[str, str]]:
         token_budget = LLMChatProvider._compute_input_token_budget()
-        messages: list[dict[str, str]] = [
-            {
-                "role": "system",
-                "content": LLMChatProvider._truncate_text_to_token_budget(
-                    system_prompt,
-                    max(80, min(600, token_budget // 2)),
-                ),
-            }
-        ]
+        messages: list[dict[str, str]] = []
+        system_content = LLMChatProvider._truncate_text_to_token_budget(
+            system_prompt,
+            max(80, min(600, token_budget // 2)),
+        )
+        if system_content:
+            messages.append({"role": "system", "content": system_content})
         max_turns = max(0, min(10, int(settings.CLINICAL_CHAT_LLM_MAX_DIALOGUE_TURNS)))
         for turn in recent_dialogue[-max_turns:]:
             user_query = LLMChatProvider._sanitize_prompt_text(turn.get("user_query") or "")
@@ -401,6 +454,78 @@ class LLMChatProvider:
         return "\n".join(lines)
 
     @staticmethod
+    def _looks_truncated_answer(answer: str) -> bool:
+        text = str(answer or "").strip()
+        if len(text) < 40:
+            return False
+        if text.endswith((".", "!", "?", "…", ":", ";", ")", "]", "}", "\"", "'")):
+            return False
+        trailing_tokens = {
+            "a",
+            "de",
+            "del",
+            "la",
+            "el",
+            "y",
+            "o",
+            "que",
+            "con",
+            "por",
+            "para",
+            "en",
+            "cuando",
+            "como",
+            "unos",
+            "unas",
+            "un",
+            "una",
+        }
+        tokens = text.lower().split()
+        if len(tokens) < 10:
+            return False
+        return tokens[-1].strip(",.;:!?") in trailing_tokens
+
+    @staticmethod
+    def _extract_done_reason(parsed_payload: dict[str, Any]) -> str:
+        reason = parsed_payload.get("done_reason")
+        if isinstance(reason, str) and reason.strip():
+            return reason.strip().lower()
+        choices = parsed_payload.get("choices")
+        if isinstance(choices, list) and choices:
+            first = choices[0]
+            if isinstance(first, dict):
+                finish_reason = first.get("finish_reason")
+                if isinstance(finish_reason, str) and finish_reason.strip():
+                    return finish_reason.strip().lower()
+        return ""
+
+    @staticmethod
+    def _merge_answer_continuation(base_answer: str, continuation: str) -> str:
+        base = str(base_answer or "").strip()
+        extra = str(continuation or "").strip()
+        if not base:
+            return extra
+        if not extra:
+            return base
+        if extra in base:
+            return base
+        if base in extra and len(extra) > len(base):
+            return extra
+
+        base_tokens = base.split()
+        extra_tokens = extra.split()
+        max_overlap = min(12, len(base_tokens), len(extra_tokens))
+        overlap = 0
+        for size in range(max_overlap, 0, -1):
+            if base_tokens[-size:] == extra_tokens[:size]:
+                overlap = size
+                break
+        if overlap > 0:
+            merged_tokens = base_tokens + extra_tokens[overlap:]
+            return " ".join(merged_tokens).strip()
+        return f"{base} {extra}".strip()
+
+    @staticmethod
     def generate_answer(
         *,
         query: str,
@@ -429,8 +554,13 @@ class LLMChatProvider:
                 "llm_used": "false",
                 "llm_model": settings.CLINICAL_CHAT_LLM_MODEL,
             }
+        native_prefer_chat = bool(
+            settings.CLINICAL_CHAT_LLM_PROVIDER == "ollama"
+            and settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
+        )
+        native_general_mode = native_prefer_chat and response_mode == "general"
         circuit_open, circuit_remaining, circuit_failures = LLMChatProvider._circuit_status()
-        if circuit_open:
+        if circuit_open and not native_general_mode:
             return None, {
                 "llm_enabled": "true",
                 "llm_used": "false",
@@ -448,9 +578,26 @@ class LLMChatProvider:
             else float(settings.CLINICAL_CHAT_LLM_TIMEOUT_SECONDS)
         )
         timeout_budget_seconds = max(2.0, configured_timeout)
+        if native_general_mode:
+            # Reserva extra para completar respuestas conversacionales en CPU local.
+            timeout_budget_seconds = max(timeout_budget_seconds, 180.0)
+        elif native_prefer_chat and response_mode == "clinical":
+            # En flujo clinico con RAG, evitar caida prematura a extractivo por timeout corto.
+            timeout_budget_seconds = max(timeout_budget_seconds, 20.0)
         primary_call_timeout = max(2.0, timeout_budget_seconds * 0.55)
         secondary_call_timeout = max(2.0, timeout_budget_seconds * 0.30)
         quick_recovery_timeout = max(2.0, timeout_budget_seconds * 0.15)
+        if native_prefer_chat:
+            # En estilo nativo, priorizar /api/chat.
+            if native_general_mode:
+                # Dejar margen para recuperacion rapida conversacional.
+                primary_call_timeout = max(2.0, timeout_budget_seconds * 0.60)
+                secondary_call_timeout = max(2.0, timeout_budget_seconds * 0.15)
+                quick_recovery_timeout = max(2.0, timeout_budget_seconds * 0.25)
+            else:
+                primary_call_timeout = max(2.0, timeout_budget_seconds * 0.85)
+                secondary_call_timeout = max(2.0, timeout_budget_seconds * 0.10)
+                quick_recovery_timeout = max(2.0, timeout_budget_seconds * 0.05)
 
         def _remaining_timeout_seconds() -> float:
             elapsed = time.perf_counter() - started_at
@@ -478,6 +625,11 @@ class LLMChatProvider:
                 payload=payload,
                 timeout_seconds=remaining,
             )
+
+        def _record_failure_with_mode() -> None:
+            if native_general_mode:
+                return
+            LLMChatProvider._record_circuit_failure()
         system_prompt = LLMChatProvider._build_system_prompt(
             response_mode=response_mode,
             effective_specialty=effective_specialty,
@@ -496,15 +648,27 @@ class LLMChatProvider:
             recent_dialogue=recent_dialogue,
             endpoint_results=endpoint_results,
         )
+        prompt_recent_dialogue = recent_dialogue
+        if settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED and response_mode == "general":
+            # Preserva continuidad minima sin arrastrar demasiado contexto.
+            prompt_recent_dialogue = recent_dialogue[-1:]
         messages, prompt_trace = LLMChatProvider._build_chat_messages(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            recent_dialogue=recent_dialogue,
+            recent_dialogue=prompt_recent_dialogue,
         )
         prompt = LLMChatProvider._messages_to_prompt(messages)
+        effective_max_output_tokens = int(settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)
+        use_ollama_runtime_defaults = bool(
+            settings.CLINICAL_CHAT_LLM_PROVIDER == "ollama"
+            and settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
+        )
+        prompt_trace["llm_runtime_profile"] = (
+            "ollama_defaults" if use_ollama_runtime_defaults else "app_overrides"
+        )
         common_options = {
             "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
-            "num_predict": settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS,
+            "num_predict": effective_max_output_tokens,
             "num_ctx": settings.CLINICAL_CHAT_LLM_NUM_CTX,
             "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
         }
@@ -512,58 +676,78 @@ class LLMChatProvider:
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "messages": messages,
             "stream": False,
-            "options": common_options,
-            "keep_alive": LLMChatProvider._OLLAMA_KEEP_ALIVE,
         }
+        if not use_ollama_runtime_defaults:
+            chat_payload["options"] = common_options
+            chat_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
         generate_payload = {
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "prompt": prompt,
             "stream": False,
-            "options": common_options,
-            "keep_alive": LLMChatProvider._OLLAMA_KEEP_ALIVE,
         }
-        quick_recovery_payload = {
-            "model": settings.CLINICAL_CHAT_LLM_MODEL,
-            "prompt": (
+        if not use_ollama_runtime_defaults:
+            generate_payload["options"] = common_options
+            generate_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
+        quick_recovery_user = LLMChatProvider._sanitize_prompt_text(query)[:280]
+        if response_mode == "general":
+            quick_recovery_prompt = (
+                "Responde en espanol, natural y breve, a esta consulta del usuario: "
+                f"{quick_recovery_user}"
+            )
+            quick_recovery_system = "Asistente conversacional. Responde al grano."
+        else:
+            quick_recovery_prompt = (
                 "Responde en espanol, breve y clara. "
                 "Soporte operativo, no diagnostico. "
-                f"Consulta: {LLMChatProvider._sanitize_prompt_text(query)[:280]}"
-            ),
+                f"Consulta: {quick_recovery_user}"
+            )
+            quick_recovery_system = "Responde en espanol. Breve, claro y operativo."
+        quick_recovery_payload = {
+            "model": settings.CLINICAL_CHAT_LLM_MODEL,
+            "prompt": quick_recovery_prompt,
             "stream": False,
-            "options": {
+        }
+        if not use_ollama_runtime_defaults:
+            quick_recovery_payload["options"] = {
                 "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
-                "num_predict": max(32, min(48, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)),
+                "num_predict": (
+                    max(64, min(160, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
+                    if response_mode == "general"
+                    else max(32, min(48, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
+                ),
                 "num_ctx": max(512, min(768, settings.CLINICAL_CHAT_LLM_NUM_CTX)),
                 "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
-            },
-            "keep_alive": LLMChatProvider._OLLAMA_KEEP_ALIVE,
-        }
+            }
+            quick_recovery_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
         llama_cpp_payload = {
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "messages": messages,
             "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
             "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
-            "max_tokens": settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS,
+            "max_tokens": effective_max_output_tokens,
             "stream": False,
         }
         llama_cpp_quick_recovery_payload = {
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "messages": [
-                {"role": "system", "content": "Responde en espanol. Breve, claro y operativo."},
-                {
-                    "role": "user",
-                    "content": (
-                        "Soporte operativo, no diagnostico. Consulta: "
-                        f"{LLMChatProvider._sanitize_prompt_text(query)[:280]}"
-                    ),
-                },
+                {"role": "system", "content": quick_recovery_system},
+                {"role": "user", "content": quick_recovery_prompt},
             ],
             "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
             "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
-            "max_tokens": max(32, min(48, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)),
+            "max_tokens": (
+                max(64, min(160, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
+                if response_mode == "general"
+                else max(32, min(48, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
+            ),
             "stream": False,
         }
         primary_error: str | None = None
+        answer: str | None = None
+        answer_done_reason = ""
+        continuation_attempted = False
+        continuation_used = False
+        continuation_error = ""
         try:
             provider = settings.CLINICAL_CHAT_LLM_PROVIDER
             if provider == "llama_cpp":
@@ -573,26 +757,85 @@ class LLMChatProvider:
                     max_timeout_seconds=primary_call_timeout,
                 )
                 answer = LLMChatProvider._extract_llama_cpp_answer(parsed)
+                answer_done_reason = LLMChatProvider._extract_done_reason(parsed)
                 endpoint_used = "v1_chat_completions"
             else:
-                # En entorno local, /api/generate suele ser mas estable que /api/chat.
-                parsed = _request_with_budget(
-                    endpoint="api/generate",
-                    payload=generate_payload,
-                    max_timeout_seconds=primary_call_timeout,
-                )
-                answer = LLMChatProvider._extract_chat_answer(parsed)
-                endpoint_used = "generate"
+                primary_endpoint = "api/chat" if native_prefer_chat else "api/generate"
+                primary_payload = chat_payload if native_prefer_chat else generate_payload
                 if not answer:
                     parsed = _request_with_budget(
-                        endpoint="api/chat",
-                        payload=chat_payload,
+                        endpoint=primary_endpoint,
+                        payload=primary_payload,
+                        max_timeout_seconds=primary_call_timeout,
+                    )
+                    answer = LLMChatProvider._extract_chat_answer(parsed)
+                    answer_done_reason = LLMChatProvider._extract_done_reason(parsed)
+                    endpoint_used = "chat" if primary_endpoint == "api/chat" else "generate"
+                if not answer:
+                    secondary_endpoint = "api/generate" if native_prefer_chat else "api/chat"
+                    secondary_payload = generate_payload if native_prefer_chat else chat_payload
+                    parsed = _request_with_budget(
+                        endpoint=secondary_endpoint,
+                        payload=secondary_payload,
                         max_timeout_seconds=secondary_call_timeout,
                     )
                     answer = LLMChatProvider._extract_chat_answer(parsed)
-                    endpoint_used = "chat"
+                    answer_done_reason = LLMChatProvider._extract_done_reason(parsed)
+                    endpoint_used = "generate" if secondary_endpoint == "api/generate" else "chat"
+            if (
+                answer
+                and native_prefer_chat
+                and response_mode == "general"
+                and settings.CLINICAL_CHAT_LLM_PROVIDER == "ollama"
+                and (
+                    answer_done_reason in {"length", "max_tokens"}
+                    or LLMChatProvider._looks_truncated_answer(answer)
+                )
+            ):
+                continuation_prompt = (
+                    "Continua exactamente esta respuesta en 1-2 frases y cierrala sin repetir:\n"
+                    f"{answer[-420:]}\n\nContinuacion:"
+                )
+                continuation_attempted = True
+                continuation_payload = {
+                    "model": settings.CLINICAL_CHAT_LLM_MODEL,
+                    "prompt": continuation_prompt,
+                    "stream": False,
+                }
+                if not use_ollama_runtime_defaults:
+                    continuation_payload["options"] = {
+                        "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
+                        "num_predict": max(
+                            48,
+                            min(96, int(settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)),
+                        ),
+                        "num_ctx": max(512, min(1024, settings.CLINICAL_CHAT_LLM_NUM_CTX)),
+                        "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
+                    }
+                    continuation_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
+                try:
+                    continuation_parsed = _request_with_budget(
+                        endpoint="api/generate",
+                        payload=continuation_payload,
+                        max_timeout_seconds=max(2.0, min(24.0, _remaining_timeout_seconds())),
+                    )
+                    continuation_text = LLMChatProvider._extract_chat_answer(continuation_parsed)
+                    if continuation_text:
+                        answer = LLMChatProvider._merge_answer_continuation(
+                            answer,
+                            continuation_text,
+                        )
+                        endpoint_used = f"{endpoint_used}+chat_continue"
+                        continuation_used = True
+                        continuation_reason = LLMChatProvider._extract_done_reason(
+                            continuation_parsed
+                        )
+                        if continuation_reason:
+                            answer_done_reason = continuation_reason
+                except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError):
+                    continuation_error = "continue_request_failed"
             if not answer:
-                LLMChatProvider._record_circuit_failure()
+                _record_failure_with_mode()
                 post_open, post_remaining, post_failures = LLMChatProvider._circuit_status()
                 trace = {
                     "llm_enabled": "true",
@@ -620,6 +863,13 @@ class LLMChatProvider:
             trace.update(prompt_trace)
             if primary_error:
                 trace["llm_primary_error"] = primary_error
+            if answer_done_reason:
+                trace["llm_done_reason"] = answer_done_reason
+            if continuation_attempted:
+                trace["llm_continuation_attempted"] = "1"
+                trace["llm_continuation_used"] = "1" if continuation_used else "0"
+            if continuation_error:
+                trace["llm_continuation_error"] = continuation_error
             return answer, trace
         except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError) as exc:
             primary_error = exc.__class__.__name__
@@ -631,15 +881,21 @@ class LLMChatProvider:
                         max_timeout_seconds=secondary_call_timeout,
                     )
                     answer = LLMChatProvider._extract_llama_cpp_answer(parsed)
+                    answer_done_reason = LLMChatProvider._extract_done_reason(parsed)
                     fallback_endpoint = "v1_chat_completions"
                 else:
+                    fallback_endpoint_name = "api/generate" if native_prefer_chat else "api/chat"
+                    fallback_payload = generate_payload if native_prefer_chat else chat_payload
                     parsed = _request_with_budget(
-                        endpoint="api/chat",
-                        payload=chat_payload,
+                        endpoint=fallback_endpoint_name,
+                        payload=fallback_payload,
                         max_timeout_seconds=secondary_call_timeout,
                     )
                     answer = LLMChatProvider._extract_chat_answer(parsed)
-                    fallback_endpoint = "chat"
+                    answer_done_reason = LLMChatProvider._extract_done_reason(parsed)
+                    fallback_endpoint = (
+                        "generate" if fallback_endpoint_name == "api/generate" else "chat"
+                    )
                 if answer:
                     latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
                     LLMChatProvider._record_circuit_success()
@@ -656,8 +912,27 @@ class LLMChatProvider:
                         "llm_circuit_failures": "0",
                     }
                     trace.update(prompt_trace)
+                    if answer_done_reason:
+                        trace["llm_done_reason"] = answer_done_reason
                     return answer, trace
             except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError):
+                if native_prefer_chat and response_mode == "clinical":
+                    latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+                    LLMChatProvider._record_circuit_failure()
+                    post_open, post_remaining, post_failures = LLMChatProvider._circuit_status()
+                    trace = {
+                        "llm_enabled": "true",
+                        "llm_used": "false",
+                        "llm_model": settings.CLINICAL_CHAT_LLM_MODEL,
+                        "llm_error": primary_error or "llm_request_failed",
+                        "llm_latency_ms": str(latency_ms),
+                        "llm_timeout_budget_ms": str(round(timeout_budget_seconds * 1000, 2)),
+                        "llm_circuit_open": "true" if post_open else "false",
+                        "llm_circuit_open_remaining_ms": str(round(post_remaining * 1000, 2)),
+                        "llm_circuit_failures": str(post_failures),
+                    }
+                    trace.update(prompt_trace)
+                    return None, trace
                 try:
                     if settings.CLINICAL_CHAT_LLM_PROVIDER == "llama_cpp":
                         parsed = _request_with_budget(
@@ -666,6 +941,7 @@ class LLMChatProvider:
                             max_timeout_seconds=quick_recovery_timeout,
                         )
                         answer = LLMChatProvider._extract_llama_cpp_answer(parsed)
+                        answer_done_reason = LLMChatProvider._extract_done_reason(parsed)
                         recovery_endpoint = "v1_chat_completions_quick_recovery"
                     else:
                         parsed = _request_with_budget(
@@ -674,6 +950,7 @@ class LLMChatProvider:
                             max_timeout_seconds=quick_recovery_timeout,
                         )
                         answer = LLMChatProvider._extract_chat_answer(parsed)
+                        answer_done_reason = LLMChatProvider._extract_done_reason(parsed)
                         recovery_endpoint = "generate_quick_recovery"
                     if answer:
                         latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
@@ -691,11 +968,13 @@ class LLMChatProvider:
                             "llm_circuit_failures": "0",
                         }
                         trace.update(prompt_trace)
+                        if answer_done_reason:
+                            trace["llm_done_reason"] = answer_done_reason
                         return answer, trace
                 except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError):
                     pass
             latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
-            LLMChatProvider._record_circuit_failure()
+            _record_failure_with_mode()
             post_open, post_remaining, post_failures = LLMChatProvider._circuit_status()
             trace = {
                 "llm_enabled": "true",

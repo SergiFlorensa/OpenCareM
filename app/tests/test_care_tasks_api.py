@@ -5533,15 +5533,23 @@ def test_chat_message_supports_general_conversation_mode(client):
     payload = response.json()
     assert payload["response_mode"] == "general"
     assert payload["tool_mode"] == "chat"
+    assert payload["matched_domains"] == []
+    assert all(
+        str(source.get("source") or "").lower() != "domain_catalog"
+        for source in payload["knowledge_sources"]
+    )
     assert payload["quality_metrics"]["quality_status"] in {"ok", "attention", "degraded"}
-    assert any(item == "conversation_mode=general" for item in payload["interpretability_trace"])
+    assert any(
+        item in {"conversation_mode=general", "conversation_mode=intent_auto"}
+        for item in payload["interpretability_trace"]
+    )
     assert any(
         item.startswith("llm_enabled=") or item.startswith("llm_used=")
         for item in payload["interpretability_trace"]
     )
 
 
-def test_chat_message_forces_clinical_mode_with_medication_tool(client):
+def test_chat_message_uses_single_chat_mode_even_if_other_tool_is_requested(client):
     register_response = client.post(
         "/api/v1/auth/register",
         json={
@@ -5586,8 +5594,8 @@ def test_chat_message_forces_clinical_mode_with_medication_tool(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["response_mode"] == "clinical"
-    assert payload["tool_mode"] == "medication"
-    assert "herramienta:medication" in payload["extracted_facts"]
+    assert payload["tool_mode"] == "chat"
+    assert "herramienta:chat" in payload["extracted_facts"]
 
 
 def test_create_care_task_chat_message_async_enqueues_job(client, monkeypatch):

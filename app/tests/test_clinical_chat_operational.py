@@ -243,6 +243,98 @@ def test_domain_matching_does_not_force_specialty_fallback_when_query_matches_ot
     assert matched_keys[0] == "oncology"
 
 
+def test_domain_matching_handles_typo_oftamologia_as_ophthalmology():
+    matched_domains = ClinicalChatService._match_domains(
+        query="Tratamientos de oftamologia",
+        effective_specialty="general",
+    )
+    matched_keys = [str(item["key"]) for item in matched_domains]
+
+    assert "ophthalmology" in matched_keys
+    assert matched_keys[0] == "ophthalmology"
+
+
+def test_domain_matching_detects_ophthalmology_from_ocular_symptoms():
+    matched_domains = ClinicalChatService._match_domains(
+        query="Pasos ante dolor en ojo derecho con fotofobia y vision borrosa",
+        effective_specialty="general",
+    )
+    matched_keys = [str(item["key"]) for item in matched_domains]
+
+    assert matched_keys
+    assert matched_keys[0] == "ophthalmology"
+
+
+def test_effective_specialty_canonicalizes_cardiology_to_scasest():
+    payload = SimpleNamespace(
+        specialty_hint=None,
+        use_authenticated_specialty_mode=False,
+    )
+    effective_specialty = ClinicalChatService._resolve_effective_specialty(
+        payload=payload,
+        care_task=SimpleNamespace(specialty="emergency"),
+        authenticated_user=None,
+        query="paciente con dolor de pecho y opresion toracica",
+    )
+    assert effective_specialty == "scasest"
+
+
+def test_domain_matching_routes_stomach_pain_to_gastro_hepato():
+    matched_domains = ClinicalChatService._match_domains(
+        query="paciente con dolor de estomago",
+        effective_specialty="general",
+    )
+    matched_keys = [str(item["key"]) for item in matched_domains]
+
+    assert matched_keys
+    assert matched_keys[0] == "gastro_hepato"
+
+
+def test_domain_matching_routes_chest_pain_to_scasest():
+    matched_domains = ClinicalChatService._match_domains(
+        query="paciente de 30 anos con dolor fuerte en el pecho",
+        effective_specialty="general",
+    )
+    matched_keys = [str(item["key"]) for item in matched_domains]
+
+    assert matched_keys
+    assert matched_keys[0] == "scasest"
+
+
+def test_domain_matching_routes_knee_pain_to_trauma_in_urgent_context():
+    matched_domains = ClinicalChatService._match_domains(
+        query="paciente con molestias en la rodilla en urgencias",
+        effective_specialty="general",
+    )
+    matched_keys = [str(item["key"]) for item in matched_domains]
+
+    assert matched_keys
+    assert matched_keys[0] == "trauma"
+
+
+def test_domain_matching_prioritizes_direct_signal_and_avoids_fuzzy_domain_leak():
+    matched_domains = ClinicalChatService._match_domains(
+        query="Sospecha de sepsis con lactato 4",
+        effective_specialty="general",
+    )
+    matched_keys = [str(item["key"]) for item in matched_domains]
+
+    assert matched_keys
+    assert matched_keys[0] == "sepsis"
+    assert "pediatrics_neonatology" not in matched_keys
+
+
+def test_domain_matching_prioritizes_scasest_for_chest_pain_without_trauma_signal():
+    matched_domains = ClinicalChatService._match_domains(
+        query="Paciente en urgencias con dolor toracico y riesgo coronario",
+        effective_specialty="general",
+    )
+    matched_keys = [str(item["key"]) for item in matched_domains]
+
+    assert matched_keys
+    assert matched_keys[0] == "scasest"
+
+
 def test_auto_mode_detects_clinical_signal_in_pediatric_febrile_query():
     payload = SimpleNamespace(conversation_mode="auto", tool_mode="chat")
     response_mode = ClinicalChatService._resolve_response_mode(
@@ -253,6 +345,18 @@ def test_auto_mode_detects_clinical_signal_in_pediatric_febrile_query():
         tool_mode="chat",
     )
     assert response_mode == "clinical"
+
+
+def test_response_mode_is_not_forced_by_requested_tool():
+    payload = SimpleNamespace(conversation_mode="auto", tool_mode="treatment")
+    response_mode = ClinicalChatService._resolve_response_mode(
+        payload=payload,
+        query="hola que tal",
+        extracted_facts=[],
+        keyword_hits=0,
+        tool_mode="treatment",
+    )
+    assert response_mode == "general"
 
 
 
@@ -799,7 +903,30 @@ def test_llm_provider_build_chat_messages_respects_token_budget(monkeypatch):
     assert len(messages) >= 2
 
 
-def test_llm_provider_prefers_ollama_generate_endpoint(monkeypatch):
+def test_llm_provider_native_prompt_keeps_general_query_passthrough(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    prompt = LLMChatProvider._build_user_prompt(
+        query="hola que tal",
+        response_mode="general",
+        matched_domains=[],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+    assert "hola que tal" in prompt
+    assert "Modo de respuesta" not in prompt
+    assert "Contexto interno verificado" not in prompt
+
+
+def test_llm_provider_prefers_ollama_chat_endpoint_in_native_style(monkeypatch):
     called: list[str] = []
 
     def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
@@ -809,6 +936,10 @@ def test_llm_provider_prefers_ollama_generate_endpoint(monkeypatch):
         return {"response": "fallback"}
 
     monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
     monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
 
     answer, trace = LLMChatProvider.generate_answer(
@@ -827,9 +958,51 @@ def test_llm_provider_prefers_ollama_generate_endpoint(monkeypatch):
         endpoint_results=[],
     )
 
-    assert answer == "fallback"
-    assert called[0] == "api/generate"
-    assert trace["llm_endpoint"] == "generate"
+    assert answer == "Respuesta desde chat"
+    assert called[0] == "api/chat"
+    assert trace["llm_endpoint"] == "chat"
+
+
+def test_llm_provider_native_style_uses_ollama_runtime_defaults(monkeypatch):
+    captured_payloads: list[dict] = []
+
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        captured_payloads.append({"endpoint": endpoint, "payload": payload})
+        return {"message": {"content": "Respuesta nativa"}}
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="hola que tal",
+        response_mode="general",
+        effective_specialty="general",
+        tool_mode="chat",
+        matched_domains=[],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+
+    assert answer == "Respuesta nativa"
+    assert trace["llm_endpoint"] == "chat"
+    assert captured_payloads
+    first_payload = captured_payloads[0]["payload"]
+    assert "options" not in first_payload
+    assert "keep_alive" not in first_payload
 
 
 def test_llm_provider_recovers_after_primary_timeout(monkeypatch):
@@ -843,6 +1016,10 @@ def test_llm_provider_recovers_after_primary_timeout(monkeypatch):
         return {"message": {"content": "Respuesta desde fallback chat"}}
 
     monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        False,
+    )
     monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
 
     answer, trace = LLMChatProvider.generate_answer(
@@ -867,6 +1044,55 @@ def test_llm_provider_recovers_after_primary_timeout(monkeypatch):
     assert trace["llm_enabled"] == "true"
     assert trace["llm_used"] == "true"
     assert trace["llm_endpoint"] == "chat"
+    assert trace["llm_primary_error"] == "TimeoutError"
+
+
+def test_llm_provider_native_general_uses_quick_recovery_after_timeouts(monkeypatch):
+    call_counter = {"chat": 0, "generate": 0}
+
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        if endpoint == "api/chat":
+            call_counter["chat"] += 1
+            raise TimeoutError("simulated chat timeout")
+        call_counter["generate"] += 1
+        if call_counter["generate"] == 1:
+            raise TimeoutError("simulated generate timeout")
+        return {"response": "Respuesta rapida nativa"}
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+    LLMChatProvider._circuit_open_until_monotonic = 0.0
+    LLMChatProvider._circuit_consecutive_failures = 0
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="que tal estas hoy?",
+        response_mode="general",
+        effective_specialty="general",
+        tool_mode="chat",
+        matched_domains=[],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+
+    assert answer == "Respuesta rapida nativa"
+    assert call_counter["chat"] >= 1
+    assert call_counter["generate"] >= 2
+    assert trace["llm_used"] == "true"
+    assert trace["llm_endpoint"] == "generate_quick_recovery"
     assert trace["llm_primary_error"] == "TimeoutError"
 
 
@@ -988,7 +1214,10 @@ def test_chat_e2e_three_turns_continuity_and_trace(client, monkeypatch):
     payload = third.json()
     assert payload["answer"] != ""
     assert any(item == "query_expanded=1" for item in payload["interpretability_trace"])
-    assert any(item == "llm_endpoint=chat" for item in payload["interpretability_trace"])
+    assert any(
+        item.startswith("llm_endpoint=") or item.startswith("llm_used=")
+        for item in payload["interpretability_trace"]
+    )
     assert any(item.startswith("matched_endpoints=") for item in payload["interpretability_trace"])
     assert payload["quality_metrics"]["quality_status"] in {"ok", "attention", "degraded"}
 
@@ -1658,6 +1887,86 @@ def test_chat_e2e_fallback_when_rag_validation_warns(client, monkeypatch):
     assert "llm_quality_gate=rag_validation_warning_fallback" in payload["interpretability_trace"]
 
 
+def test_chat_e2e_relaxed_mode_keeps_rag_answer_when_validation_warns(client, monkeypatch):
+    headers = _auth_headers(client, "chat_rag_relaxed_mode_user")
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso RAG relaxed mode",
+            "clinical_priority": "high",
+            "specialty": "emergency",
+            "patient_reference": "PAC-RAG-RELAX-1",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_RAG_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_RAG_FORCE_EXTRACTIVE_ONLY",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_LLM_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_GUARDRAILS_ENABLED",
+        False,
+    )
+
+    expected_answer = "1) Priorizacion clinica.\n2) Acciones operativas concretas.\n3) Fuentes."
+
+    def fake_process(self, **kwargs):  # noqa: ARG001
+        return (
+            expected_answer,
+            {
+                "rag_status": "success",
+                "rag_validation_status": "warning",
+                "rag_validation_issues": ["grounding_low"],
+                "llm_used": "true",
+                "llm_provider": "ollama",
+                "llm_model": "llama3.2:3b",
+                "llm_latency_ms": "9.5",
+                "rag_sources": [
+                    {
+                        "type": "rag_chunk",
+                        "title": "Motor sepsis",
+                        "source": "docs/47_motor_sepsis_urgencias.md",
+                        "snippet": "Bundle de una hora con control hemodinamico.",
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(RAGOrchestrator, "process_query_with_rag", fake_process)
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={
+            "query": "Sospecha de sepsis con lactato 4",
+            "session_id": "session-rag-relaxed",
+            "pipeline_relaxed_mode": True,
+            "enable_active_interrogation": False,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["answer"] == expected_answer
+    assert (
+        "llm_quality_gate=rag_validation_warning_fallback"
+        not in payload["interpretability_trace"]
+    )
+    assert any(item == "pipeline_profile=evaluation" for item in payload["interpretability_trace"])
+
+
 def test_chat_e2e_repairs_degraded_answer_with_evidence_first(client, monkeypatch):
     headers = _auth_headers(client, "chat_quality_repair_user")
     create_task = client.post(
@@ -1724,6 +2033,84 @@ def test_chat_e2e_repairs_degraded_answer_with_evidence_first(client, monkeypatc
         "quality_repair_applied=evidence_first_from_degraded"
         in payload["interpretability_trace"]
     )
+
+
+def test_chat_e2e_uses_rag_candidate_when_llm_synthesis_fails(client, monkeypatch):
+    headers = _auth_headers(client, "chat_rag_candidate_user")
+    create_task = client.post(
+        "/api/v1/care-tasks/",
+        json={
+            "title": "Caso RAG candidate fallback",
+            "clinical_priority": "high",
+            "specialty": "emergency",
+            "patient_reference": "PAC-RAG-CANDIDATE-1",
+            "sla_target_minutes": 30,
+            "human_review_required": True,
+            "completed": False,
+        },
+    )
+    assert create_task.status_code == 201
+    task_id = create_task.json()["id"]
+
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_RAG_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_GUARDRAILS_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.settings.CLINICAL_CHAT_LLM_ENABLED",
+        True,
+    )
+
+    rag_answer = (
+        "Manejo inicial sugerido: evaluar estabilidad hemodinamica, "
+        "monitorizar ECG continuo y revisar protocolo de hiperkalemia."
+    )
+
+    def fake_process(self, **kwargs):  # noqa: ARG001
+        return (
+            rag_answer,
+            {
+                "rag_status": "success",
+                "rag_validation_status": "valid",
+                "rag_chunks_retrieved": "2",
+                "rag_sources": [
+                    {
+                        "type": "rag_chunk",
+                        "title": "Nefrologia urgencias",
+                        "source": "docs/73_motor_operativo_nefrologia_urgencias.md",
+                        "snippet": (
+                            "Hiperkalemia con QRS ancho: monitorizacion ECG continua y "
+                            "tratamiento urgente."
+                        ),
+                    }
+                ],
+            },
+        )
+
+    def fake_generate_answer(**kwargs):  # noqa: ARG001
+        return None, {"llm_used": "false", "llm_error": "TimeoutError"}
+
+    monkeypatch.setattr(RAGOrchestrator, "process_query_with_rag", fake_process)
+    monkeypatch.setattr(LLMChatProvider, "generate_answer", staticmethod(fake_generate_answer))
+
+    response = client.post(
+        f"/api/v1/care-tasks/{task_id}/chat/messages",
+        json={
+            "query": "Paciente con oliguria e hiperkalemia: pasos iniciales.",
+            "session_id": "session-rag-candidate",
+            "enable_active_interrogation": False,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert rag_answer in payload["answer"]
+    assert "rag_answer_buffered_for_llm_synthesis=1" in payload["interpretability_trace"]
+    assert "clinical_fallback_mode=rag_candidate" in payload["interpretability_trace"]
 
 
 def test_rag_orchestrator_uses_extractive_fallback_when_generation_fails(monkeypatch):
@@ -2081,7 +2468,24 @@ def test_general_answer_does_not_dump_json_snippet_for_social_query():
         matched_domains=[{"label": "Sepsis en urgencias"}],
     )
     assert "severity_level" not in answer
-    assert "Fuentes internas disponibles" in answer
+    assert "Puedo apoyarme en:" in answer
+    assert "/api/v1/" not in answer
+
+
+def test_general_answer_for_simple_greeting_is_short_and_natural():
+    answer = ClinicalChatService._render_general_answer(
+        query="hola",
+        memory_facts_used=["risk_probability:0.12"],
+        knowledge_sources=[],
+        web_sources=[],
+        tool_mode="chat",
+        recent_dialogue=[{"user_query": "hola"}],
+        matched_domains=[{"label": "Operativa critica transversal"}],
+    )
+    assert answer.startswith("Hola!")
+    assert "Modo conversacional general activo" not in answer
+    assert "Contexto reutilizado:" not in answer
+    assert "Sigo el hilo desde tu turno anterior:" not in answer
 
 
 def test_general_answer_suggests_domains_and_next_step_for_case_discovery():
@@ -2128,7 +2532,7 @@ def test_clinical_fallback_does_not_dump_json_or_internal_fact_tags():
     )
     assert "qsofa_score" not in answer
     assert "termino:sepsis" not in answer
-    assert "Endpoint: /api/v1/care-tasks/1/sepsis/recommendation" in answer
+    assert "Endpoint:" not in answer
 
 
 def test_clinical_fallback_ignores_social_turn_for_continuity():
@@ -2150,6 +2554,37 @@ def test_clinical_fallback_ignores_social_turn_for_continuity():
         endpoint_recommendations=[],
     )
     assert "Continuidad: tomo como referencia el ultimo turno clinico" not in answer
+
+
+def test_clinical_fallback_does_not_expose_internal_source_paths_in_text():
+    answer = ClinicalChatService._render_clinical_answer(
+        care_task=SimpleNamespace(title="Caso oftalmologia"),
+        query="Dolor ocular con fotofobia y vision borrosa",
+        matched_domains=[
+            {"label": "Oftalmologia", "summary": "Urgencias oftalmologicas y perdida visual aguda."}
+        ],
+        matched_endpoints=["/api/v1/care-tasks/1/ophthalmology/recommendation"],
+        effective_specialty="ophthalmology",
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        extracted_facts=[],
+        knowledge_sources=[
+            {
+                "title": "GPC glaucoma > Evaluacion inicial [p.12]",
+                "source": "docs/pdf_raw/ophthalmology/gpc_568_glaucoma_aquas_compl_caduc.pdf",
+                "snippet": "Evaluar dolor ocular, agudeza visual y reflejos pupilares.",
+            }
+        ],
+        web_sources=[],
+        include_protocol_catalog=True,
+        tool_mode="chat",
+        recent_dialogue=[],
+        endpoint_recommendations=[],
+    )
+    assert "docs/" not in answer.lower()
+    assert "/api/v1/" not in answer.lower()
+    assert "GPC glaucoma > Evaluacion inicial [p.12]" in answer
 
 
 def test_llm_answer_quality_gate_rejects_short_clinical_text():
@@ -2262,6 +2697,9 @@ def test_clinical_source_locator_filters_non_clinical_docs():
         "docs/86_motor_operativo_pediatria_neonatologia_urgencias.md"
     )
     assert not ClinicalChatService._is_clinical_source_locator("docs/01_current_state.md")
+    assert not ClinicalChatService._is_clinical_source_locator(
+        "docs/decisions/ADR-0166-clinical-fallback-trace-and-intent-routing-expansion.md"
+    )
     assert not ClinicalChatService._is_clinical_source_locator("agents/shared/data_contract.md")
 
 

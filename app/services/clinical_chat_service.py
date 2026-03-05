@@ -92,7 +92,21 @@ class ClinicalChatService:
             "label": "SCASEST",
             "endpoint": "/api/v1/care-tasks/{task_id}/scasest/recommendation",
             "summary": "Riesgo SCASEST y escalado cardiologico.",
-            "keywords": ["scasest", "troponina", "grace", "angina"],
+            "keywords": [
+                "scasest",
+                "troponina",
+                "grace",
+                "angina",
+                "dolor toracico",
+                "dolor de pecho",
+                "dolor en el pecho",
+                "dolor precordial",
+                "pecho",
+                "opresion toracica",
+                "infarto",
+                "isquemia",
+                "ecg",
+            ],
         },
         {
             "key": "resuscitation",
@@ -169,7 +183,19 @@ class ClinicalChatService:
             "label": "Trauma",
             "endpoint": "/api/v1/care-tasks/{task_id}/trauma/recommendation",
             "summary": "Trauma mayor, via aerea critica y riesgos sistemicos.",
-            "keywords": ["trauma", "politrauma", "hemorragia", "fractura", "glasgow", "toracico"],
+            "keywords": [
+                "trauma",
+                "politrauma",
+                "hemorragia",
+                "fractura",
+                "glasgow",
+                "toracico",
+                "rodilla",
+                "dolor de rodilla",
+                "esguince",
+                "contusion",
+                "musculoesqueletico",
+            ],
         },
         {
             "key": "gynecology_obstetrics",
@@ -199,7 +225,21 @@ class ClinicalChatService:
             "label": "Gastro-hepato",
             "endpoint": "/api/v1/care-tasks/{task_id}/gastro-hepato/recommendation",
             "summary": "Urgencias digestivas y hepatobiliares.",
-            "keywords": ["gastro", "hepato", "abdomen", "pancreatitis", "ictericia"],
+            "keywords": [
+                "gastro",
+                "hepato",
+                "abdomen",
+                "dolor abdominal",
+                "estomago",
+                "dolor de estomago",
+                "epigastrio",
+                "epigastrico",
+                "nauseas",
+                "vomitos",
+                "pancreatitis",
+                "ictericia",
+                "digestivo",
+            ],
         },
         {
             "key": "rheum_immuno",
@@ -213,7 +253,16 @@ class ClinicalChatService:
             "label": "Psiquiatria",
             "endpoint": "/api/v1/care-tasks/{task_id}/psychiatry/recommendation",
             "summary": "Crisis psiquiatricas y seguridad conductual.",
-            "keywords": ["psiquiatria", "agitado", "suicida", "psicotico", "ansiedad"],
+            "keywords": [
+                "psiquiatria",
+                "psiquiatrico",
+                "psiquiatrica",
+                "agitado",
+                "suicida",
+                "psicotico",
+                "ansiedad",
+                "ideacion suicida",
+            ],
         },
         {
             "key": "hematology",
@@ -269,7 +318,23 @@ class ClinicalChatService:
             "label": "Oftalmologia",
             "endpoint": "/api/v1/care-tasks/{task_id}/ophthalmology/recommendation",
             "summary": "Urgencias oftalmologicas y perdida visual aguda.",
-            "keywords": ["oftalmo", "vision", "ojo rojo", "glaucoma", "fotofobia"],
+            "keywords": [
+                "oftalmo",
+                "oftalmologia",
+                "ocular",
+                "dolor ocular",
+                "dolor de ojo",
+                "dolor en el ojo",
+                "ojo derecho",
+                "ojo izquierdo",
+                "vision",
+                "ojo rojo",
+                "vision borrosa",
+                "disminucion visual",
+                "cuerpo extrano ocular",
+                "glaucoma",
+                "fotofobia",
+            ],
         },
         {
             "key": "immunology",
@@ -343,6 +408,7 @@ class ClinicalChatService:
         "urologia": "urology",
         "ophthalmology": "ophthalmology",
         "oftalmologia": "ophthalmology",
+        "oftamologia": "ophthalmology",
         "immunology": "immunology",
         "inmunologia": "immunology",
         "genetic_recurrence": "genetic_recurrence",
@@ -413,10 +479,32 @@ class ClinicalChatService:
             "quimioterapia",
             "inmunoterapia",
         ),
-        "cardiology": ("scasest", "troponina", "angina", "grace", "cardiologia"),
+        "cardiology": (
+            "scasest",
+            "troponina",
+            "angina",
+            "grace",
+            "cardiologia",
+            "dolor toracico",
+            "dolor de pecho",
+            "dolor en el pecho",
+            "pecho",
+            "opresion toracica",
+            "dolor precordial",
+            "infarto",
+        ),
         "neurology": ("ictus", "hsa", "trombectomia", "neurologia"),
         "pneumology": ("epoc", "asma", "bronquiolitis", "hipoxemia", "neumologia"),
-        "trauma": ("trauma", "politrauma", "fractura", "hemorragia"),
+        "trauma": (
+            "trauma",
+            "politrauma",
+            "fractura",
+            "hemorragia",
+            "rodilla",
+            "dolor de rodilla",
+            "esguince",
+            "contusion",
+        ),
         "sepsis": ("sepsis", "lactato", "qsofa", "noradrenalina"),
         "resuscitation": ("rcp", "acls", "desfibrilacion", "cardioversion", "rosc"),
         "gynecology_obstetrics": (
@@ -432,9 +520,28 @@ class ClinicalChatService:
             "fosfenos",
             "cefalea intensa",
         ),
-        "gastro_hepato": ("gastro", "hepato", "pancreatitis", "ictericia"),
+        "gastro_hepato": (
+            "gastro",
+            "hepato",
+            "pancreatitis",
+            "ictericia",
+            "estomago",
+            "dolor de estomago",
+            "dolor abdominal",
+            "epigastrio",
+            "nauseas",
+            "vomitos",
+        ),
         "rheum_immuno": ("reuma", "artritis", "vasculitis", "inmuno"),
-        "psychiatry": ("psiquiatria", "suicida", "psicotico", "agitacion"),
+        "psychiatry": (
+            "psiquiatria",
+            "psiquiatrico",
+            "psiquiatrica",
+            "suicida",
+            "psicotico",
+            "agitacion",
+            "ideacion suicida",
+        ),
         "hematology": ("hematologia", "anemia", "trombosis", "coagulacion"),
         "endocrinology": ("endocrino", "cetoacidosis", "hipoglucemia", "tiroidea"),
         "nephrology": ("nefro", "renal", "hiperkalemia", "dialisis"),
@@ -442,7 +549,23 @@ class ClinicalChatService:
         "anesthesiology": ("anestesia", "sedacion", "intubacion", "via aerea"),
         "palliative": ("paliativo", "sedacion paliativa", "dolor total"),
         "urology": ("urologia", "retencion", "colico renal", "hematuria"),
-        "ophthalmology": ("oftalmo", "ojo rojo", "perdida visual", "fotofobia"),
+        "ophthalmology": (
+            "oftalmo",
+            "oftalmologia",
+            "oftamologia",
+            "ocular",
+            "dolor ocular",
+            "dolor de ojo",
+            "dolor en el ojo",
+            "ojo derecho",
+            "ojo izquierdo",
+            "ojo rojo",
+            "perdida visual",
+            "vision borrosa",
+            "disminucion visual",
+            "cuerpo extrano ocular",
+            "fotofobia",
+        ),
         "immunology": ("inmunologia", "anafilaxia", "inmunodeficiencia"),
         "genetic_recurrence": ("genetica", "recurrencia", "mutacion"),
         "epidemiology": ("epidemiologia", "brote", "vigilancia", "contactos"),
@@ -1091,6 +1214,16 @@ class ClinicalChatService:
         return best_specialty
 
     @classmethod
+    def _canonicalize_specialty(cls, specialty: str) -> str:
+        normalized = cls._normalize(specialty)
+        if not normalized:
+            return ""
+        fallback = cls._SPECIALTY_FALLBACK.get(normalized)
+        if fallback:
+            return str(fallback)
+        return normalized
+
+    @classmethod
     def _resolve_effective_specialty(
         cls,
         *,
@@ -1100,12 +1233,12 @@ class ClinicalChatService:
         query: str,
     ) -> str:
         if payload.specialty_hint:
-            return cls._normalize(payload.specialty_hint)
+            return cls._canonicalize_specialty(payload.specialty_hint)
         inferred_specialty = cls._infer_specialty_from_query(query)
         if inferred_specialty:
-            return inferred_specialty
+            return cls._canonicalize_specialty(inferred_specialty)
         if payload.use_authenticated_specialty_mode and authenticated_user is not None:
-            specialty = cls._normalize(authenticated_user.specialty or "")
+            specialty = cls._canonicalize_specialty(authenticated_user.specialty or "")
             if specialty:
                 return specialty
         # Modo neutro: no sesgar el enrutado por specialty persistida en el caso.
@@ -1120,21 +1253,86 @@ class ClinicalChatService:
         max_domains: int = 3,
     ) -> list[dict[str, object]]:
         normalized_query = cls._normalize(query)
-        scored: list[tuple[int, dict[str, object]]] = []
+        query_tokens = cls._tokenize(normalized_query)
+
+        def levenshtein_distance(left: str, right: str) -> int:
+            if left == right:
+                return 0
+            if not left:
+                return len(right)
+            if not right:
+                return len(left)
+            prev = list(range(len(right) + 1))
+            for row, char_left in enumerate(left, start=1):
+                curr = [row]
+                for col, char_right in enumerate(right, start=1):
+                    insert_cost = curr[col - 1] + 1
+                    delete_cost = prev[col] + 1
+                    replace_cost = prev[col - 1] + (0 if char_left == char_right else 1)
+                    curr.append(min(insert_cost, delete_cost, replace_cost))
+                prev = curr
+            return prev[-1]
+
+        def keyword_match_score(keyword: str) -> tuple[int, bool]:
+            normalized_keyword = cls._normalize(keyword)
+            if not normalized_keyword:
+                return 0, False
+            if normalized_keyword in normalized_query:
+                return 3, True
+            if normalized_keyword in cls._SPECIALTY_FALLBACK:
+                canonical = str(cls._SPECIALTY_FALLBACK[normalized_keyword])
+                if canonical and canonical in normalized_query:
+                    return 2, True
+            if len(normalized_keyword) < 7:
+                return 0, False
+            for token in query_tokens:
+                if len(token) < 7:
+                    continue
+                if abs(len(token) - len(normalized_keyword)) > 2:
+                    continue
+                if token[:4] != normalized_keyword[:4]:
+                    continue
+                distance = levenshtein_distance(token, normalized_keyword)
+                if distance <= 1:
+                    return 2, False
+                if distance == 2:
+                    return 1, False
+            return 0, False
+
+        scored: list[tuple[int, int, int, dict[str, object]]] = []
         for domain in cls._DOMAIN_CATALOG:
-            score = sum(
-                1
-                for keyword in domain.get("keywords", [])
-                if cls._normalize(str(keyword)) in normalized_query
-            )
-            if score > 0:
-                scored.append((score, domain))
+            direct_score = 0
+            fuzzy_score = 0
+            for keyword in domain.get("keywords", []):
+                keyword_score, is_direct = keyword_match_score(str(keyword))
+                if keyword_score <= 0:
+                    continue
+                if is_direct:
+                    direct_score += keyword_score
+                else:
+                    fuzzy_score += keyword_score
+            total_score = direct_score + fuzzy_score
+            # Evita activar dominios por un match fuzzy debil aislado.
+            if direct_score == 0 and fuzzy_score < 2:
+                continue
+            if total_score > 0:
+                scored.append((direct_score, total_score, fuzzy_score, domain))
         domain_by_key = cls._domain_by_key()
         fallback_domain = domain_by_key.get("critical_ops")
         if scored:
-            scored.sort(key=lambda item: item[0], reverse=True)
-            ordered = [item[1] for item in scored]
+            has_direct_match = any(item[0] > 0 for item in scored)
+            if has_direct_match:
+                scored = [item for item in scored if item[0] > 0]
+            scored.sort(
+                key=lambda item: (item[0], item[1], item[2]),
+                reverse=True,
+            )
+            ordered = [item[3] for item in scored]
             return ordered[:max_domains]
+        normalized_specialty = cls._normalize(effective_specialty)
+        specialty_domain = domain_by_key.get(normalized_specialty)
+        if specialty_domain is not None and normalized_specialty != "general":
+            return [specialty_domain]
         return [fallback_domain] if fallback_domain is not None else []
 
     @classmethod
@@ -1170,7 +1368,7 @@ class ClinicalChatService:
                 ordered = [existing_by_key[top_domain]] + [
                     item for item in ordered if str(item.get("key")) != top_domain
                 ]
-            else:
+            elif cls._can_expand_domain_set(matched_domain_records):
                 ordered = [top_domain_record] + ordered
 
         deduplicated: list[dict[str, object]] = []
@@ -1183,6 +1381,15 @@ class ClinicalChatService:
             deduplicated.append(item)
 
         return deduplicated[:max_domains]
+
+    @classmethod
+    def _can_expand_domain_set(cls, matched_domain_records: list[dict[str, object]]) -> bool:
+        if not matched_domain_records:
+            return True
+        if len(matched_domain_records) == 1:
+            key = str(matched_domain_records[0].get("key") or "")
+            return key == "critical_ops"
+        return False
 
     @classmethod
     def _apply_naive_bayes_domain_rerank(
@@ -1221,7 +1428,7 @@ class ClinicalChatService:
             ordered = [existing_by_key[top_domain]] + [
                 item for item in ordered if str(item.get("key")) != top_domain
             ]
-        else:
+        elif cls._can_expand_domain_set(matched_domain_records):
             ordered = [top_domain_record] + ordered
 
         deduplicated: list[dict[str, object]] = []
@@ -1271,7 +1478,7 @@ class ClinicalChatService:
             ordered = [existing_by_key[top_domain]] + [
                 item for item in ordered if str(item.get("key")) != top_domain
             ]
-        else:
+        elif cls._can_expand_domain_set(matched_domain_records):
             ordered = [top_domain_record] + ordered
 
         deduplicated: list[dict[str, object]] = []
@@ -1321,7 +1528,7 @@ class ClinicalChatService:
             ordered = [existing_by_key[top_domain]] + [
                 item for item in ordered if str(item.get("key")) != top_domain
             ]
-        else:
+        elif cls._can_expand_domain_set(matched_domain_records):
             ordered = [top_domain_record] + ordered
 
         deduplicated: list[dict[str, object]] = []
@@ -1367,9 +1574,12 @@ class ClinicalChatService:
             str(item.get("key")): item for item in matched_domain_records if item.get("key")
         }
         ordered: list[dict[str, object]] = []
+        allow_expand = cls._can_expand_domain_set(matched_domain_records)
         for domain_key in candidate_domains:
             if domain_key in existing_by_key:
                 ordered.append(existing_by_key[domain_key])
+                continue
+            if not allow_expand:
                 continue
             domain_record = domain_by_key.get(domain_key)
             if domain_record is not None:
@@ -1419,9 +1629,12 @@ class ClinicalChatService:
             str(item.get("key")): item for item in matched_domain_records if item.get("key")
         }
         ordered: list[dict[str, object]] = []
+        allow_expand = cls._can_expand_domain_set(matched_domain_records)
         for domain_key in candidate_domains:
             if domain_key in existing_by_key:
                 ordered.append(existing_by_key[domain_key])
+                continue
+            if not allow_expand:
                 continue
             domain_record = domain_by_key.get(domain_key)
             if domain_record is not None:
@@ -1477,11 +1690,8 @@ class ClinicalChatService:
         keyword_hits: int,
         tool_mode: str | None = None,
     ) -> str:
-        effective_tool_mode = tool_mode or payload.tool_mode
-        if effective_tool_mode == "deep_search":
-            return "general"
-        if effective_tool_mode in cls._CLINICAL_TOOL_MODES:
-            return "clinical"
+        # Modo unico de chat: no forzar el tipo de respuesta por selector de herramienta.
+        # La decision se toma solo por senal clinica real en la consulta.
         if cls._has_clinical_signal(
             query=query,
             extracted_facts=extracted_facts,
@@ -2498,9 +2708,7 @@ class ClinicalChatService:
                 label = str(domain["label"])
                 summary = str(domain["summary"])
                 if include_protocol_catalog and idx < len(matched_endpoints):
-                    lines.append(
-                        f"- Activar ruta {label}: {summary}. " f"Endpoint: {matched_endpoints[idx]}"
-                    )
+                    lines.append(f"- Activar ruta {label}: {summary}.")
                 else:
                     lines.append(f"- Activar ruta {label}: {summary}.")
         display_memory_facts = [fact for fact in memory_facts_used if ":" not in fact]
@@ -2633,19 +2841,18 @@ class ClinicalChatService:
         if endpoint_recommendations:
             lines.append("5) Recomendaciones operativas internas")
             for recommendation in endpoint_recommendations[:4]:
-                endpoint = str(recommendation.get("endpoint", ""))
                 title = str(recommendation.get("title", "Ruta operativa")).strip()
                 safe_snippet = cls._safe_source_snippet(
                     {"snippet": str(recommendation.get("snippet", ""))}
                 )
-                lines.append(f"- {title}. Endpoint: {endpoint}")
+                lines.append(f"- {title}.")
                 if safe_snippet:
                     lines.append(f"  - Sintesis: {safe_snippet[:220]}")
         if knowledge_sources:
             lines.append("6) Evidencia usada")
             lines.append("- Fuentes internas indexadas:")
             for source in knowledge_sources[:4]:
-                lines.append(f"  - {source['title']} ({source['source']})")
+                lines.append(f"  - {cls._display_internal_source_label(source)}")
         elif settings.CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES:
             lines.append(
                 "6) Evidencia usada\n- Sin fuentes internas validadas para esta consulta. "
@@ -2690,13 +2897,77 @@ class ClinicalChatService:
         )
 
     @staticmethod
+    def _is_simple_greeting_query(query: str) -> bool:
+        normalized = ClinicalChatService._normalize(query)
+        if not normalized:
+            return False
+        greeting_phrases = {
+            "hola",
+            "hola que tal",
+            "que tal",
+            "buenas",
+            "buenos dias",
+            "buenas tardes",
+            "buenas noches",
+            "hey",
+            "hello",
+            "hi",
+        }
+        if normalized in greeting_phrases:
+            return True
+        if len(normalized.split()) > 6:
+            return False
+        if not normalized.startswith(("hola", "buenas", "hey", "hello", "hi")):
+            return False
+        discovery_or_task_tokens = {
+            "caso",
+            "casos",
+            "informacion",
+            "info",
+            "resumen",
+            "tratamiento",
+            "dosis",
+            "protocolo",
+        }
+        return not any(token in normalized for token in discovery_or_task_tokens)
+
+    @staticmethod
     def _safe_source_snippet(source: dict[str, str]) -> str:
         snippet = str(source.get("snippet") or "").strip()
         if not snippet:
             return ""
         if snippet.startswith("{") or snippet.startswith("["):
             return ""
-        return snippet
+        sanitized = snippet
+        sanitized = re.sub(
+            r"(?:[A-Za-z]:)?[\\/](?:[^\\/\s]+[\\/])+[^\\/\s]+(?:\.(?:md|txt|pdf))?",
+            "",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+        sanitized = re.sub(
+            r"\bdocs[\\/][^\s)]+",
+            "",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
+        sanitized = re.sub(r"\s{2,}", " ", sanitized).strip()
+        return sanitized
+
+    @classmethod
+    def _display_internal_source_label(cls, source: dict[str, str]) -> str:
+        title = str(source.get("title") or "").strip()
+        locator = str(source.get("source") or "").strip()
+        if title and not re.search(r"(?:^|[\\/])docs[\\/]", title, flags=re.IGNORECASE):
+            return title
+        if locator:
+            normalized = locator.replace("\\", "/")
+            leaf = normalized.split("/")[-1]
+            stem = re.sub(r"\.(md|txt|pdf)$", "", leaf, flags=re.IGNORECASE)
+            stem = stem.replace("_", " ").replace("-", " ").strip()
+            if stem:
+                return stem.title()
+        return title or "Fuente interna"
 
     @staticmethod
     def _describe_available_domains(matched_domains: list[dict[str, object]]) -> list[str]:
@@ -2718,10 +2989,9 @@ class ClinicalChatService:
         recent_dialogue: list[dict[str, str]],
         matched_domains: list[dict[str, object]],
     ) -> str:
-        lines: list[str] = [
-            "Modo conversacional general activo.",
-            f"Herramienta seleccionada: {tool_mode}.",
-        ]
+        if ClinicalChatService._is_simple_greeting_query(query):
+            return "Hola! Estoy bien, gracias. Y tu? En que puedo ayudarte hoy?"
+        lines: list[str] = []
         parsed_intent = ClinicalChatService._parse_semantic_intent(query).get("intent", "general")
         suggested_queries = ClinicalChatService._build_next_query_suggestions(
             query=query,
@@ -2730,35 +3000,30 @@ class ClinicalChatService:
             limit=3,
         )
         if ClinicalChatService._is_social_or_discovery_query(query):
-            lines.append(
-                "Hola. Si, puedo ayudarte con casos y rutas operativas validadas. "
-                "Antes de responder en detalle sigo hilos de contexto, evidencia y accion."
-            )
+            lines.append("Hola. Puedo ayudarte con dudas clinicas y documentacion interna.")
             available_domains = ClinicalChatService._describe_available_domains(matched_domains)
             if available_domains:
-                lines.append("Ahora mismo puedo orientarte en:")
-                for label in available_domains:
-                    lines.append(f"- {label}")
+                lines.append("Especialidades internas disponibles ahora:")
+                lines.append("- " + ", ".join(available_domains))
             if knowledge_sources:
-                lines.append("Fuentes internas disponibles:")
-                for source in knowledge_sources[:3]:
-                    lines.append(f"- {source.get('title', 'Fuente interna')}")
+                source_titles = [
+                    str(source.get("title") or "Fuente interna") for source in knowledge_sources[:3]
+                ]
+                lines.append("Puedo apoyarme en:")
+                lines.append("- " + ", ".join(source_titles))
             if suggested_queries:
-                lines.append("Siguientes consultas utiles:")
+                lines.append("Puedes preguntarme, por ejemplo:")
                 for item in suggested_queries:
                     lines.append(f"- {item}")
             lines.append(
-                "Si me das un caso concreto (edad, sintomas clave, prioridad), te devuelvo "
-                "un resumen accionable y fuentes usadas."
+                "Si me das un caso concreto, te respondo directo y con fuentes internas si hay."
             )
         else:
-            lines.append("Entendido. Respondo en formato conversacional y operativo.")
             if web_sources:
                 first_source = web_sources[0]
                 snippet = ClinicalChatService._safe_source_snippet(first_source)
                 if snippet:
-                    lines.append("Resumen inicial:")
-                    lines.append(f"- {snippet}")
+                    lines.append(snippet)
                 lines.append("Fuente principal:")
                 lines.append(
                     f"- {first_source.get('title', 'Referencia web')}: "
@@ -2768,30 +3033,24 @@ class ClinicalChatService:
                 first_source = knowledge_sources[0]
                 snippet = ClinicalChatService._safe_source_snippet(first_source)
                 if snippet:
-                    lines.append("Contexto disponible en base interna:")
-                    lines.append(f"- {snippet}")
+                    lines.append(snippet)
                 lines.append(
-                    f"Referencia interna: {first_source.get('title', 'Fuente interna')} "
-                    f"({first_source.get('source', 'catalogo')})"
+                    "Referencia interna: "
+                    f"{ClinicalChatService._display_internal_source_label(first_source)}"
                 )
             else:
-                lines.append(
-                    "No hay contexto documental adicional para esta consulta. "
-                    "Si quieres, activa busqueda profunda para ampliar evidencia."
-                )
+                lines.append("Te escucho. Dime que necesitas y voy al grano.")
             if suggested_queries:
-                lines.append("Te puede ayudar preguntar:")
+                lines.append("Preguntas que pueden ayudarte:")
                 for item in suggested_queries:
                     lines.append(f"- {item}")
-        if memory_facts_used:
-            lines.append("Contexto reutilizado: " + ", ".join(memory_facts_used[:4]) + ".")
-        if recent_dialogue:
-            last_turn = recent_dialogue[-1]
-            lines.append(
-                "Sigo el hilo desde tu turno anterior: "
-                f"'{last_turn.get('user_query', '')[:120]}'."
-            )
-        lines.append("Si quieres, te doy una version mas breve o una checklist accionable.")
+
+        if not lines:
+            lines.append("Te escucho.")
+        if memory_facts_used and len(lines) < 2:
+            lines.append("Tengo contexto de la sesion para continuar mejor.")
+        if recent_dialogue and len(lines) < 3:
+            lines.append("Puedo continuar desde el ultimo turno cuando quieras.")
         return "\n".join(lines)
 
     @staticmethod
@@ -3026,8 +3285,10 @@ class ClinicalChatService:
             locator_norm = cls._normalize(locator).replace("\\", "/")
             if "/api/" in locator_norm or locator_norm.startswith("app/"):
                 continue
+            if not cls._is_clinical_source_locator(locator):
+                continue
             seen_sources.add(locator)
-            title = str(source.get("title") or "Fuente interna")
+            title = cls._display_internal_source_label(source)
             lines.append(f"- {title}")
             cited += 1
         if cited == 0:
@@ -3140,6 +3401,7 @@ class ClinicalChatService:
             return False
         blocked = (
             "docs/01_current_state.md",
+            "docs/decisions/",
             "agents/shared/",
             "api_contract.md",
             "data_contract.md",
@@ -3155,6 +3417,8 @@ class ClinicalChatService:
     def _source_priority(cls, source: dict[str, str]) -> tuple[int, int]:
         locator = cls._normalize(str(source.get("source") or "")).replace("\\", "/")
         title = cls._normalize(str(source.get("title") or ""))
+        if "docs/decisions/" in locator:
+            return (3, -len(title))
         if "docs/pdf_raw/" in locator:
             return (0, -len(title))
         if locator.startswith("docs/"):
@@ -3342,7 +3606,7 @@ class ClinicalChatService:
             cls._build_local_evidence_context(payload)
         )
 
-        requested_tool_mode = payload.tool_mode
+        requested_tool_mode = "chat"
         provisional_response_mode = cls._resolve_response_mode(
             payload=payload,
             query=safe_query,
@@ -3354,7 +3618,7 @@ class ClinicalChatService:
             tool_mode=requested_tool_mode,
             response_mode=provisional_response_mode,
             prompt_injection_detected=bool(prompt_injection_signals),
-            use_web_sources=payload.use_web_sources or requested_tool_mode == "deep_search",
+            use_web_sources=payload.use_web_sources,
         )
         policy_decision = ToolPolicyPipeline.evaluate(
             ToolPolicyContext(
@@ -3363,11 +3627,11 @@ class ClinicalChatService:
                 user_is_superuser=bool(authenticated_user and authenticated_user.is_superuser),
                 prompt_injection_detected=bool(prompt_injection_signals),
                 human_review_required=bool(care_task.human_review_required),
-                use_web_sources=payload.use_web_sources or requested_tool_mode == "deep_search",
+                use_web_sources=payload.use_web_sources,
                 include_protocol_catalog=payload.include_protocol_catalog,
             )
         )
-        tool_mode = policy_decision.effective_tool_mode
+        tool_mode = "chat"
         response_mode = cls._resolve_response_mode(
             payload=payload,
             query=safe_query,
@@ -3375,8 +3639,13 @@ class ClinicalChatService:
             keyword_hits=keyword_hits,
             tool_mode=tool_mode,
         )
-        if requested_tool_mode in cls._CLINICAL_TOOL_MODES and response_mode != "clinical":
-            response_mode = "clinical"
+        pipeline_relaxed_mode = bool(payload.pipeline_relaxed_mode)
+        pipeline_profile = "evaluation" if pipeline_relaxed_mode else "strict"
+        if response_mode != "clinical":
+            # En modo general no se debe forzar enrutado clinico ni inyectar catalogo medico.
+            matched_domain_records = []
+            matched_domains = []
+            matched_endpoints = []
 
         extracted_facts.append(f"modo_respuesta:{response_mode}")
         extracted_facts.extend(local_evidence_facts)
@@ -3726,23 +3995,25 @@ class ClinicalChatService:
         if interrogatory_short_circuit:
             internal_sources_limit = min(payload.max_internal_sources, 2)
 
-        knowledge_sources = cls._build_validated_knowledge_sources(
-            db,
-            query=effective_query,
-            effective_specialty=effective_specialty,
-            matched_domains=matched_domain_records,
-            max_internal_sources=internal_sources_limit,
-        )
-        allow_catalog_fallback = (
-            not settings.CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES
-            or settings.ENVIRONMENT == "development"
-        )
-        if not knowledge_sources and allow_catalog_fallback:
-            knowledge_sources = cls._build_catalog_knowledge_sources(
+        knowledge_sources: list[dict[str, str]] = []
+        if response_mode == "clinical":
+            knowledge_sources = cls._build_validated_knowledge_sources(
+                db,
                 query=effective_query,
+                effective_specialty=effective_specialty,
                 matched_domains=matched_domain_records,
                 max_internal_sources=internal_sources_limit,
             )
+            allow_catalog_fallback = (
+                not settings.CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES
+                or settings.ENVIRONMENT == "development"
+            )
+            if not knowledge_sources and allow_catalog_fallback:
+                knowledge_sources = cls._build_catalog_knowledge_sources(
+                    query=effective_query,
+                    matched_domains=matched_domain_records,
+                    max_internal_sources=internal_sources_limit,
+                )
         web_limit = payload.max_web_sources
         use_web_sources = (
             payload.use_web_sources and policy_decision.allowed and not interrogatory_short_circuit
@@ -3794,6 +4065,7 @@ class ClinicalChatService:
             f"effective_specialty={effective_specialty}",
             "conversation_mode=intent_auto",
             f"response_mode={response_mode}",
+            f"pipeline_profile={pipeline_profile}",
             f"requested_tool_mode={requested_tool_mode}",
             f"tool_mode={tool_mode}",
             f"tool_policy_decision={'allowed' if policy_decision.allowed else 'denied'}",
@@ -4043,6 +4315,9 @@ class ClinicalChatService:
         llm_trace: dict[str, Any] = {}
         guardrails_trace: dict[str, str] = {}
         llm_answer: str | None = None
+        rag_candidate_answer: str | None = None
+        rag_validation_status = "unknown"
+        rag_answer_authoritative = False
 
         if response_mode == "clinical":
             interpretability_trace.append(
@@ -4088,6 +4363,7 @@ class ClinicalChatService:
                 recent_dialogue=recent_dialogue,
                 endpoint_results=endpoint_recommendations,
                 care_task_id=care_task.id,
+                pipeline_relaxed_mode=pipeline_relaxed_mode,
             )
             rag_sources = rag_trace.get("rag_sources")
             if isinstance(rag_sources, list):
@@ -4112,14 +4388,43 @@ class ClinicalChatService:
                     limit=max(payload.max_internal_sources, 8),
                 )
             if rag_answer:
-                llm_answer = rag_answer
+                rag_candidate_answer = rag_answer
                 rag_llm_trace = {
                     str(key): str(value)
                     for key, value in rag_trace.items()
                     if isinstance(key, str) and key.startswith("llm_")
                 }
+                rag_validation_status = str(rag_trace.get("rag_validation_status", "valid"))
                 if rag_llm_trace:
+                    llm_answer = rag_answer
                     llm_trace.update(rag_llm_trace)
+                    llm_trace.setdefault("llm_origin", "rag_orchestrator")
+                elif settings.CLINICAL_CHAT_LLM_ENABLED:
+                    knowledge_sources = cls._merge_source_lists(
+                        knowledge_sources,
+                        [
+                            {
+                                "type": "rag_summary",
+                                "title": "Sintesis RAG interna",
+                                "source": "rag_orchestrator",
+                                "snippet": str(rag_answer)[:360],
+                                "url": "",
+                            }
+                        ],
+                        limit=max(payload.max_internal_sources, 8),
+                    )
+                    interpretability_trace.append("rag_answer_buffered_for_llm_synthesis=1")
+                else:
+                    llm_answer = rag_answer
+                if (
+                    str(rag_trace.get("rag_status") or "") == "success"
+                    and not rag_llm_trace
+                    and rag_validation_status == "valid"
+                ):
+                    rag_answer_authoritative = True
+                    llm_trace.setdefault("llm_used", "false")
+                    llm_trace.setdefault("llm_provider", "rag_orchestrator")
+                    llm_trace.setdefault("llm_endpoint", "retrieval_answer")
                     llm_trace.setdefault("llm_origin", "rag_orchestrator")
 
         uncertainty_gate_triggered = False
@@ -4127,10 +4432,14 @@ class ClinicalChatService:
         variance_threshold = settings.CLINICAL_CHAT_UNCERTAINTY_GATE_MAX_VARIANCE
         ood_score = float(math_assessment.get("ood_score") or 0.0)
         ood_level = str(math_assessment.get("ood_level") or "high")
+        uncertainty_gate_enabled = bool(
+            settings.CLINICAL_CHAT_UNCERTAINTY_GATE_ENABLED and not pipeline_relaxed_mode
+        )
         if (
             response_mode == "clinical"
             and not interrogatory_short_circuit
-            and settings.CLINICAL_CHAT_UNCERTAINTY_GATE_ENABLED
+            and not pipeline_relaxed_mode
+            and uncertainty_gate_enabled
             and str(rag_trace.get("rag_status") or "") != "failed_exception"
         ):
             posterior_variance = float(math_assessment.get("posterior_variance_top") or 0.0)
@@ -4193,7 +4502,7 @@ class ClinicalChatService:
                 uncertainty_gate_reason = "high_uncertainty_no_evidence"
         interpretability_trace.append(
             "uncertainty_gate_enabled="
-            f"{1 if settings.CLINICAL_CHAT_UNCERTAINTY_GATE_ENABLED else 0}"
+            f"{1 if uncertainty_gate_enabled else 0}"
         )
         interpretability_trace.append(
             "uncertainty_gate_variance_threshold="
@@ -4260,6 +4569,8 @@ class ClinicalChatService:
         should_attempt_llm_rewrite = (
             settings.CLINICAL_CHAT_LLM_REWRITE_ENABLED
             and
+            not settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
+            and
             response_mode == "clinical"
             and bool(llm_answer)
             and llm_trace.get("llm_used") == "true"
@@ -4304,6 +4615,7 @@ class ClinicalChatService:
             response_mode == "clinical"
             and bool(llm_answer)
             and llm_trace.get("llm_origin") == "rag_orchestrator"
+            and not pipeline_relaxed_mode
             and str(rag_trace.get("rag_validation_status", "valid")) != "valid"
         ):
             interpretability_trace.append("llm_quality_gate=rag_validation_warning_fallback")
@@ -4311,6 +4623,8 @@ class ClinicalChatService:
 
         should_apply_llm_quality_gate = (
             settings.CLINICAL_CHAT_LLM_QUALITY_GATES_ENABLED
+            and not settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
+            and not pipeline_relaxed_mode
             and
             bool(llm_answer)
             and llm_trace.get("llm_used") == "true"
@@ -4337,18 +4651,36 @@ class ClinicalChatService:
             response_mode == "clinical"
             and bool(llm_answer)
             and not interrogatory_short_circuit
+            and not pipeline_relaxed_mode
             and bool(contract_assessment.get("force_structured_fallback"))
         ):
             interpretability_trace.append("contract_guard=forced_structured_fallback")
+            if (
+                llm_trace.get("llm_used") == "true"
+                and "clinical_answer_quality_gate=final_structured_fallback"
+                not in interpretability_trace
+            ):
+                interpretability_trace.append(
+                    "clinical_answer_quality_gate=final_structured_fallback"
+                )
             llm_answer = None
 
         if (
             response_mode == "clinical"
             and bool(llm_answer)
             and not interrogatory_short_circuit
+            and not pipeline_relaxed_mode
             and bool(logic_assessment.get("abstention_required"))
         ):
             interpretability_trace.append("logic_abstention_guard=forced_structured_fallback")
+            if (
+                llm_trace.get("llm_used") == "true"
+                and "clinical_answer_quality_gate=final_structured_fallback"
+                not in interpretability_trace
+            ):
+                interpretability_trace.append(
+                    "clinical_answer_quality_gate=final_structured_fallback"
+                )
             llm_answer = None
 
         rag_chunks_retrieved_raw = rag_trace.get("rag_chunks_retrieved", 0)
@@ -4362,9 +4694,20 @@ class ClinicalChatService:
             and rag_chunks_retrieved > 0
             and len(knowledge_sources) > 0
         )
+        rag_candidate_usable = (
+            response_mode == "clinical"
+            and bool(rag_candidate_answer)
+            and (
+                pipeline_relaxed_mode
+                or rag_validation_status in {"valid", "warning_insufficient_chunks"}
+            )
+        )
 
         if llm_answer:
             answer = llm_answer
+        elif rag_candidate_usable:
+            answer = str(rag_candidate_answer)
+            interpretability_trace.append("clinical_fallback_mode=rag_candidate")
         elif response_mode == "clinical" and use_evidence_first_fallback:
             answer = cls._render_evidence_first_clinical_answer(
                 care_task=care_task,
@@ -4396,6 +4739,14 @@ class ClinicalChatService:
                 contract_assessment=contract_assessment,
                 math_assessment=math_assessment,
             )
+            if (
+                not pipeline_relaxed_mode
+                and "clinical_answer_quality_gate=final_structured_fallback"
+                not in interpretability_trace
+            ):
+                interpretability_trace.append(
+                    "clinical_answer_quality_gate=final_structured_fallback"
+                )
         else:
             answer = cls._render_general_answer(
                 query=safe_query,
@@ -4419,6 +4770,7 @@ class ClinicalChatService:
             )
         should_apply_final_clinical_quality_gate = (
             response_mode == "clinical"
+            and not pipeline_relaxed_mode
             and llm_trace.get("llm_used") == "true"
             and guardrails_trace.get("guardrails_status")
             in {"skipped_disabled", "skipped_empty_answer"}
@@ -4512,6 +4864,8 @@ class ClinicalChatService:
             response_mode == "clinical"
             and quality_metrics.get("quality_status") == "degraded"
             and use_evidence_first_fallback
+            and not pipeline_relaxed_mode
+            and not rag_answer_authoritative
             and not answer.startswith("Resumen operativo basado en evidencia interna")
         )
         if should_repair_degraded_with_evidence:
@@ -4581,6 +4935,7 @@ class ClinicalChatService:
                 "max_web_sources": web_limit,
                 "max_history_messages": payload.max_history_messages,
                 "max_patient_history_messages": payload.max_patient_history_messages,
+                "pipeline_relaxed_mode": payload.pipeline_relaxed_mode,
                 "enable_active_interrogation": payload.enable_active_interrogation,
                 "interrogation_max_turns": payload.interrogation_max_turns,
                 "interrogation_confidence_threshold": payload.interrogation_confidence_threshold,

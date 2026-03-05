@@ -13,6 +13,55 @@
 
 ## Evidencia
 
+- Resultado TM-212:
+
+  - Se corrige routing oftalmologico por sintomas oculares en lenguaje natural.
+  - Se elimina exposicion de rutas internas (`docs/`, `/api/v1/`, nombres `.md/.pdf`) en texto de respuesta final.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -o addopts=""`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py -o addopts=""`
+    - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py`
+    - prueba e2e local query ocular: `effective_specialty=ophthalmology`, `matched_domains=ophthalmology`, sin paths internos en respuesta.
+
+- Resultado TM-211:
+
+  - Se corrige regresion de trazabilidad en fallback clinico e2e (`test_chat_e2e_forces_structured_fallback_when_llm_answer_is_generic`).
+  - Se amplian y validan marcadores de intencion para consultas clinicas operativas:
+    - farmacologia/farmacos/tratamientos,
+    - pasos/acciones/recomendacion/proponer,
+    - derivacion/remitir/interconsulta,
+    - seguimiento/control,
+    - casos similares.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -o addopts=""`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py -o addopts=""`
+    - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py`
+
+- Resultado TM-210:
+
+  - Paridad de runtime nativo con Ollama en chat general:
+    - no se inyectan `options` ni `keep_alive` en requests nativas a Ollama.
+    - se mantiene continuidad general sin circuit-open por timeouts de CPU local.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+    - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "llm_provider_native_style_uses_ollama_runtime_defaults or llm_provider_native_general_uses_quick_recovery_after_timeouts or llm_provider_prefers_ollama_chat_endpoint_in_native_style or llm_provider_recovers_after_primary_timeout" -o addopts=""`
+    - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m app.scripts.smoke_native_chat --seed 26 --turns 4` -> `RESULT=PASS`
+
+- Resultado TM-209:
+
+  - Se agrega smoke automatizado nativo: `app/scripts/smoke_native_chat.py`.
+  - Criterio de exito del smoke:
+    - `response_mode=general`
+    - `matched_domains=[]`
+    - `llm_used=true`
+    - sin plantilla legacy ni fallback clinico estructurado.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/scripts/smoke_native_chat.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py`
+    - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "llm_provider_native_general_uses_quick_recovery_after_timeouts or llm_provider_prefers_ollama_chat_endpoint_in_native_style" -o addopts=""`
+    - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "chat_message_supports_general_conversation_mode" -o addopts=""`
+    - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m app.scripts.smoke_native_chat --seed 26 --turns 4` -> `RESULT=PASS`
+
 - Resultado TM-197:
 
   - Frontend migrado a stack visual moderno:
@@ -2753,4 +2802,70 @@ Resultados:
     - `./venv/Scripts/python.exe -m ruff check app/services/rag_orchestrator.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
     - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
     - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- Resultado TM-204:
+
+  - Corregida deriva de dominio por fuzzy matching debil en consultas clinicas:
+    - scoring separado `direct` vs `fuzzy` en `ClinicalChatService._match_domains`,
+    - filtro de dominios sin match directo cuando existe match directo en otra especialidad,
+    - proteccion contra leak tipo `lactato -> lactante`.
+  - Corregida sobreescritura de respuesta RAG valida:
+    - respuesta RAG autoritativa (`rag_status=success`, validacion `valid`, sin telemetria `llm_*`) ya no se reemplaza automaticamente por plantilla evidence-first.
+    - se mantiene reparacion evidence-first para respuestas RAG degradadas/no autoritativas.
+  - Frontend ajustado para reducir ruido en chat:
+    - `include_protocol_catalog=false` por defecto en envio de turno.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "domain_matching_handles_typo_oftamologia_as_ophthalmology or domain_matching_prioritizes_direct_signal_and_avoids_fuzzy_domain_leak or chat_e2e_uses_rag_when_enabled or chat_e2e_quality_gate_applies_to_rag_answer_too or chat_e2e_fallback_when_rag_validation_warns" -o addopts=""`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `npm --prefix frontend run build`
+
+- Resultado TM-205:
+
+  - Modo de evaluacion de pipeline agregado por request (`pipeline_relaxed_mode`):
+    - desactiva guardas rigidas de chat y RAG para evaluar salida real con grounding,
+    - mantiene modo estricto por defecto (compatibilidad).
+  - Pruebas nuevas:
+    - `test_chat_e2e_relaxed_mode_keeps_rag_answer_when_validation_warns`,
+    - `test_safe_wrapper_pre_generation_is_disabled_in_relaxed_pipeline_mode`.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/schemas/clinical_chat.py app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `npm --prefix frontend run build`
+
+- Resultado TM-206:
+
+  - Respuesta general para saludo simple cambia a formato corto/natural (estilo conversacional), sin plantilla operativa ni arrastre de `memory_facts`.
+  - Se mantiene el flujo de descubrimiento de casos (consultas tipo `hola, tienes informacion de casos?`) con sugerencias operativas.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "general_answer_for_simple_greeting_is_short_and_natural or general_answer_does_not_dump_json_snippet_for_social_query or general_answer_suggests_domains_and_next_step_for_case_discovery" -o addopts=""`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+
+- Resultado TM-207:
+
+  - Chat prioriza estilo nativo del LLM y reduce plantillas rigidas cuando el modelo esta disponible.
+  - En consultas clinicas con RAG:
+    - se bufferiza la sintesis RAG como contexto para pase LLM,
+    - si falla la sintesis LLM, se reutiliza la respuesta RAG candidata antes de fallback estructurado.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/core/config.py app/services/llm_chat_provider.py app/services/clinical_chat_service.py app/tests/test_clinical_chat_operational.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "native_prompt_keeps_general_query_passthrough or general_answer_does_not_dump_json_snippet_for_social_query or general_answer_for_simple_greeting_is_short_and_natural or general_answer_suggests_domains_and_next_step_for_case_discovery or uses_rag_candidate_when_llm_synthesis_fails" -o addopts=""`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `npm --prefix frontend run build`
+
+- Resultado TM-208:
+
+  - Modo unico operativo:
+    - `tool_mode` efectivo fijo en `chat`,
+    - `response_mode` sin forzado por selector de herramienta.
+  - LLM nativo:
+    - en Ollama se prioriza endpoint `api/chat` (mas alineado con experiencia de chat nativa),
+    - se evita quick-recovery forzado cuando el modo nativo esta activo.
+  - Validacion:
+    - `./venv/Scripts/python.exe -m ruff check app/services/clinical_chat_service.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py app/tests/test_care_tasks_api.py app/core/config.py`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "response_mode_is_not_forced_by_requested_tool or llm_provider_prefers_ollama_chat_endpoint_in_native_style or llm_provider_recovers_after_primary_timeout or uses_rag_candidate_when_llm_synthesis_fails or general_answer_for_simple_greeting_is_short_and_natural" -o addopts=""`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_care_tasks_api.py -k "single_chat_mode_even_if_other_tool_is_requested or supports_general_conversation_mode" -o addopts=""`
+    - `$env:DEBUG='false'; ./venv/Scripts/python.exe -m pytest -q app/tests/test_clinical_chat_operational.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `npm --prefix frontend run build`
 

@@ -21,11 +21,32 @@
 - Catalogo Manchester de niveles/SLA disponible en `GET /api/v1/clinical-context/triage-levels/manchester`.
 - Auditoria de desviacion de triaje disponible en `POST/GET /api/v1/care-tasks/{id}/triage/audit`.
 - Metricas de auditoria expuestas en `/metrics`: `triage_audit_*`.
-- Chat clinico-operativo disponible en:
-  - `POST /api/v1/care-tasks/{id}/chat/messages`
+- Chat clinico-operativo disponible en:
+  - `POST /api/v1/care-tasks/{id}/chat/messages`
   - `GET /api/v1/care-tasks/{id}/chat/messages`
-  - `GET /api/v1/care-tasks/{id}/chat/memory`
-- Chat clinico-operativo reforzado con:
+  - `GET /api/v1/care-tasks/{id}/chat/memory`
+
+- TM-211 (coherencia clinica y enrutado por intencion):
+  - sin cambios de despliegue ni migraciones.
+  - cambios activos al reiniciar API:
+    - trazabilidad de fallback clinico final (`clinical_answer_quality_gate=final_structured_fallback`) consistente en respuestas estructuradas,
+    - ampliacion de marcadores de intencion para routing de consultas medicas operativas (farmacos, pasos, derivacion, seguimiento, casos similares).
+- TM-212 (oftalmologia por sintomas + salida limpia):
+  - sin cambios de despliegue ni migraciones.
+  - cambios activos al reiniciar API:
+    - mejor deteccion de consultas oculares para enrutar a `ophthalmology`,
+    - respuestas clinicas sin rutas internas ni endpoints en texto mostrado.
+
+- TM-209 (estabilidad modo nativo general):
+
+  - el modo general evita inyeccion de catalogo/fuentes clinicas en prompt LLM.
+  - smoke e2e recomendado antes de validar frontend:
+    - `$env:DEBUG='false'; .\venv\Scripts\python.exe -m app.scripts.smoke_native_chat --seed 26 --turns 4`
+  - criterio rapido: `RESULT=PASS` y `llm_used=true` en todos los turnos generales.
+- TM-210 (paridad runtime Ollama):
+  - en modo nativo con proveedor Ollama, el backend usa defaults de runtime (sin `options`/`keep_alive` forzados).
+  - en conversacion general se amplia el presupuesto de timeout y no se abre circuito por timeout para evitar degradacion a fallback no nativo.
+- Chat clinico-operativo reforzado con:
   - modo por especialidad autenticada (`users.specialty`),
   - continuidad longitudinal por paciente (`care_tasks.patient_reference`),
   - trazabilidad de fuentes internas y web por mensaje.
@@ -1362,4 +1383,52 @@
     - `Entity Grid`.
   - Verificacion operativa sugerida:
     - revisar en trazas `rag_discourse_top_texttiling`, `rag_discourse_top_lexical_chain`, `rag_discourse_top_lsa`, `rag_discourse_top_entity_grid`.
+
+- TM-204 (stability hardening dominio+respuesta RAG):
+
+  - Sin migraciones DB ni cambios de infraestructura.
+  - Requiere redeploy/restart de API para activar:
+    - filtro anti-leak en matching fuzzy de dominios,
+    - preservacion de respuesta RAG autoritativa valida.
+  - Cambio frontend recomendado (ya aplicado):
+    - `include_protocol_catalog=false` en envios de chat para reducir ruido de catalogo.
+  - Verificacion operativa sugerida:
+    - consulta de typo: `tratamientos de oftamologia` -> dominio `ophthalmology`,
+    - consulta sepsis: `sospecha de sepsis con lactato 4` -> sin bloque pediatria por fuzzy.
+
+- TM-205 (pipeline profile strict/evaluation):
+
+  - Sin migraciones DB ni cambios de infraestructura.
+  - Nuevo flag por request en chat:
+    - `pipeline_relaxed_mode` (default `false`).
+  - Uso recomendado:
+    - `false` en produccion/operativa habitual,
+    - `true` en pruebas de calidad conversacional y tuning de pipeline.
+  - Frontend (MVP interno) envia `pipeline_relaxed_mode=true` para facilitar evaluacion hasta nuevo aviso.
+
+- TM-207 (LLM nativo + blend con RAG):
+
+  - Sin migraciones DB ni cambios de infraestructura.
+  - Nueva variable recomendada:
+    - `CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED=true` (default recomendado).
+  - Comportamiento:
+    - modo general intenta passthrough nativo del modelo,
+    - en modo clinico con RAG se intenta sintesis LLM sobre evidencia interna,
+    - si falla el pase LLM, se reutiliza `rag_candidate` y se evita plantilla rigida temprana.
+  - Requisito operativo:
+    - reiniciar `uvicorn` tras cambios de `.env`.
+
+- TM-208 (modo unico chat + priorizacion api/chat):
+
+  - Sin migraciones DB ni cambios de infraestructura.
+  - Ajustes recomendados en `.env`:
+    - `CLINICAL_CHAT_LLM_MODEL=llama3.2:3b`
+    - `CLINICAL_CHAT_LLM_TIMEOUT_SECONDS>=12`
+    - `CLINICAL_CHAT_LLM_NUM_CTX>=1024`
+    - `CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED=true`
+  - Requisito operativo:
+    - reiniciar `uvicorn` tras cambios de `.env`.
+  - Verificacion post-deploy:
+    - consulta social (`hola`) debe responder natural sin plantilla tecnica,
+    - consulta medica debe mantener estilo nativo y, cuando haya evidencia interna, incluir citas breves de fuente.
 

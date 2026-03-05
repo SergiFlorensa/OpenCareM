@@ -84,6 +84,98 @@ class RAGOrchestrator:
             "keywords": ["shock", "abc", "via aerea", "inestabilidad", "monitorizacion"],
         },
     ]
+    _DOMAIN_SPECIALTY_ALIASES: dict[str, tuple[str, ...]] = {
+        "critical_ops": ("critical_ops", "emergency", "emergencias"),
+        "sepsis": ("sepsis", "infectious_disease", "critical_ops"),
+        "scasest": ("scasest", "cardiology", "cardiologia"),
+        "resuscitation": ("resuscitation", "critical_ops", "icu"),
+        "medicolegal": ("medicolegal",),
+        "neurology": ("neurology", "neurologia"),
+        "pediatrics_neonatology": ("pediatrics_neonatology", "pediatrics", "neonatology"),
+        "oncology": ("oncology", "oncology_urgencies"),
+        "pneumology": ("pneumology", "neumologia"),
+        "trauma": ("trauma",),
+        "gynecology_obstetrics": ("gynecology_obstetrics", "ginecologia", "obstetricia"),
+        "gastro_hepato": ("gastro_hepato", "gastroenterologia", "hepatologia"),
+        "rheum_immuno": ("rheum_immuno", "reumatologia", "inmunologia"),
+        "psychiatry": ("psychiatry", "psiquiatria"),
+        "hematology": ("hematology", "hematologia"),
+        "endocrinology": ("endocrinology", "endocrinologia"),
+        "nephrology": ("nephrology", "nefrologia"),
+        "geriatrics": ("geriatrics", "geriatria"),
+        "anesthesiology": ("anesthesiology", "anestesiologia"),
+        "palliative": ("palliative", "paliativos"),
+        "urology": ("urology", "urologia"),
+        "ophthalmology": ("ophthalmology", "oftalmologia", "oftamologia"),
+        "immunology": ("immunology", "inmunologia"),
+        "genetic_recurrence": ("genetic_recurrence", "genetica"),
+        "epidemiology": ("epidemiology", "epidemiologia"),
+        "anisakis": ("anisakis",),
+    }
+    _QUERY_INTENT_MARKERS: dict[str, tuple[str, ...]] = {
+        "pharmacology": (
+            "farmaco",
+            "farmacos",
+            "farmacologia",
+            "medicamento",
+            "medicamentos",
+            "tratamiento",
+            "tratamientos",
+            "dosis",
+            "posologia",
+            "interaccion",
+            "interacciones",
+            "contraindicacion",
+            "contraindicaciones",
+            "ajuste de dosis",
+        ),
+        "steps_actions": (
+            "pasos",
+            "que hacer",
+            "acciones",
+            "algoritmo",
+            "protocolo",
+            "manejo inicial",
+            "recomendaciones",
+            "recomendacion",
+            "recomendar",
+            "proponer",
+            "prioridades",
+        ),
+        "referral": (
+            "derivar",
+            "derivacion",
+            "interconsulta",
+            "escalar",
+            "traslado",
+            "otra especialidad",
+            "remitir",
+        ),
+        "follow_up": (
+            "seguimiento",
+            "reevaluar",
+            "monitorizacion",
+            "control",
+            "revision",
+            "plan de control",
+        ),
+        "similar_cases": (
+            "casos parecidos",
+            "casos similares",
+            "similar",
+            "caso comparable",
+            "experiencia previa",
+            "valorar otros casos",
+            "casos de referencia",
+        ),
+    }
+    _INTENT_EXPANSION_TERMS: dict[str, tuple[str, ...]] = {
+        "pharmacology": ("dosis", "ajuste", "contraindicaciones", "interacciones", "seguridad"),
+        "steps_actions": ("priorizar", "pasos", "acciones", "checklist", "operativo"),
+        "referral": ("criterios de derivacion", "interconsulta", "escalado", "coordinacion"),
+        "follow_up": ("seguimiento", "reevaluacion", "monitorizacion", "control evolutivo"),
+        "similar_cases": ("casos comparables", "patrones similares", "experiencia previa"),
+    }
     _SEGMENT_SPLIT_PATTERN = re.compile(
         r"(?:[;\n]+|\s(?:ademas|adem[aá]s|junto\s+con|asociado\s+a|concomitante\s+con)\s+)",
         flags=re.IGNORECASE,
@@ -243,6 +335,18 @@ class RAGOrchestrator:
         "general",
         "nivel",
     }
+    _NON_CLINICAL_SOURCE_MARKERS = (
+        "chat_clinico",
+        "frontend_chat",
+        "adaptacion_blueprint",
+        "project_skills",
+        "mcp_",
+        "prometheus",
+        "grafana",
+        "roadmap",
+        "codex_cli",
+        "agent_system",
+    )
 
     def __init__(self, db: Session):
         self.db = db
@@ -270,9 +374,19 @@ class RAGOrchestrator:
         recent_dialogue: Optional[list[dict[str, str]]] = None,
         endpoint_results: Optional[list[dict[str, Any]]] = None,
         care_task_id: Optional[int] = None,
+        pipeline_relaxed_mode: bool = False,
     ) -> tuple[Optional[str], dict[str, Any]]:
         started_at = time.perf_counter()
         trace: dict[str, Any] = {}
+        gatekeeper_enabled = bool(
+            settings.CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER and not pipeline_relaxed_mode
+        )
+        safe_wrapper_enabled = bool(
+            settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED and not pipeline_relaxed_mode
+        )
+        trace["rag_pipeline_profile"] = "evaluation" if pipeline_relaxed_mode else "strict"
+        trace["rag_gatekeeper_effective_enabled"] = "1" if gatekeeper_enabled else "0"
+        trace["rag_safe_wrapper_effective_enabled"] = "1" if safe_wrapper_enabled else "0"
 
         matched_domains = matched_domains or []
         matched_endpoints = matched_endpoints or []
@@ -346,9 +460,14 @@ class RAGOrchestrator:
                 and query_complexity == "complex"
             )
             trace["rag_retrieval_keyword_only"] = "1" if retrieval_keyword_only else "0"
+            _, intent_expansion_terms, intent_trace = self._infer_query_intents(
+                query=query,
+            )
+            trace.update(intent_trace)
             retrieval_query, compact_trace = self._build_retrieval_query(
                 query=query,
                 query_complexity=query_complexity,
+                intent_expansion_terms=intent_expansion_terms,
             )
             trace.update(compact_trace)
             if (
@@ -387,20 +506,35 @@ class RAGOrchestrator:
                 skip_domain_search_tokens_over
             )
 
-            if settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_ENABLED and hasattr(self.db, "query"):
-                qa_chunks, qa_trace = self._match_precomputed_qa_chunks(
-                    query=retrieval_query,
-                    specialty_filter=effective_specialty,
-                    k=k,
-                )
-                trace.update(qa_trace)
+            if settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_ENABLED:
+                try:
+                    qa_chunks, qa_trace = self._match_precomputed_qa_chunks(
+                        query=retrieval_query,
+                        specialty_filter=effective_specialty,
+                        k=k,
+                    )
+                    trace.update(qa_trace)
+                except Exception:
+                    trace["rag_qa_shortcut_enabled"] = "1"
+                    trace["rag_qa_shortcut_hit"] = "0"
+                    trace["rag_qa_shortcut_reason"] = "db_query_unavailable"
+                    qa_chunks = []
                 if qa_chunks:
-                    retrieved_chunks = qa_chunks
-                    retrieval_strategy = "qa_shortcut"
-            elif settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_ENABLED:
-                trace["rag_qa_shortcut_enabled"] = "1"
-                trace["rag_qa_shortcut_hit"] = "0"
-                trace["rag_qa_shortcut_reason"] = "db_query_unavailable"
+                    qa_alignment_ratio = self._qa_shortcut_domain_alignment_ratio(
+                        chunks=qa_chunks,
+                        matched_domains=matched_domains,
+                        effective_specialty=effective_specialty,
+                    )
+                    trace["rag_qa_shortcut_domain_alignment_ratio"] = f"{qa_alignment_ratio:.3f}"
+                    qa_top_score = float(trace.get("rag_qa_shortcut_top_score", "0.0") or 0.0)
+                    # Evita aceptar shortcut QA cuando el dominio de los chunks no coincide
+                    # con la intencion clinica de la consulta.
+                    if matched_domains and qa_alignment_ratio < 0.55 and qa_top_score < 0.65:
+                        trace["rag_qa_shortcut_hit"] = "0"
+                        trace["rag_qa_shortcut_reason"] = "domain_misalignment"
+                    else:
+                        retrieved_chunks = qa_chunks
+                        retrieval_strategy = "qa_shortcut"
 
             if matched_domains and not skip_domain_search and not retrieved_chunks:
                 domain_chunks, domain_trace = self.legacy_retriever.search_by_domain(
@@ -529,7 +663,7 @@ class RAGOrchestrator:
                 not retrieved_chunks
                 and chunks_before_verifier
                 and settings.CLINICAL_CHAT_RAG_VERIFIER_ENABLED
-                and not settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED
+                and not safe_wrapper_enabled
             ):
                 retrieved_chunks = chunks_before_verifier
                 trace["rag_verifier_override"] = "1"
@@ -546,7 +680,7 @@ class RAGOrchestrator:
             if not retrieved_chunks:
                 if (
                     settings.CLINICAL_CHAT_RAG_VERIFIER_ENABLED
-                    and settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED
+                    and safe_wrapper_enabled
                 ):
                     elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
                     safe_wrapper_answer = self._build_safe_wrapper_answer(
@@ -639,7 +773,7 @@ class RAGOrchestrator:
             trace["rag_context_relevance_pre"] = f"{pre_context_relevance:.3f}"
             trace["rag_safe_wrapper_min_context_ratio"] = f"{safe_wrapper_context_min:.3f}"
             if (
-                settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED
+                safe_wrapper_enabled
                 and pre_context_relevance < safe_wrapper_context_min
             ):
                 safe_wrapper_answer = self._build_safe_wrapper_answer(
@@ -731,6 +865,14 @@ class RAGOrchestrator:
                 query_complexity=query_complexity,
                 pre_context_relevance=pre_context_relevance,
             )
+            native_ollama_style = bool(
+                settings.CLINICAL_CHAT_LLM_PROVIDER == "ollama"
+                and settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
+            )
+            if native_ollama_style:
+                # En estilo nativo priorizamos calidad conversacional sobre un budget
+                # extremadamente estricto antes del pase LLM.
+                min_remaining_for_llm_ms = min(min_remaining_for_llm_ms, 900)
             elapsed_pre_llm_ms = round((time.perf_counter() - started_at) * 1000, 2)
             remaining_pre_llm_ms = max(0.0, float(budget_total_ms) - elapsed_pre_llm_ms)
             trace.update(
@@ -763,13 +905,19 @@ class RAGOrchestrator:
                     trace.update(llm_trace)
                     trace["rag_llm_skipped_reason"] = "latency_budget_exhausted_pre_llm"
                 else:
-                    llm_timeout_override_seconds = max(
-                        2.0,
-                        min(
+                    if native_ollama_style:
+                        llm_timeout_override_seconds = max(
                             float(settings.CLINICAL_CHAT_LLM_TIMEOUT_SECONDS),
-                            max(0.0, remaining_pre_llm_ms - 250.0) / 1000.0,
-                        ),
-                    )
+                            12.0,
+                        )
+                    else:
+                        llm_timeout_override_seconds = max(
+                            2.0,
+                            min(
+                                float(settings.CLINICAL_CHAT_LLM_TIMEOUT_SECONDS),
+                                max(0.0, remaining_pre_llm_ms - 250.0) / 1000.0,
+                            ),
+                        )
                     trace["rag_llm_timeout_override_seconds"] = (
                         f"{llm_timeout_override_seconds:.2f}"
                     )
@@ -845,7 +993,7 @@ class RAGOrchestrator:
                 response=answer,
                 retrieved_chunks=chunk_dicts,
             )
-            if settings.CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER:
+            if gatekeeper_enabled:
                 is_valid, issues = self.gatekeeper.validate_response(
                     query=query,
                     response=answer,
@@ -855,8 +1003,8 @@ class RAGOrchestrator:
             trace["rag_faithfulness_post"] = f"{post_faithfulness:.3f}"
 
             safe_wrapper_triggered_post = (
-                settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED
-                and settings.CLINICAL_CHAT_RAG_ENABLE_GATEKEEPER
+                safe_wrapper_enabled
+                and gatekeeper_enabled
                 and settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED
                 and rag_generation_mode == "llm"
                 and (
@@ -1205,11 +1353,36 @@ class RAGOrchestrator:
             return "simple", "short_compact"
         return "medium", "default"
 
-    @staticmethod
+    @classmethod
+    def _infer_query_intents(cls, *, query: str) -> tuple[list[str], list[str], dict[str, str]]:
+        normalized_query = str(query or "").lower()
+        detected: list[str] = []
+        expansion_terms: list[str] = []
+        for intent, markers in cls._QUERY_INTENT_MARKERS.items():
+            if any(marker in normalized_query for marker in markers):
+                detected.append(intent)
+                expansion_terms.extend(cls._INTENT_EXPANSION_TERMS.get(intent, ()))
+        dedup_expansion: list[str] = []
+        for token in expansion_terms:
+            normalized = str(token).strip().lower()
+            if not normalized or normalized in dedup_expansion:
+                continue
+            dedup_expansion.append(normalized)
+        trace = {
+            "rag_query_intents_detected": ",".join(detected) if detected else "none",
+            "rag_query_intent_expansion_terms": (
+                ",".join(dedup_expansion[:10]) if dedup_expansion else "none"
+            ),
+        }
+        return detected, dedup_expansion, trace
+
+    @classmethod
     def _build_retrieval_query(
+        cls,
         *,
         query: str,
         query_complexity: str,
+        intent_expansion_terms: list[str] | None = None,
     ) -> tuple[str, dict[str, str]]:
         trace: dict[str, str] = {
             "rag_retrieval_query_compacted": "0",
@@ -1239,6 +1412,10 @@ class RAGOrchestrator:
             "sobre",
         }
         tokens = re.findall(r"[a-zA-Z0-9\-/\+]+", str(query or "").lower())
+        if intent_expansion_terms:
+            tokens.extend(
+                [str(item).lower() for item in intent_expansion_terms if str(item).strip()]
+            )
         prioritized = [
             token
             for token in tokens
@@ -1416,6 +1593,50 @@ class RAGOrchestrator:
                 filtered.append(chunk)
         return filtered
 
+    @classmethod
+    def _resolve_domain_aliases(cls, *, matched_domains: list[str]) -> set[str]:
+        aliases: set[str] = set()
+        for domain in matched_domains or []:
+            normalized = str(domain or "").strip().lower()
+            if not normalized:
+                continue
+            aliases.add(normalized)
+            aliases.update(cls._DOMAIN_SPECIALTY_ALIASES.get(normalized, ()))
+        return {item for item in aliases if item}
+
+    @classmethod
+    def _qa_shortcut_domain_alignment_ratio(
+        cls,
+        *,
+        chunks: list[Any],
+        matched_domains: list[str],
+        effective_specialty: str,
+    ) -> float:
+        if not chunks:
+            return 0.0
+        domain_aliases = cls._resolve_domain_aliases(matched_domains=matched_domains)
+        normalized_specialty = str(effective_specialty or "").strip().lower()
+        if normalized_specialty and normalized_specialty not in {"general", "*"}:
+            domain_aliases.add(normalized_specialty)
+        if not domain_aliases:
+            return 1.0
+
+        aligned = 0
+        for chunk in chunks:
+            chunk_specialty = str(getattr(chunk, "specialty", "") or "").strip().lower()
+            if chunk_specialty and chunk_specialty in domain_aliases:
+                aligned += 1
+                continue
+            source_tokens = ""
+            chunk_document = getattr(chunk, "document", None)
+            if chunk_document is not None:
+                source_tokens = str(getattr(chunk_document, "source_file", "") or "").lower()
+            if not source_tokens:
+                source_tokens = str(getattr(chunk, "section_path", "") or "").lower()
+            if any(alias in source_tokens for alias in domain_aliases):
+                aligned += 1
+        return aligned / max(1, len(chunks))
+
     @staticmethod
     def _is_generic_domain_fallback(
         *,
@@ -1449,8 +1670,7 @@ class RAGOrchestrator:
             chunk_document = getattr(chunk, "document", None)
             if chunk_document is not None:
                 source_file = str(getattr(chunk_document, "source_file", "") or "")
-            normalized_source = source_file.replace("\\", "/").lower()
-            if normalized_source and "docs/decisions/" in normalized_source:
+            if cls._looks_like_non_clinical_source(source_file):
                 removed += 1
                 continue
             filtered.append(chunk)
@@ -2143,6 +2363,26 @@ class RAGOrchestrator:
             return True
         alpha_chars = sum(1 for char in normalized if char.isalpha())
         return alpha_chars < 18
+
+    @classmethod
+    def _looks_like_non_clinical_source(cls, source: str) -> bool:
+        normalized = str(source or "").replace("\\", "/").lower().strip()
+        if not normalized:
+            return False
+        if "docs/decisions/" in normalized:
+            return True
+        if any(marker in normalized for marker in cls._NON_CLINICAL_SOURCE_MARKERS):
+            return True
+        doc_number_match = re.search(r"docs/(\d+)_", normalized)
+        if doc_number_match:
+            try:
+                doc_number = int(doc_number_match.group(1))
+            except ValueError:
+                doc_number = 0
+            # Mantener corpus clinico operativo acotado a motores/especialidades (40-86).
+            if doc_number < 40 or doc_number >= 87:
+                return True
+        return False
 
     @staticmethod
     def _tokenize_for_relevance(text: str) -> set[str]:
@@ -2979,12 +3219,51 @@ class RAGOrchestrator:
         text_tokens = cls._tokenize_for_relevance(text)
         if not text_tokens:
             return 0.0
-        shared = query_tokens.intersection(text_tokens)
-        if not shared:
+        text_token_set = set(text_tokens)
+        shared = query_tokens.intersection(text_token_set)
+        soft_overlap_excluded = {
+            "paciente",
+            "pacientes",
+            "caso",
+            "casos",
+            "urgencia",
+            "urgencias",
+            "accion",
+            "acciones",
+            "inicial",
+            "iniciales",
+            "manejo",
+            "tratamiento",
+        }
+        soft_shared = 0
+        for query_token in query_tokens:
+            if (
+                query_token in text_token_set
+                or len(query_token) < 5
+                or query_token in soft_overlap_excluded
+            ):
+                continue
+            query_prefix = query_token[:5]
+            if any(
+                len(text_token) >= 5
+                and (text_token.startswith(query_prefix) or query_token.startswith(text_token[:5]))
+                for text_token in text_token_set
+            ):
+                soft_shared += 1
+                continue
+            if any(
+                len(text_token) >= 8
+                and len(query_token) >= 8
+                and text_token[:3] == query_token[:3]
+                for text_token in text_token_set
+            ):
+                soft_shared += 0.5
+        if not shared and soft_shared <= 0:
             return 0.0
         # Penalizacion logaritmica suave para queries largas.
         denom = max(1.0, math.log2(2 + len(query_tokens)))
-        return round(min(1.0, len(shared) / denom), 4)
+        effective_overlap = len(shared) + (0.7 * soft_shared)
+        return round(min(1.0, effective_overlap / denom), 4)
 
     @staticmethod
     def _split_sentences(text: str, *, max_sentences: int = 5) -> list[str]:
@@ -3067,8 +3346,34 @@ class RAGOrchestrator:
                 break
         if not kept:
             compact_text = re.sub(r"\s+", " ", str(text or "")).strip()
+            compact_text = re.sub(
+                r"\bdocs[\\/][^\s)]+",
+                "",
+                compact_text,
+                flags=re.IGNORECASE,
+            )
+            compact_text = re.sub(
+                r"(?:[A-Za-z]:)?[\\/](?:[^\\/\s]+[\\/])+[^\\/\s]+(?:\.(?:md|txt|pdf))?",
+                "",
+                compact_text,
+                flags=re.IGNORECASE,
+            )
+            compact_text = re.sub(r"\s{2,}", " ", compact_text).strip()
             return compact_text[:max_chars]
         merged = " ".join(kept).strip()
+        merged = re.sub(
+            r"\bdocs[\\/][^\s)]+",
+            "",
+            merged,
+            flags=re.IGNORECASE,
+        )
+        merged = re.sub(
+            r"(?:[A-Za-z]:)?[\\/](?:[^\\/\s]+[\\/])+[^\\/\s]+(?:\.(?:md|txt|pdf))?",
+            "",
+            merged,
+            flags=re.IGNORECASE,
+        )
+        merged = re.sub(r"\s{2,}", " ", merged).strip()
         return merged[:max_chars]
 
     @classmethod
@@ -3402,17 +3707,15 @@ class RAGOrchestrator:
             source_norm = source.lower().replace("\\", "/")
             if "/api/" in source_norm or source_norm.startswith("app/"):
                 continue
+            if cls._looks_like_non_clinical_source(source):
+                continue
             seen_sources.add(source)
-            source_leaf = source_norm.split("/")[-1] if "/" in source_norm else source_norm
             anchor = source_title or section
             if section and anchor.lower() != section.lower():
                 anchor = f"{anchor} > {section}"
             if source_page:
                 anchor = f"{anchor} [p.{source_page}]"
-            if source_leaf and source_leaf != anchor.lower():
-                lines.append(f"- {anchor} ({source_leaf})")
-            else:
-                lines.append(f"- {anchor}")
+            lines.append(f"- {anchor}")
             cited += 1
             if cited >= max_items:
                 break
@@ -3481,6 +3784,9 @@ class RAGOrchestrator:
         prioritized_chunks = sorted(chunks, key=ranking_key)
         sources: list[dict[str, str]] = []
         for chunk in prioritized_chunks[: settings.CLINICAL_CHAT_RAG_MAX_CHUNKS]:
+            source_locator = str(chunk.get("source") or "catalogo interno")
+            if self._looks_like_non_clinical_source(source_locator):
+                continue
             snippet = self._clean_snippet_text(str(chunk.get("text", "")), max_chars=320)
             if len(snippet) < 20:
                 continue
@@ -3497,7 +3803,7 @@ class RAGOrchestrator:
             source = {
                 "type": "rag_chunk",
                 "title": title or "fragmento interno",
-                "source": str(chunk.get("source") or "catalogo interno"),
+                "source": source_locator,
                 "snippet": snippet,
             }
             sources.append(source)

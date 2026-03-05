@@ -901,6 +901,70 @@ def test_safe_wrapper_pre_generation_skips_llm_when_context_is_low(monkeypatch):
     assert trace["rag_safe_wrapper_triggered"] == "1"
 
 
+def test_safe_wrapper_pre_generation_is_disabled_in_relaxed_pipeline_mode(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    llm_called = {"value": False}
+
+    def fake_llm(**kwargs):  # noqa: ARG001
+        llm_called["value"] = True
+        return "respuesta llm relajada", {"llm_used": "true", "llm_endpoint": "chat"}
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.LLMChatProvider.generate_answer",
+        fake_llm,
+    )
+    monkeypatch.setattr("app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_MIN_CONTEXT_RATIO",
+        0.85,
+    )
+
+    chunk = SimpleNamespace(
+        id=1404,
+        chunk_text="Documento administrativo sin relacion clinica directa para esta consulta.",
+        section_path="Administrativo > Sin relevancia clinica",
+        tokens_count=15,
+        keywords=[],
+        custom_questions=[],
+        specialty="general",
+        content_type="markdown",
+        _rag_score=0.9,
+        document=SimpleNamespace(source_file="docs/66_motor_operativo_critico_transversal_urgencias.md"),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (1, {"rag_adaptive_k_enabled": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter: (
+            [chunk],
+            {"vector_search_latency_ms": "2"},
+            "hybrid",
+        ),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="Neutropenia febril oncologica: pasos 0-10 y 10-60.",
+        response_mode="clinical",
+        effective_specialty="oncology",
+        matched_domains=[],
+        pipeline_relaxed_mode=True,
+    )
+
+    assert llm_called["value"] is True
+    assert answer == "respuesta llm relajada"
+    assert trace["rag_pipeline_profile"] == "evaluation"
+    assert trace["rag_safe_wrapper_effective_enabled"] == "0"
+    assert "rag_safe_wrapper_triggered" not in trace
+
+
 def test_build_rag_sources_prioritizes_high_score_before_source_type():
     orchestrator = RAGOrchestrator(db=SimpleNamespace())
     chunks = [
@@ -920,6 +984,88 @@ def test_build_rag_sources_prioritizes_high_score_before_source_type():
     sources = orchestrator._build_rag_knowledge_sources(chunks)
     assert sources
     assert sources[0]["source"] == "docs/73_motor_operativo_nefrologia_urgencias.md"
+
+
+def test_build_rag_sources_excludes_non_clinical_chat_docs():
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    chunks = [
+        {
+            "text": "Contenido operativo de oncologia con acciones y umbrales clinicos.",
+            "section": "Oncologia > Neutropenia",
+            "source": "docs/76_motor_operativo_oncologia_urgencias.md",
+            "score": 0.60,
+        },
+        {
+            "text": "Contrato de chat y arquitectura conversacional.",
+            "section": "Chat clinico > Contrato",
+            "source": "docs/88_chat_clinico_especialidad_contexto_longitudinal.md",
+            "score": 0.95,
+        },
+    ]
+    sources = orchestrator._build_rag_knowledge_sources(chunks)
+    assert sources
+    assert all("88_chat_clinico" not in source["source"] for source in sources)
+    assert any("76_motor_operativo_oncologia" in source["source"] for source in sources)
+
+
+def test_non_clinical_source_filter_blocks_pre_motor_docs():
+    assert (
+        RAGOrchestrator._looks_like_non_clinical_source(
+            "docs/37_contexto_operaciones_clinicas_urgencias_es.md"
+        )
+        is True
+    )
+    assert (
+        RAGOrchestrator._looks_like_non_clinical_source(
+            "docs/47_motor_sepsis_urgencias.md"
+        )
+        is False
+    )
+
+
+def test_drop_noisy_chunks_filters_non_clinical_source_files():
+    noisy_chunk = SimpleNamespace(
+        id=2001,
+        chunk_text="Texto valido pero de documento de arquitectura de chat.",
+        document=SimpleNamespace(
+            source_file="docs/88_chat_clinico_especialidad_contexto_longitudinal.md"
+        ),
+    )
+    clinical_chunk = SimpleNamespace(
+        id=2002,
+        chunk_text="Sepsis con hipotension y lactato elevado: activar bundle.",
+        document=SimpleNamespace(source_file="docs/47_motor_sepsis_urgencias.md"),
+    )
+    filtered, trace = RAGOrchestrator._drop_noisy_chunks([noisy_chunk, clinical_chunk])
+    assert len(filtered) == 1
+    assert int(getattr(filtered[0], "id")) == 2002
+    assert trace["rag_chunks_noise_filtered"] == "1"
+
+
+def test_infer_query_intents_detects_pharmacology_and_steps():
+    intents, expansion_terms, trace = RAGOrchestrator._infer_query_intents(
+        query="Farmacos y pasos a seguir para manejo inicial en urgencias",
+    )
+    assert "pharmacology" in intents
+    assert "steps_actions" in intents
+    assert "dosis" in expansion_terms
+    assert trace["rag_query_intents_detected"] != "none"
+
+
+def test_infer_query_intents_detects_referral_followup_and_similar_cases():
+    intents, expansion_terms, trace = RAGOrchestrator._infer_query_intents(
+        query=(
+            "Cuando derivar, que seguimiento proponer y valorar otros casos parecidos "
+            "en esta especialidad"
+        ),
+    )
+    assert "referral" in intents
+    assert "follow_up" in intents
+    assert "similar_cases" in intents
+    assert "interconsulta" in expansion_terms
+    assert "control evolutivo" in expansion_terms
+    assert "casos comparables" in expansion_terms
+    assert trace["rag_query_intents_detected"] != "none"
 
 
 def test_force_extractive_only_mode_skips_llm_and_returns_extractive(monkeypatch):
@@ -1096,6 +1242,97 @@ def test_qa_shortcut_hit_skips_domain_and_backend_search(monkeypatch):
     assert trace["rag_status"] == "success"
     assert trace["rag_retrieval_strategy"] == "qa_shortcut"
     assert trace["rag_qa_shortcut_hit"] == "1"
+
+
+def test_qa_shortcut_domain_misalignment_falls_back_to_hybrid(monkeypatch):
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_QA_SHORTCUT_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_LLM_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_EXTRACTIVE_FALLBACK_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_SAFE_WRAPPER_ENABLED",
+        False,
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_resolve_adaptive_k",
+        lambda query: (1, {"rag_adaptive_k_enabled": "0"}),
+    )
+
+    qa_chunk = SimpleNamespace(
+        id=1701,
+        chunk_text="Urgencias ginecologicas con dolor pelvico y sangrado vaginal.",
+        section_path="Ginecologia > Triaje inicial",
+        tokens_count=18,
+        keywords=[],
+        custom_questions=[],
+        specialty="gynecology_obstetrics",
+        content_type="markdown",
+        _rag_score=0.40,
+        document=SimpleNamespace(
+            source_file="docs/85_motor_operativo_ginecologia_obstetricia_urgencias.md"
+        ),
+    )
+    psych_chunk = SimpleNamespace(
+        id=1702,
+        chunk_text="Paciente con agitacion psicomotriz: contencion verbal y evaluacion de riesgo.",
+        section_path="Psiquiatria > Manejo inicial",
+        tokens_count=20,
+        keywords=[],
+        custom_questions=[],
+        specialty="psychiatry",
+        content_type="markdown",
+        _rag_score=0.82,
+        document=SimpleNamespace(source_file="docs/70_motor_operativo_psiquiatria_urgencias.md"),
+    )
+
+    monkeypatch.setattr(
+        orchestrator,
+        "_match_precomputed_qa_chunks",
+        lambda query, specialty_filter, k: (
+            [qa_chunk],
+            {
+                "rag_qa_shortcut_enabled": "1",
+                "rag_qa_shortcut_hit": "1",
+                "rag_qa_shortcut_top_score": "0.40",
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        orchestrator.legacy_retriever,
+        "search_by_domain",
+        lambda matched_domains, db, query, k: ([], {"domain_search_hits": "0"}),
+    )
+    monkeypatch.setattr(
+        orchestrator,
+        "_search_with_configured_backend",
+        lambda query, k, specialty_filter, keyword_only=False: (
+            [psych_chunk],
+            {"vector_search_latency_ms": "2"},
+            "hybrid",
+        ),
+    )
+
+    answer, trace = orchestrator.process_query_with_rag(
+        query="casos de pacientes psiquiatricos en urgencias",
+        response_mode="clinical",
+        effective_specialty="general",
+        matched_domains=["psychiatry"],
+    )
+
+    assert answer is not None
+    assert trace["rag_qa_shortcut_reason"] == "domain_misalignment"
+    assert trace["rag_retrieval_strategy"] == "hybrid"
 
 
 def test_qa_shortcut_matching_returns_chunk_for_precomputed_questions(db_session, monkeypatch):
@@ -1345,7 +1582,7 @@ def test_extractive_answer_prioritizes_actionable_sentences_over_aux_noise():
     assert "ha sido y puede estar" not in lowered
 
 
-def test_extractive_answer_source_anchor_includes_source_leaf():
+def test_extractive_answer_source_anchor_hides_source_leaf():
     answer = RAGOrchestrator._build_extractive_answer(
         query="Neutropenia febril oncologica",
         matched_domains=["oncology"],
@@ -1363,7 +1600,8 @@ def test_extractive_answer_source_anchor_includes_source_leaf():
     )
 
     assert answer is not None
-    assert "(76_motor_operativo_oncologia_urgencias.md)" in answer
+    assert "Oncologia > Neutropenia febril" in answer
+    assert "(76_motor_operativo_oncologia_urgencias.md)" not in answer
 
 
 def test_context_assembler_adds_title_and_page_metadata():

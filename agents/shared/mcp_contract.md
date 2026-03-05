@@ -96,3 +96,45 @@
 - Sin cambios en herramientas MCP ni transporte.
 - Impacto esperado: ninguno en `mcp_server/`; cambios solo en procesamiento interno de texto en backend RAG.
 
+## TM-204
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP ni contratos de transporte.
+- Impacto esperado: ninguno en `mcp_server/`; ajustes acotados a enrutado/ensamblado interno de chat clinico y frontend.
+
+## TM-205
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP ni contratos del servidor MCP.
+- Impacto esperado: nulo en `mcp_server/`; cambio acotado a API/chat runtime.
+
+## TM-207
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP ni en transporte.
+- Impacto esperado: ninguno en `mcp_server/`; ajuste exclusivo del ensamblado de respuesta en chat backend.
+
+## TM-208
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP ni contratos del servidor.
+- Impacto esperado: ninguno en `mcp_server/`; cambio acotado a modo de chat backend/frontend.
+
+## TM-209
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP, transporte ni variables MCP.
+- Impacto esperado: ninguno en `mcp_server/`; ajuste interno del pipeline de chat general.
+
+## TM-211
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP, transporte ni variables MCP.
+- Impacto esperado: ninguno en `mcp_server/`; ajustes solo en enrutado/validacion interna del chat clinico y pruebas.
+
+## TM-212
+
+- Cambios MCP: no aplica.
+- Sin cambios en herramientas MCP, transporte ni variables MCP.
+- Impacto esperado: ninguno en `mcp_server/`; cambios acotados a formateo/seleccion de evidencia en backend chat.
+

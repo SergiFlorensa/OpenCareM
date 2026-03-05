@@ -44,7 +44,7 @@
 - Tabla: `care_task_cardio_risk_audit_logs`
 - PK: `id`
 - Indices: `id`, `care_task_id`, `agent_run_id` (unico), `classification`
-- Tabla: `care_task_resuscitation_audit_logs`
+- Tabla: `care_task_resuscitation_audit_logs`
 - PK: `id`
 - Indices: `id`, `care_task_id`, `agent_run_id` (unico), `classification`
 - Tabla: `emergency_episodes`
@@ -52,7 +52,27 @@
 - Indices: `id`, `care_task_id`, `origin`, `current_stage`, `priority_risk`, `disposition`
 - Catalogo en codigo: `clinical_context` (areas, circuitos, roles, procedimientos, estandares)
 - Catalogo en codigo: `triage_levels_manchester` (nivel, color, SLA objetivo)
-- DB local actual: SQLite
+- DB local actual: SQLite
+
+## TM-209
+
+- Sin cambios de esquema de datos ni migraciones.
+- Sin cambios en modelos SQLAlchemy o indices.
+- Impacto acotado a comportamiento de ensamblado/prompt en capa de servicios de chat.
+
+## TM-211
+
+- Sin cambios de esquema de datos ni migraciones.
+- Sin cambios en modelos SQLAlchemy, tablas o indices.
+- Impacto acotado a pipeline de inferencia en servicios (`clinical_chat_service` y `rag_orchestrator`) y trazas de interpretabilidad.
+
+## TM-212
+
+- Sin cambios de esquema de datos ni migraciones.
+- Sin cambios en modelos SQLAlchemy, tablas o indices.
+- Impacto acotado a:
+  - matching de dominio por sintomas oculares,
+  - saneamiento de texto mostrado al usuario (ocultar rutas internas en respuesta final).
 - Fuente de verdad del esquema: Alembic (`alembic/versions`)
 
 ## Reglas actuales
@@ -895,4 +915,44 @@
   - `_rag_lsa_score`
   - `_rag_entity_grid_score`
 - Riesgo operativo: aumento marginal de CPU por chunk; mitigado al ejecutarse sobre `top-k` ya recuperado.
+
+## TM-204
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Cambios de datos solo en runtime:
+  - scoring de matching de dominio separado en `direct_score` y `fuzzy_score`,
+  - filtro anti-leak de dominios fuzzy debiles cuando existe coincidencia directa.
+- Riesgos operativos:
+  - tuning de umbral fuzzy (`>=2`) puede requerir ajuste fino si aparecen nuevas variantes ortograficas.
+
+## TM-205
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Datos de runtime:
+  - nuevo input opcional por request `pipeline_relaxed_mode` para controlar perfil de pipeline (`strict`/`evaluation`).
+  - se agregan trazas efimeras:
+    - `pipeline_profile` en chat,
+    - `rag_pipeline_profile`,
+    - `rag_gatekeeper_effective_enabled`,
+    - `rag_safe_wrapper_effective_enabled`.
+- Riesgo operativo:
+  - usar `pipeline_relaxed_mode=true` fuera de contexto de evaluacion puede reducir barreras de seguridad semantica.
+
+## TM-207
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Datos de runtime:
+  - nuevo flag de configuracion `CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED` (default `true`) para controlar estilo de prompting.
+  - se agrega fuente efimera `Sintesis RAG interna` al contexto cuando hay respuesta RAG sin telemetria `llm_*` para guiar sintesis de segundo pase.
+- Riesgo operativo:
+  - si el LLM esta indisponible, se prioriza salida `rag_candidate` (mas natural que plantilla), por lo que puede variar el formato final frente a versiones previas.
+
+## TM-208
+
+- Sin cambios de esquema ORM ni migraciones Alembic.
+- Datos de runtime:
+  - `tool_mode` efectivo se normaliza a `chat` en el pipeline de chat.
+  - parametros de `.env` del modelo local se ajustan a perfil Llama (`llama3.2:3b`) y mayor presupuesto de contexto/timeout.
+- Riesgo operativo:
+  - mayor latencia media frente al perfil ultracorto previo (timeout/contexto mas altos), compensado con salida mas natural y menos fallback forzado.
 

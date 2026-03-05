@@ -4,9 +4,26 @@
 
 - Prefijo: `/api/v1`
 
-## Recursos
-
-- `tasks`
+## Recursos
+
+- TM-212 (routing oftalmologia + salida sin paths internos):
+  - Sin cambios de contrato HTTP ni payloads publicos.
+  - `POST /api/v1/care-tasks/{task_id}/chat/messages` mantiene schema.
+  - Cambios internos:
+    - ampliacion de señales de especialidad oftalmologica por sintomas oculares (ej. `ojo derecho`, `dolor ocular`, `vision borrosa`),
+    - eliminacion de rutas internas y endpoints del texto final de respuesta (se conserva solo referencia humana de fuente).
+
+- TM-211 (coherencia clinica + trazabilidad de fallback):
+  - Sin cambios de contrato HTTP ni payloads publicos.
+  - `POST /api/v1/care-tasks/{task_id}/chat/messages` mantiene schema.
+  - Cambio interno: en fallback estructurado clinico se emite traza consistente `clinical_answer_quality_gate=final_structured_fallback`; se amplian marcadores de intencion para enrutar mejor consultas de farmacos/pasos/derivacion/seguimiento/casos similares.
+
+- TM-210 (paridad Ollama nativa):
+  - Sin cambios de contrato HTTP.
+  - `POST /api/v1/care-tasks/{task_id}/chat/messages` mantiene request/response.
+  - Cambio interno: en modo nativo (`tool_mode=chat`, proveedor Ollama) el backend usa defaults de runtime de Ollama para la generacion, sin forzar `options`/`keep_alive`.
+
+- `tasks`
   - Crear: `POST /tasks/`
   - Listar: `GET /tasks/`
   - Obtener: `GET /tasks/{task_id}`
@@ -1777,4 +1794,65 @@
   - LCD local con operaciones vectoriales (concatenacion, diferencia, diferencia absoluta, producto),
   - entity-grid para continuidad de entidades.
 - Compatibilidad: contrato externo estable; impacto visible en `interpretability_trace` via claves `rag_discourse_*`.
+
+## TM-204
+
+- Sin cambios de schema ni endpoints HTTP.
+- Ajustes internos en `POST /api/v1/care-tasks/{task_id}/chat/messages`:
+  - matching de dominio con separacion de score directo vs fuzzy para evitar fuga de especialidad por similitud debil (`lactato` != `lactante`),
+  - soporte robusto de typo clinico (`oftamologia` -> `ophthalmology`),
+  - preservacion de respuesta RAG autoritativa valida (sin sobreescritura automatica por plantilla evidence-first).
+- Compatibilidad: request/response estable; se mantiene trazabilidad en `interpretability_trace`.
+
+## TM-205
+
+- Endpoint afectado:
+  - `POST /api/v1/care-tasks/{task_id}/chat/messages`
+- Contrato externo:
+  - se agrega flag opcional `pipeline_relaxed_mode` (bool, default `false`) en request.
+  - sin cambios en shape de response.
+- Semantica:
+  - `pipeline_relaxed_mode=false`: comportamiento estricto actual.
+  - `pipeline_relaxed_mode=true`: desactiva guardas rigidas de pipeline para evaluacion de calidad conversacional (safe-wrapper/gatekeeper efectivos en RAG, y quality gates/fallbacks rigidos en ensamblado de chat).
+- Compatibilidad:
+  - backward compatible para clientes existentes (campo opcional).
+
+## TM-206
+
+- Sin cambios de schema ni endpoints HTTP.
+- Cambio de comportamiento en respuesta general:
+  - saludos simples (`hola`, `que tal`, etc.) devuelven respuesta corta y natural,
+  - no se adjunta plantilla operativa ni bloque de memoria reutilizada en ese caso.
+- Compatibilidad:
+  - sin impacto en request/response shape; solo mejora de estilo de salida.
+
+## TM-207
+
+- Sin cambios de schema ni endpoints HTTP.
+- Cambios internos de comportamiento:
+  - el proveedor LLM usa estilo nativo por defecto (`CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED=true`),
+  - en consultas clinicas con RAG, la respuesta recuperada se bufferiza como contexto para sintesis LLM,
+  - si el segundo pase LLM falla, se usa la respuesta RAG candidata antes de caer a plantilla estructurada.
+- Compatibilidad:
+  - contrato request/response se mantiene estable; solo cambia prioridad de ensamblado de respuesta.
+
+## TM-208
+
+- Sin cambios de endpoints HTTP ni shape base de response.
+- Cambios de comportamiento:
+  - backend fija `tool_mode` efectivo en `chat` (modo unico),
+  - `response_mode` deja de forzarse por herramienta solicitada y se decide por senal clinica de la consulta,
+  - frontend deja de enviar selector de herramienta y oculta badge de modo.
+- Compatibilidad:
+  - payload legacy con `tool_mode` sigue aceptado, pero no altera el modo efectivo.
+
+## TM-209
+
+- Sin cambios de endpoints HTTP ni shape de request/response.
+- Cambios de comportamiento interno:
+  - en `response_mode=general` no se inyectan fuentes clinicas/catalogo en el prompt del LLM,
+  - `matched_domains` queda vacio en modo general (evita deriva a `critical_ops` por fallback de dominio),
+  - recovery por timeout en modo nativo-general usa prompt conversacional neutral (no clinico).
+- Compatibilidad:
+  - contrato externo estable; mejora de calidad de salida y menor fallback plantillado.
 
