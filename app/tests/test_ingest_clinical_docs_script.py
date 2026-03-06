@@ -1,9 +1,20 @@
+from pathlib import Path
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.core.database import Base
+from app.models.clinical_document import ClinicalDocument
+from app.models.document_chunk import DocumentChunk
 from app.scripts.ingest_clinical_docs import (
     QualityGateProfile,
     _evaluate_document_quality,
     _infer_specialty_from_filename,
     _is_placeholder_custom_questions,
+    _purge_existing_documents_for_sources,
+    _resolve_source_file_for_db,
     _resolve_specialty_for_path,
+    normalize_source_paths_in_db,
 )
 
 
@@ -71,3 +82,87 @@ def test_quality_gate_accepts_dense_text_document():
     )
     assert accepted is True
     assert reasons == []
+
+
+def test_purge_existing_documents_for_sources_removes_prior_version(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    TestingSessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    monkeypatch.setattr("app.scripts.ingest_clinical_docs.SessionLocal", TestingSessionLocal)
+
+    db = TestingSessionLocal()
+    try:
+        document = ClinicalDocument(
+            title="Guia previa",
+            source_file="docs/pdf_raw/ophthalmology/guia.pdf",
+            specialty="ophthalmology",
+            content_hash="a" * 64,
+        )
+        db.add(document)
+        db.flush()
+        db.add(
+            DocumentChunk(
+                document_id=document.id,
+                chunk_text="contenido viejo",
+                chunk_index=0,
+                section_path="Documento > Inicio",
+                tokens_count=10,
+                chunk_embedding=b"1234",
+                keywords=[],
+                custom_questions=[],
+                specialty="ophthalmology",
+                content_type="paragraph",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    stats = _purge_existing_documents_for_sources(["docs/pdf_raw/ophthalmology/guia.pdf"])
+
+    db = TestingSessionLocal()
+    try:
+        assert stats["documents_deleted"] == 1
+        assert stats["chunks_deleted"] == 1
+        assert db.query(ClinicalDocument).count() == 0
+        assert db.query(DocumentChunk).count() == 0
+    finally:
+        db.close()
+
+
+def test_resolve_source_file_for_db_normalizes_windows_separators():
+    result = _resolve_source_file_for_db(
+        Path(r"docs\pdf_raw\emergencies\12_Sepsis_4ed.pdf")
+    )
+    assert result == "docs/pdf_raw/emergencies/12_Sepsis_4ed.pdf"
+
+
+def test_normalize_source_paths_in_db_rewrites_backslashes(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    TestingSessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    monkeypatch.setattr("app.scripts.ingest_clinical_docs.SessionLocal", TestingSessionLocal)
+
+    db = TestingSessionLocal()
+    try:
+        db.add(
+            ClinicalDocument(
+                title="Sepsis",
+                source_file=r"docs\pdf_raw\emergencies\12_Sepsis_4ed.pdf",
+                specialty="critical_ops",
+                content_hash="b" * 64,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    stats = normalize_source_paths_in_db()
+
+    db = TestingSessionLocal()
+    try:
+        document = db.query(ClinicalDocument).one()
+        assert stats["documents_updated"] == 1
+        assert document.source_file == "docs/pdf_raw/emergencies/12_Sepsis_4ed.pdf"
+    finally:
+        db.close()

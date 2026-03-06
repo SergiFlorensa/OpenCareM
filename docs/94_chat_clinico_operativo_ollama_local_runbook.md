@@ -36,6 +36,16 @@ CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS=220
 CLINICAL_CHAT_RAG_ENABLED=true
 CLINICAL_CHAT_RAG_RETRIEVER_BACKEND=chroma
 CLINICAL_CHAT_RAG_MAX_CHUNKS=3
+CLINICAL_CHAT_PDF_PARSER_BACKEND=mineru
+CLINICAL_CHAT_PDF_MINERU_TRANSPORT=cli
+CLINICAL_CHAT_PDF_MINERU_CLI_COMMAND=mineru
+CLINICAL_CHAT_PDF_MINERU_CLI_METHOD=txt
+CLINICAL_CHAT_PDF_MINERU_CLI_BACKEND=pipeline
+CLINICAL_CHAT_PDF_MINERU_DEVICE=cpu
+CLINICAL_CHAT_PDF_MINERU_PARSE_FORMULAS=false
+CLINICAL_CHAT_PDF_MINERU_PARSE_TABLES=true
+CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS=900
+CLINICAL_CHAT_PDF_MINERU_FAIL_OPEN=true
 CLINICAL_CHAT_GUARDRAILS_ENABLED=false
 ```
 
@@ -48,6 +58,56 @@ CLINICAL_CHAT_GUARDRAILS_ENABLED=false
 
 Recomendacion operativa: con 16GB RAM evitar modelos mayores de 14B para no
 degradar latencia durante guardia.
+
+## Instalacion local de MinerU (OSS, sin coste por token)
+
+Uso previsto en este proyecto:
+
+- Parsing PDF local por CLI (`mineru`) para `docs/pdf_raw`.
+- Sin dependencia obligatoria de servicio HTTP aparte.
+- Sin billing por token; el coste es solo local (CPU/RAM/disco y descarga de modelos).
+
+Instalacion recomendada en el `venv` del proyecto:
+
+1. `.\venv\Scripts\python.exe -m pip install -U "mineru[all]"`
+2. Verificar CLI disponible: `.\venv\Scripts\mineru.exe --help`
+
+Configuracion recomendada:
+
+```env
+CLINICAL_CHAT_PDF_PARSER_BACKEND=mineru
+CLINICAL_CHAT_PDF_MINERU_TRANSPORT=cli
+CLINICAL_CHAT_PDF_MINERU_CLI_COMMAND=mineru
+CLINICAL_CHAT_PDF_MINERU_CLI_METHOD=txt
+CLINICAL_CHAT_PDF_MINERU_CLI_BACKEND=pipeline
+CLINICAL_CHAT_PDF_MINERU_DEVICE=cpu
+CLINICAL_CHAT_PDF_MINERU_PARSE_FORMULAS=false
+CLINICAL_CHAT_PDF_MINERU_PARSE_TABLES=true
+CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS=300
+CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS=2
+CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS=1
+CLINICAL_CHAT_PDF_MINERU_WINDOWED_ENABLED=true
+CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES=24
+CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES=12
+CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS=900
+CLINICAL_CHAT_PDF_MINERU_FAIL_OPEN=true
+CLINICAL_CHAT_PDF_OCR_MODE=region_selective
+CLINICAL_CHAT_PDF_LAYOUT_READING_ORDER_ENABLED=true
+CLINICAL_CHAT_PDF_FILTER_REPEATED_EDGE_TEXT_ENABLED=true
+```
+
+Notas operativas:
+
+- Si `mineru` no esta instalado o falla, el backend degrada a `pypdf` por `fail-open`.
+- El parser mantiene compatibilidad con el nombre CLI legacy `magic-pdf` si existiera en el entorno.
+- En local CPU se recomienda `CLINICAL_CHAT_PDF_MINERU_CLI_METHOD=txt` para PDFs digitales; si tu corpus tiene escaneados, cambia a `auto` u `ocr`.
+- Para corpus clinico local, deja `CLINICAL_CHAT_PDF_MINERU_PARSE_FORMULAS=false` y `CLINICAL_CHAT_PDF_MINERU_PARSE_TABLES=true`: reduce coste y mantiene tablas utiles.
+- Para PDFs grandes en CPU, activa ventanas: `CLINICAL_CHAT_PDF_MINERU_WINDOWED_ENABLED=true`; el parser trocea por rangos de pagina (`-s/-e`) y fusiona resultados.
+- `CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS` y `CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS` limitan la contencion del parser con otros procesos locales.
+- `CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS` evita que renderizados lentos bloqueen un lote entero.
+- El primer arranque de `mineru` puede tardar varios minutos porque descarga modelos locales y algunos PDF densos en CPU superan varios minutos; por eso el timeout recomendado sube a `900s` para ingesta offline.
+- Si quieres seguir usando un servicio MinerU aparte, cambia `CLINICAL_CHAT_PDF_MINERU_TRANSPORT=http`.
+- MinerU mejora layout/lectura/tablas, pero no sustituye evaluacion offline del corpus ni garantiza precision del 100%.
 
 ## Ingesta de corpus clinico (sin ruido operativo)
 

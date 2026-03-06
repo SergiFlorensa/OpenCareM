@@ -42,6 +42,10 @@ class DocumentIngestionService:
         return str(value).replace("\\", "/").lower()
 
     @staticmethod
+    def _normalize_source_file(value: str | Path) -> str:
+        return str(value).replace("\\", "/")
+
+    @staticmethod
     def _extract_pdf_text(file_path: Path) -> str:
         """Compatibilidad: retorna solo texto PDF."""
         return PDFParserService.extract_text(file_path)
@@ -95,11 +99,11 @@ class DocumentIngestionService:
         title = title or file_path.stem.replace("_", " ").title()
         if file_path.is_absolute():
             try:
-                source_file = str(file_path.relative_to(Path.cwd()))
+                source_file = self._normalize_source_file(file_path.relative_to(Path.cwd()))
             except ValueError:
-                source_file = str(file_path)
+                source_file = self._normalize_source_file(file_path)
         else:
-            source_file = str(file_path)
+            source_file = self._normalize_source_file(file_path)
 
         # Guarda trazas de parse para telemetria de pipeline.
         trace_copy = dict(source_payload.parse_trace)

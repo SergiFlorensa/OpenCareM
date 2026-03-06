@@ -85,7 +85,7 @@
 - Chat clinico-operativo v2 con especialidad autenticada, contexto longitudinal por paciente y fuentes trazables (`docs/88_chat_clinico_especialidad_contexto_longitudinal.md`).
 - Chat clinico-operativo v3 con fuentes confiables: whitelist estricta web + sellado profesional de conocimiento (`docs/89_chat_fuentes_confiables_whitelist_sellado.md`).
 - Chat clinico-operativo admite evidencia local adjunta por turno (`local_evidence`) para contexto multimodal minimo sin servicios externos de pago.
-- Pipeline de ingesta RAG soporta `.md/.txt/.pdf` (extraccion local con `pypdf` para PDF multipagina).
+- Pipeline de ingesta RAG soporta `.md/.txt/.pdf` con parser PDF configurable (`pypdf` o `mineru` via CLI/HTTP), lectura estructural, OCR selectivo y fallback local seguro.
 - Chat clinico reforzado con motor logico determinista (reglas secuente + detector de contradicciones + trazabilidad epistemica).
 - Motor logico extendido con firma estructural de planes (Godel), chequeo de consistencia formal y abstencion automatica por evidencia insuficiente.
 - Contratos operativos por dominio en chat (fase 1: nefrologia y ginecologia/obstetricia) con pasos 0-10/10-60, datos criticos requeridos y guard de fallback seguro.

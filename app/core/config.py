@@ -40,8 +40,21 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_WEB_LINK_ANALYSIS_BLEND: float = 0.35
     CLINICAL_CHAT_WEB_LINK_ANALYSIS_MAX_HITS_BASE: int = 120
     CLINICAL_CHAT_PDF_PARSER_BACKEND: str = "pypdf"
+    CLINICAL_CHAT_PDF_MINERU_TRANSPORT: str = "cli"
+    CLINICAL_CHAT_PDF_MINERU_CLI_COMMAND: str = "mineru"
+    CLINICAL_CHAT_PDF_MINERU_CLI_METHOD: str = "txt"
+    CLINICAL_CHAT_PDF_MINERU_CLI_BACKEND: str = "pipeline"
+    CLINICAL_CHAT_PDF_MINERU_DEVICE: str = "cpu"
+    CLINICAL_CHAT_PDF_MINERU_PARSE_FORMULAS: bool = False
+    CLINICAL_CHAT_PDF_MINERU_PARSE_TABLES: bool = True
+    CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS: int = 300
+    CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS: int = 2
+    CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS: int = 1
+    CLINICAL_CHAT_PDF_MINERU_WINDOWED_ENABLED: bool = True
+    CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES: int = 24
+    CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES: int = 12
     CLINICAL_CHAT_PDF_MINERU_BASE_URL: str = "http://127.0.0.1:8091"
-    CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS: int = 90
+    CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS: int = 900
     CLINICAL_CHAT_PDF_MINERU_FAIL_OPEN: bool = True
     CLINICAL_CHAT_PDF_OCR_MODE: str = "region_selective"
     CLINICAL_CHAT_PDF_LAYOUT_READING_ORDER_ENABLED: bool = True
@@ -297,11 +310,69 @@ class Settings(BaseSettings):
             raise ValueError(
                 "CLINICAL_CHAT_PDF_PARSER_BACKEND debe ser 'pypdf' o 'mineru'."
             )
-        if not self.CLINICAL_CHAT_PDF_MINERU_BASE_URL.strip():
-            raise ValueError("CLINICAL_CHAT_PDF_MINERU_BASE_URL no puede estar vacio.")
-        if not (10 <= self.CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS <= 600):
+        if self.CLINICAL_CHAT_PDF_MINERU_TRANSPORT not in {"cli", "http", "auto"}:
             raise ValueError(
-                "CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS debe estar entre 10 y 600."
+                "CLINICAL_CHAT_PDF_MINERU_TRANSPORT debe ser 'cli', 'http' o 'auto'."
+            )
+        if (
+            self.CLINICAL_CHAT_PDF_MINERU_TRANSPORT in {"cli", "auto"}
+            and not self.CLINICAL_CHAT_PDF_MINERU_CLI_COMMAND.strip()
+        ):
+            raise ValueError("CLINICAL_CHAT_PDF_MINERU_CLI_COMMAND no puede estar vacio.")
+        if self.CLINICAL_CHAT_PDF_MINERU_CLI_METHOD not in {"auto", "txt", "ocr"}:
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_CLI_METHOD debe ser 'auto', 'txt' o 'ocr'."
+            )
+        if self.CLINICAL_CHAT_PDF_MINERU_CLI_BACKEND not in {
+            "pipeline",
+            "vlm-http-client",
+            "hybrid-http-client",
+            "vlm-auto-engine",
+            "hybrid-auto-engine",
+        }:
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_CLI_BACKEND debe ser uno de los backends soportados "
+                "por MinerU."
+            )
+        if not self.CLINICAL_CHAT_PDF_MINERU_DEVICE.strip():
+            raise ValueError("CLINICAL_CHAT_PDF_MINERU_DEVICE no puede estar vacio.")
+        if not (0 <= self.CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS <= 3600):
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS debe estar entre 0 y 3600."
+            )
+        if not (0 <= self.CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS <= 64):
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS debe estar entre 0 y 64."
+            )
+        if not (0 <= self.CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS <= 64):
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS debe estar entre 0 y 64."
+            )
+        if not (4 <= self.CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES <= 400):
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES debe estar entre 4 y 400."
+            )
+        if not (2 <= self.CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES <= 200):
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES debe estar entre 2 y 200."
+            )
+        if (
+            self.CLINICAL_CHAT_PDF_MINERU_WINDOWED_ENABLED
+            and self.CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES
+            > self.CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES
+        ):
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES no puede superar "
+                "CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES."
+            )
+        if (
+            self.CLINICAL_CHAT_PDF_MINERU_TRANSPORT == "http"
+            and not self.CLINICAL_CHAT_PDF_MINERU_BASE_URL.strip()
+        ):
+            raise ValueError("CLINICAL_CHAT_PDF_MINERU_BASE_URL no puede estar vacio.")
+        if not (10 <= self.CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS <= 1800):
+            raise ValueError(
+                "CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS debe estar entre 10 y 1800."
             )
         if self.CLINICAL_CHAT_PDF_OCR_MODE not in {"region_selective", "page_full"}:
             raise ValueError(

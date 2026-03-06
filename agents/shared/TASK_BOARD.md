@@ -12,6 +12,136 @@
 
 ## Items activos
 
+- ID: TM-223
+
+- Objetivo: Igualar el comportamiento del backend con el chat nativo de Ollama eliminando la dependencia de defaults runtime por API y forzando un perfil nativo acotado y estable para `/api/chat` y `/api/generate`.
+
+- Alcance: `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: en curso
+
+- Dependencias: TM-217, TM-222.
+
+- Evidencia:
+
+  - Logs reales de Ollama con `POST /api/chat` devolviendo `500` tras `1m27s` y `POST /api/generate` devolviendo `500` tras `2.7s`.
+  - Prueba directa por API local: sin `options` explicitas, `api/chat` y `api/generate` no cerraban bien; con `num_predict/num_ctx/temperature/top_p` explicitos si devolvian respuesta.
+  - Ajuste aplicado en `LLMChatProvider`: perfil `ollama_bounded_native` con `options` explicitas + `keep_alive`.
+  - Prueba real posterior: `hola que tal` via `LLMChatProvider.generate_answer(...)` devolvio respuesta correcta en `56.54s` con `llm_endpoint=chat`, `llm_runtime_profile=ollama_bounded_native`.
+  - Prueba real posterior: consulta clinica `Paciente con dolor abdominal: datos clave y escalado` con contexto interno breve sigue agotando `120s` y devuelve `TimeoutError` incluso con streaming, por lo que el cuello de botella restante ya no es el uso de defaults del endpoint sino el prompt clinico completo en CPU local.
+
+- Riesgos pendientes identificados:
+
+  - Si el perfil nativo acotado reduce demasiado `num_ctx` o `num_predict`, podrian truncarse respuestas largas.
+  - Conviene validar tanto smalltalk como consultas clinicas con carga RAG real para confirmar que mejora estabilidad sin degradar calidad.
+  - El flujo clinico nativo aun requiere simplificar/partir el prompt para CPU local; el streaming por si solo no elimina el timeout cuando la carga clinica sigue siendo demasiado pesada.
+
+- ID: TM-222
+
+- Objetivo: Reposicionar `critical_ops` como capa transversal de respaldo y no como canal dominante, priorizando especialidades concretas y suprimiendo la aclaracion automatica cuando ya exista senal clinica suficiente.
+
+- Alcance: `app/services/clinical_chat_service.py`, `app/services/rag_orchestrator.py`, `app/tests/test_clinical_chat_operational.py`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-220, TM-221.
+
+- Evidencia:
+
+  - Caso observado: `Paciente con dolor agudo postoperatorio: datos clave y escalado` estaba cayendo en `critical_ops` con pregunta de aclaracion pese a existir corpus de `anesthesiology`.
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "ambiguity_gate or match_domains_prioritizes_anesthesiology_for_postoperative_pain" -o addopts=""`.
+  - `.\venv\Scripts\python.exe -m ruff check app/services/clinical_chat_service.py app/services/rag_orchestrator.py app/tests/test_clinical_chat_operational.py`.
+  - Sonda directa del servicio: `matched=['anesthesiology']` y `reason='concrete_specialty_priority'` para `Paciente con dolor agudo postoperatorio: datos clave y escalado`.
+
+- Riesgos pendientes identificados:
+
+  - Si se baja demasiado `critical_ops`, podria perderse cobertura transversal en consultas realmente ambiguas o inestables.
+  - Conviene validar tambien nefrologia y neurologia, no solo anestesiologia.
+
+- ID: TM-221
+
+- Objetivo: Ejecutar una ingesta incremental por especialidad empezando por la primera carpeta con contenido real en `docs/pdf_raw`, validando parseo, embeddings, escritura y recuperacion sobre un unico PDF antes de ampliar el lote.
+
+- Alcance: `docs/pdf_raw/anesthesiology/*`, `task_manager.db`, scripts de ingesta/smoke existentes.
+
+- Agentes involucrados: orchestrator, data-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-220.
+
+- Evidencia:
+
+  - Seleccion automatica de primera carpeta con PDFs en orden alfabetico.
+  - Carpeta elegida: `docs/pdf_raw/anesthesiology`.
+  - PDF piloto: `docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf` (el mas pequeno de la carpeta).
+  - `.\venv\Scripts\python.exe -m app.scripts.warm_mineru_pipeline --pdf docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf`.
+  - `.\venv\Scripts\python.exe -m app.scripts.ingest_clinical_docs --paths docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf --force-reprocess-existing-paths`.
+  - Verificacion posterior en `task_manager.db`: `documents=1`, `chunks=58`, `document_id=259`.
+  - Recuperacion real con `HybridRetriever.search_hybrid(..., specialty_filter='anesthesiology')` devolviendo `document_id=259` en top resultados.
+
+- Riesgos pendientes identificados:
+
+  - Algunos PDFs pueden estar ya indexados con versiones previas; hay que evitar mezclar versiones y forzar reprocess solo del archivo elegido.
+  - La carpeta contiene PDFs mas pesados; para esos hay que mantener el mismo patron de warmup + archivo unico antes de ampliar lote.
+
+- ID: TM-220
+
+- Objetivo: Evitar que MinerU en CPU bloquee la ingesta de PDFs grandes, añadiendo parseo por ventanas de paginas, limites de render y control de hilos para que el parser no monopolice el equipo.
+
+- Alcance: `app/core/config.py`, `app/services/pdf_parser_service.py`, `.env.example`, `.env.docker`, `app/tests/test_pdf_parser_service.py`, `app/tests/test_settings_security.py`, `docs/94_chat_clinico_operativo_ollama_local_runbook.md`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, data-agent, qa-agent, devops-agent.
+
+- Estado: completado
+
+- Dependencias: TM-219.
+
+- Evidencia:
+
+  - Documentacion oficial MinerU CLI validada localmente con `.\venv\Scripts\mineru.exe --help` (`-s/--start`, `-e/--end`, `-m`, `-b`, `-d`).
+  - Verificacion local de semantica de ventanas con `-s 0 -e 0` y `-s 1 -e 1` sobre `docs/pdf_raw/emergencies/12_Sepsis_4ed.pdf`.
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_pdf_parser_service.py app/tests/test_settings_security.py -o addopts=""`.
+  - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/pdf_parser_service.py app/tests/test_pdf_parser_service.py app/tests/test_settings_security.py`.
+  - Smoke real windowed sobre `docs/pdf_raw/emergencies/12_Sepsis_4ed.pdf`: `pdf_parser_windowed=1`, `pdf_parser_window_count=6`, `pdf_parser_pages_total=12`.
+
+- Riesgos pendientes identificados:
+
+  - El coste total en CPU puede seguir siendo alto aunque se trocee; la mejora es de contencion y recuperacion de control, no magia de rendimiento.
+  - El merge por ventanas requiere ajustar offsets de pagina porque MinerU reinicia `page_idx` dentro de cada subproceso.
+
+- ID: TM-219
+
+- Objetivo: Activar parsing PDF local con MinerU sin dependencia obligatoria de endpoint HTTP, añadiendo transporte CLI/auto, fallback seguro y runbook de instalacion/uso local para mejorar la calidad de ingesta sobre `docs/pdf_raw`.
+
+- Alcance: `app/core/config.py`, `app/services/pdf_parser_service.py`, `.env`, `.env.example`, `.env.docker`, `app/tests/test_pdf_parser_service.py`, `app/tests/test_settings_security.py`, `docs/01_current_state.md`, `docs/94_chat_clinico_operativo_ollama_local_runbook.md`, `docs/decisions/`.
+
+- Agentes involucrados: orchestrator, data-agent, qa-agent, devops-agent.
+
+- Estado: completado
+
+- Dependencias: TM-218.
+
+- Evidencia:
+
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_pdf_parser_service.py app/tests/test_settings_security.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_document_ingestion_service.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_ingest_clinical_docs_script.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/pdf_parser_service.py app/tests/test_pdf_parser_service.py app/tests/test_settings_security.py`
+  - `.\venv\Scripts\python.exe -m app.scripts.warm_mineru_pipeline --pdf-path docs/pdf_raw/emergencies/12_Sepsis_4ed.pdf`
+  - `.\venv\Scripts\python.exe -m app.scripts.ingest_clinical_docs --paths docs/pdf_raw/emergencies/12_Sepsis_4ed.pdf --force-reprocess-existing-paths`
+  - Verificacion oficial: MinerU OSS local disponible por `pip install` desde documentacion oficial y GitHub (`mineru.readthedocs.io`, `github.com/opendatalab/MinerU`).
+
+- Riesgos pendientes identificados:
+
+  - MinerU OSS no tiene coste por token, pero si coste local de CPU/RAM/disco y descarga de modelos; no garantiza precision del 100% y requiere calibracion posterior por corpus.
+  - En equipos sin `magic-pdf` instalado o sin modelos descargados, el backend seguira degradando a `pypdf` por fail-open.
+  - La primera reingesta masiva sobre `task_manager.db` sigue requiriendo ejecucion por lotes para evitar saturar CPU/Ollama y minimizar contencion SQLite en equipos portatiles.
+
 - ID: TM-218
 
 - Objetivo: Reducir la sobre-especificidad dentro del canal clinico para consultas genericas, penalizando subdiagnosticos concretos cuando la query no los pide y favoreciendo chunks neutros de exploracion, constantes, reevaluacion e imagen.

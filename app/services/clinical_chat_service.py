@@ -78,7 +78,7 @@ class ClinicalChatService:
             "label": "Operativa critica transversal",
             "endpoint": "/api/v1/care-tasks/{task_id}/critical-ops/recommendation",
             "summary": "SLA criticos, oxigenoterapia y red flags.",
-            "keywords": ["sla", "ecg", "triaje", "shock", "bipap", "cpap"],
+            "keywords": ["sla", "ecg", "triaje", "shock", "bipap", "cpap", "inestabilidad"],
         },
         {
             "key": "sepsis",
@@ -297,7 +297,22 @@ class ClinicalChatService:
             "label": "Anestesiologia",
             "endpoint": "/api/v1/care-tasks/{task_id}/anesthesiology/recommendation",
             "summary": "Via aerea, sedacion y soporte perioperatorio.",
-            "keywords": ["anestesia", "sedacion", "via aerea", "analgesia", "intubacion"],
+            "keywords": [
+                "anestesia",
+                "anestesiologia",
+                "sedacion",
+                "via aerea",
+                "analgesia",
+                "intubacion",
+                "postoperatorio",
+                "postoperatoria",
+                "dolor postoperatorio",
+                "dolor agudo postoperatorio",
+                "perioperatorio",
+                "posoperatorio",
+                "posoperatoria",
+                "dap",
+            ],
         },
         {
             "key": "palliative",
@@ -546,7 +561,21 @@ class ClinicalChatService:
         "endocrinology": ("endocrino", "cetoacidosis", "hipoglucemia", "tiroidea"),
         "nephrology": ("nefro", "renal", "hiperkalemia", "dialisis"),
         "geriatrics": ("geriatria", "fragilidad", "delirium", "caidas"),
-        "anesthesiology": ("anestesia", "sedacion", "intubacion", "via aerea"),
+        "anesthesiology": (
+            "anestesia",
+            "anestesiologia",
+            "sedacion",
+            "intubacion",
+            "via aerea",
+            "analgesia",
+            "postoperatorio",
+            "postoperatoria",
+            "posoperatorio",
+            "dolor postoperatorio",
+            "dolor agudo postoperatorio",
+            "perioperatorio",
+            "dap",
+        ),
         "palliative": ("paliativo", "sedacion paliativa", "dolor total"),
         "urology": ("urologia", "retencion", "colico renal", "hematuria"),
         "ophthalmology": (
@@ -1403,6 +1432,24 @@ class ClinicalChatService:
         return False
 
     @classmethod
+    def _has_concrete_specialty_priority(
+        cls,
+        *,
+        matched_domain_records: list[dict[str, object]],
+        effective_specialty: str,
+    ) -> bool:
+        concrete_keys = {
+            cls._normalize(str(item.get("key") or "")).strip()
+            for item in (matched_domain_records or [])
+            if cls._normalize(str(item.get("key") or "")).strip()
+            not in {"", "general", "critical_ops", "administrative"}
+        }
+        normalized_specialty = cls._normalize(effective_specialty or "").strip()
+        if normalized_specialty not in {"", "general", "critical_ops", "administrative"}:
+            concrete_keys.add(normalized_specialty)
+        return bool(concrete_keys)
+
+    @classmethod
     def _apply_naive_bayes_domain_rerank(
         cls,
         *,
@@ -1896,8 +1943,22 @@ class ClinicalChatService:
         parsed_intent: str,
         keyword_hits: int,
         extracted_facts: list[str],
+        matched_domain_records: list[dict[str, object]] | None = None,
+        effective_specialty: str = "",
     ) -> dict[str, Any]:
         """Clasificador heuristico liviano (CPU) para decidir clarificacion proactiva."""
+        if cls._has_concrete_specialty_priority(
+            matched_domain_records=list(matched_domain_records or []),
+            effective_specialty=effective_specialty,
+        ):
+            return {
+                "should_ask": False,
+                "score": 0.0,
+                "shortness": 0.0,
+                "keyword_hits": int(keyword_hits),
+                "ambiguous_hits": 0,
+                "reason": "concrete_specialty_priority",
+            }
         normalized_query = cls._normalize(query)
         tokens = cls._quality_tokens(query)
         token_count = len(tokens)
@@ -4128,15 +4189,22 @@ class ClinicalChatService:
             parsed_intent=parsed_intent,
             keyword_hits=keyword_hits,
             extracted_facts=extracted_facts,
+            matched_domain_records=matched_domain_records,
+            effective_specialty=effective_specialty,
         )
         cir_clarification_triggered = False
         cir_suggested_queries: list[str] = []
         interrogatory_result: dict[str, Any] = {"should_ask": False, "reason": "disabled"}
         interrogatory_short_circuit = False
+        concrete_specialty_priority = cls._has_concrete_specialty_priority(
+            matched_domain_records=matched_domain_records,
+            effective_specialty=effective_specialty,
+        )
         if (
             payload.enable_active_interrogation
             and response_mode == "clinical"
             and tool_mode == "chat"
+            and not concrete_specialty_priority
         ):
             interrogatory_result = DiagnosticInterrogatoryService.propose_next_question(
                 query=safe_query,
@@ -4162,6 +4230,7 @@ class ClinicalChatService:
             and response_mode == "clinical"
             and tool_mode == "chat"
             and bool(ambiguity_gate.get("should_ask"))
+            and not concrete_specialty_priority
         ):
             cir_clarification_triggered = True
             top_domain = str(

@@ -168,10 +168,10 @@ def _normalize_path(value: str | Path) -> str:
 def _resolve_source_file_for_db(file_path: Path) -> str:
     if file_path.is_absolute():
         try:
-            return str(file_path.relative_to(Path.cwd()))
+            return str(file_path.relative_to(Path.cwd())).replace("\\", "/")
         except ValueError:
-            return str(file_path)
-    return str(file_path)
+            return str(file_path).replace("\\", "/")
+    return str(file_path).replace("\\", "/")
 
 
 def _collect_supported_files(paths: list[str]) -> list[Path]:
@@ -202,6 +202,89 @@ def _load_existing_source_paths_norm() -> set[str]:
         return {_normalize_path(row[0]) for row in rows if row and row[0]}
     finally:
         db.close()
+
+
+def _purge_existing_documents_for_sources(
+    source_files: list[str],
+    *,
+    db=None,
+) -> dict[str, int]:
+    target_norms = {_normalize_path(item) for item in source_files if str(item or "").strip()}
+    if not target_norms:
+        return {"documents_deleted": 0, "chunks_deleted": 0}
+
+    owns_session = db is None
+    db = db or SessionLocal()
+    try:
+        matches = [
+            (int(document.id), str(document.source_file))
+            for document in db.query(ClinicalDocument.id, ClinicalDocument.source_file)
+            .filter(ClinicalDocument.source_file.isnot(None))
+            .all()
+            if _normalize_path(document.source_file) in target_norms
+        ]
+        if not matches:
+            return {"documents_deleted": 0, "chunks_deleted": 0}
+
+        document_ids = [document_id for document_id, _source_file in matches]
+        chunks_deleted = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id.in_(document_ids))
+            .delete(synchronize_session=False)
+        )
+        documents_deleted = (
+            db.query(ClinicalDocument)
+            .filter(ClinicalDocument.id.in_(document_ids))
+            .delete(synchronize_session=False)
+        )
+        if owns_session:
+            db.commit()
+        else:
+            db.flush()
+        return {
+            "documents_deleted": int(documents_deleted or 0),
+            "chunks_deleted": int(chunks_deleted or 0),
+        }
+    except Exception:
+        if owns_session:
+            db.rollback()
+        raise
+    finally:
+        if owns_session:
+            db.close()
+
+
+def normalize_source_paths_in_db(*, db=None) -> dict[str, int]:
+    owns_session = db is None
+    db = db or SessionLocal()
+    stats = {
+        "documents_updated": 0,
+    }
+    try:
+        documents = (
+            db.query(ClinicalDocument)
+            .filter(ClinicalDocument.source_file.isnot(None))
+            .all()
+        )
+        for document in documents:
+            source_file = str(document.source_file or "")
+            normalized = source_file.replace("\\", "/").strip()
+            if not normalized or normalized == source_file:
+                continue
+            document.source_file = normalized
+            stats["documents_updated"] += 1
+        if owns_session:
+            db.commit()
+        else:
+            db.flush()
+        return stats
+    except Exception:
+        if owns_session:
+            db.rollback()
+        raise
+    finally:
+        if owns_session:
+            db.close()
 
 
 def _parse_specialty_map(raw_items: list[str]) -> dict[str, str]:
@@ -462,8 +545,10 @@ def run_ingestion(
         "files_skipped_existing_path": files_skipped_existing_path,
         "documents_saved": 0,
         "documents_skipped": 0,
+        "documents_replaced": 0,
         "documents_backfilled_specialty": 0,
         "chunks_saved": 0,
+        "chunks_replaced": 0,
         "documents_retried": 0,
         "documents_rejected_quality": 0,
         "quality_gate_enabled": 1 if quality_profile.enabled else 0,
@@ -506,6 +591,13 @@ def run_ingestion(
         for attempt in range(max_retries):
             db = SessionLocal()
             try:
+                resolved_source_file = _resolve_source_file_for_db(Path(file_path))
+                replaced_current = {"documents_deleted": 0, "chunks_deleted": 0}
+                if not skip_existing_paths:
+                    replaced_current = _purge_existing_documents_for_sources(
+                        [resolved_source_file],
+                        db=db,
+                    )
                 existing = (
                     db.query(ClinicalDocument)
                     .filter(ClinicalDocument.content_hash == content_hash)
@@ -538,7 +630,7 @@ def run_ingestion(
                     specialty = _resolve_specialty_for_path(file_path, specialty_map)
                 document = ClinicalDocument(
                     title=title,
-                    source_file=file_path,
+                    source_file=resolved_source_file,
                     specialty=specialty,
                     content_hash=content_hash,
                 )
@@ -576,7 +668,9 @@ def run_ingestion(
 
                 db.commit()
                 stats["documents_saved"] += 1
+                stats["documents_replaced"] += int(replaced_current["documents_deleted"])
                 stats["chunks_saved"] += chunks_saved_current
+                stats["chunks_replaced"] += int(replaced_current["chunks_deleted"])
                 break
             except OperationalError as exc:
                 db.rollback()
@@ -631,6 +725,11 @@ def main() -> None:
         "--backfill-only",
         action="store_true",
         help="Solo ejecuta backfill de specialty sobre registros existentes, sin nueva ingesta.",
+    )
+    parser.add_argument(
+        "--normalize-source-paths",
+        action="store_true",
+        help="Normaliza source_file existentes a rutas con '/' para trazabilidad consistente.",
     )
     parser.add_argument(
         "--rebuild-custom-questions",
@@ -722,6 +821,11 @@ def main() -> None:
         "chunks_scanned": 0,
         "chunks_updated": 0,
     }
+    source_path_stats = {
+        "documents_updated": 0,
+    }
+    if args.normalize_source_paths:
+        source_path_stats = normalize_source_paths_in_db()
     if args.backfill_specialty or args.backfill_only:
         backfill_stats = backfill_specialty_from_source_map(specialty_map)
     if args.rebuild_custom_questions:
@@ -738,6 +842,7 @@ def main() -> None:
                 f"chunks_backfilled_from_path={backfill_stats['chunks_backfilled_from_path']} "
                 "chunks_backfilled_from_document="
                 f"{backfill_stats['chunks_backfilled_from_document']} "
+                f"documents_normalized_source_path={source_path_stats['documents_updated']} "
                 f"chunks_scanned_questions={question_rebuild_stats['chunks_scanned']} "
                 f"chunks_updated_questions={question_rebuild_stats['chunks_updated']}"
             )
@@ -775,6 +880,7 @@ def main() -> None:
         f"chunks_backfilled_from_path={backfill_stats['chunks_backfilled_from_path']} "
         "chunks_backfilled_from_document="
         f"{backfill_stats['chunks_backfilled_from_document']} "
+        f"documents_normalized_source_path={source_path_stats['documents_updated']} "
         f"chunks_scanned_questions={question_rebuild_stats['chunks_scanned']} "
         f"chunks_updated_questions={question_rebuild_stats['chunks_updated']} "
         f"chunks_saved={stats['chunks_saved']} "

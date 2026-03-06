@@ -83,6 +83,20 @@ class RAGOrchestrator:
             "summary": "ABC, monitorizacion y escalado inmediato.",
             "keywords": ["shock", "abc", "via aerea", "inestabilidad", "monitorizacion"],
         },
+        {
+            "key": "anesthesiology",
+            "label": "Anestesiologia",
+            "summary": "Analgesia, dolor agudo postoperatorio y soporte perioperatorio.",
+            "keywords": [
+                "anestesia",
+                "anestesiologia",
+                "analgesia",
+                "postoperatorio",
+                "dolor postoperatorio",
+                "perioperatorio",
+                "dap",
+            ],
+        },
     ]
     _DOMAIN_SPECIALTY_ALIASES: dict[str, tuple[str, ...]] = {
         "critical_ops": ("critical_ops", "emergency", "emergencias"),
@@ -234,6 +248,28 @@ class RAGOrchestrator:
                 "monitorizacion cardiaca",
                 "sindrome coronario agudo",
                 "criterios derivacion hemodinamica",
+            ),
+        },
+        "anesthesiology": {
+            "triggers": (
+                "anestesia",
+                "anestesiologia",
+                "analgesia",
+                "postoperatorio",
+                "postoperatoria",
+                "dolor postoperatorio",
+                "dolor agudo postoperatorio",
+                "perioperatorio",
+                "posoperatorio",
+                "dap",
+            ),
+            "terms": (
+                "manejo del dolor agudo postoperatorio",
+                "analgesia multimodal",
+                "evaluacion del dolor",
+                "efectos adversos analgesicos",
+                "reevaluacion postoperatoria",
+                "escalado unidad del dolor agudo",
             ),
         },
     }

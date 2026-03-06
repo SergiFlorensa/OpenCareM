@@ -112,6 +112,44 @@ class LLMChatProvider:
         return min(settings.CLINICAL_CHAT_LLM_MAX_INPUT_TOKENS, safe_remaining)
 
     @staticmethod
+    def _build_ollama_native_options(*, response_mode: str, purpose: str) -> dict[str, Any]:
+        max_ctx = int(settings.CLINICAL_CHAT_LLM_NUM_CTX)
+        max_predict = int(settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)
+        temperature = settings.CLINICAL_CHAT_LLM_TEMPERATURE
+        top_p = settings.CLINICAL_CHAT_LLM_TOP_P
+        if purpose == "quick_recovery":
+            return {
+                "temperature": temperature,
+                "num_predict": (
+                    max(64, min(160, max_predict))
+                    if response_mode == "general"
+                    else max(32, min(64, max_predict))
+                ),
+                "num_ctx": max(768, min(1024, max_ctx)),
+                "top_p": top_p,
+            }
+        if purpose == "continuation":
+            return {
+                "temperature": temperature,
+                "num_predict": max(48, min(96, max_predict)),
+                "num_ctx": max(768, min(1024, max_ctx)),
+                "top_p": top_p,
+            }
+        if response_mode == "general":
+            return {
+                "temperature": temperature,
+                "num_predict": max(96, min(192, max_predict)),
+                "num_ctx": max(1024, min(2048, max_ctx)),
+                "top_p": top_p,
+            }
+        return {
+            "temperature": temperature,
+            "num_predict": max(64, min(max_predict, 96)),
+            "num_ctx": max(1024, min(1536, max_ctx)),
+            "top_p": top_p,
+        }
+
+    @staticmethod
     def _estimate_messages_token_count(messages: list[dict[str, str]]) -> int:
         if not messages:
             return 0
@@ -149,10 +187,11 @@ class LLMChatProvider:
             if response_mode == "clinical":
                 return (
                     "Asistente clinico conversacional. "
-                    "Responde en espanol, natural y directo. "
+                    "Responde en espanol, directo y breve. "
                     "No des diagnostico definitivo ni inventes datos. "
                     f"Especialidad principal detectada: {effective_specialty}. "
-                    "Si hay evidencia interna, integrala solo si es relevante. "
+                    "Si hay evidencia interna, integrala solo si aporta accion. "
+                    "Maximo 6 bullets o 180 palabras. "
                     "Cita al final solo fuentes internas exactas disponibles. "
                     "No inventes bibliografia, revistas, anos ni referencias externas."
                 )
@@ -285,7 +324,7 @@ class LLMChatProvider:
             return safe_query
         if has_internal_context:
             lines.append("")
-            lines.append("Contexto interno verificado (si aplica):")
+            lines.append("Contexto interno verificado:")
             if knowledge_sources:
                 lines.append(LLMChatProvider._compact_sources(knowledge_sources, limit=4))
             else:
@@ -303,9 +342,11 @@ class LLMChatProvider:
                         lines.append(f"- {endpoint_name}")
         if response_mode == "clinical":
             lines.append(
-                "Instruccion: responde con tu estilo normal, integra solo evidencia "
-                "interna relevante y cita solo fuentes internas exactas disponibles "
-                "de forma breve. No inventes bibliografia ni referencias externas."
+                "Instruccion: responde con tu estilo normal, prioriza datos clave, "
+                "acciones iniciales y escalado. Se breve: maximo 6 bullets o 180 palabras. "
+                "Integra solo evidencia interna relevante y cita solo "
+                "fuentes internas exactas disponibles. "
+                "No inventes bibliografia ni referencias externas."
             )
         return "\n".join(lines)
 
@@ -330,6 +371,34 @@ class LLMChatProvider:
         )
         request_timeout = max(1.0, request_timeout)
         with urlopen(request, timeout=request_timeout) as response:
+            if bool(payload.get("stream")):
+                aggregate: dict[str, Any] = {}
+                chunks: list[str] = []
+                message_chunks: list[str] = []
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="ignore").strip()
+                    if not line:
+                        continue
+                    parsed_line = json.loads(line)
+                    if not isinstance(parsed_line, dict):
+                        continue
+                    aggregate.update(parsed_line)
+                    message = parsed_line.get("message")
+                    if isinstance(message, dict):
+                        piece = str(message.get("content") or "")
+                        if piece:
+                            message_chunks.append(piece)
+                    piece = str(parsed_line.get("response") or "")
+                    if piece:
+                        chunks.append(piece)
+                if message_chunks:
+                    aggregate["message"] = {
+                        "role": "assistant",
+                        "content": "".join(message_chunks).strip(),
+                    }
+                if chunks:
+                    aggregate["response"] = "".join(chunks).strip()
+                return aggregate
             raw_payload = response.read().decode("utf-8", errors="ignore")
         return LLMChatProvider._parse_ollama_payload(raw_payload)
 
@@ -666,35 +735,40 @@ class LLMChatProvider:
         )
         prompt = LLMChatProvider._messages_to_prompt(messages)
         effective_max_output_tokens = int(settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)
-        use_ollama_runtime_defaults = bool(
+        use_ollama_bounded_native_profile = bool(
             settings.CLINICAL_CHAT_LLM_PROVIDER == "ollama"
             and settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED
         )
         prompt_trace["llm_runtime_profile"] = (
-            "ollama_defaults" if use_ollama_runtime_defaults else "app_overrides"
+            "ollama_bounded_native" if use_ollama_bounded_native_profile else "app_overrides"
         )
-        common_options = {
-            "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
-            "num_predict": effective_max_output_tokens,
-            "num_ctx": settings.CLINICAL_CHAT_LLM_NUM_CTX,
-            "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
-        }
+        common_options = (
+            LLMChatProvider._build_ollama_native_options(
+                response_mode=response_mode,
+                purpose="primary",
+            )
+            if use_ollama_bounded_native_profile
+            else {
+                "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
+                "num_predict": effective_max_output_tokens,
+                "num_ctx": settings.CLINICAL_CHAT_LLM_NUM_CTX,
+                "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
+            }
+        )
         chat_payload = {
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "messages": messages,
-            "stream": False,
+            "stream": use_ollama_bounded_native_profile,
+            "options": common_options,
+            "keep_alive": LLMChatProvider._OLLAMA_KEEP_ALIVE,
         }
-        if not use_ollama_runtime_defaults:
-            chat_payload["options"] = common_options
-            chat_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
         generate_payload = {
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "prompt": prompt,
-            "stream": False,
+            "stream": use_ollama_bounded_native_profile,
+            "options": common_options,
+            "keep_alive": LLMChatProvider._OLLAMA_KEEP_ALIVE,
         }
-        if not use_ollama_runtime_defaults:
-            generate_payload["options"] = common_options
-            generate_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
         quick_recovery_user = LLMChatProvider._sanitize_prompt_text(query)[:280]
         if response_mode == "general":
             quick_recovery_prompt = (
@@ -712,20 +786,26 @@ class LLMChatProvider:
         quick_recovery_payload = {
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "prompt": quick_recovery_prompt,
-            "stream": False,
+            "stream": use_ollama_bounded_native_profile,
+            "options": (
+                LLMChatProvider._build_ollama_native_options(
+                    response_mode=response_mode,
+                    purpose="quick_recovery",
+                )
+                if use_ollama_bounded_native_profile
+                else {
+                    "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
+                    "num_predict": (
+                        max(64, min(160, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
+                        if response_mode == "general"
+                        else max(32, min(48, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
+                    ),
+                    "num_ctx": max(512, min(768, settings.CLINICAL_CHAT_LLM_NUM_CTX)),
+                    "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
+                }
+            ),
+            "keep_alive": LLMChatProvider._OLLAMA_KEEP_ALIVE,
         }
-        if not use_ollama_runtime_defaults:
-            quick_recovery_payload["options"] = {
-                "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
-                "num_predict": (
-                    max(64, min(160, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
-                    if response_mode == "general"
-                    else max(32, min(48, settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS))
-                ),
-                "num_ctx": max(512, min(768, settings.CLINICAL_CHAT_LLM_NUM_CTX)),
-                "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
-            }
-            quick_recovery_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
         llama_cpp_payload = {
             "model": settings.CLINICAL_CHAT_LLM_MODEL,
             "messages": messages,
@@ -807,19 +887,28 @@ class LLMChatProvider:
                 continuation_payload = {
                     "model": settings.CLINICAL_CHAT_LLM_MODEL,
                     "prompt": continuation_prompt,
-                    "stream": False,
+                    "stream": use_ollama_bounded_native_profile,
+                    "options": (
+                        LLMChatProvider._build_ollama_native_options(
+                            response_mode=response_mode,
+                            purpose="continuation",
+                        )
+                        if use_ollama_bounded_native_profile
+                        else {
+                            "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
+                            "num_predict": max(
+                                48,
+                                min(96, int(settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)),
+                            ),
+                            "num_ctx": max(
+                                512,
+                                min(1024, settings.CLINICAL_CHAT_LLM_NUM_CTX),
+                            ),
+                            "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
+                        }
+                    ),
+                    "keep_alive": LLMChatProvider._OLLAMA_KEEP_ALIVE,
                 }
-                if not use_ollama_runtime_defaults:
-                    continuation_payload["options"] = {
-                        "temperature": settings.CLINICAL_CHAT_LLM_TEMPERATURE,
-                        "num_predict": max(
-                            48,
-                            min(96, int(settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS)),
-                        ),
-                        "num_ctx": max(512, min(1024, settings.CLINICAL_CHAT_LLM_NUM_CTX)),
-                        "top_p": settings.CLINICAL_CHAT_LLM_TOP_P,
-                    }
-                    continuation_payload["keep_alive"] = LLMChatProvider._OLLAMA_KEEP_ALIVE
                 try:
                     continuation_parsed = _request_with_budget(
                         endpoint="api/generate",

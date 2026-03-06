@@ -144,6 +144,29 @@ def test_ambiguity_gate_skips_structured_query():
     assert assessment["score"] < 0.62
 
 
+def test_ambiguity_gate_skips_when_concrete_specialty_is_already_detected():
+    assessment = ClinicalChatService._assess_query_ambiguity(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        parsed_intent="management_plan",
+        keyword_hits=2,
+        extracted_facts=["modo_respuesta:clinical", "termino:postoperatorio"],
+        matched_domain_records=[{"key": "anesthesiology", "label": "Anestesiologia"}],
+        effective_specialty="anesthesiology",
+    )
+    assert assessment["should_ask"] is False
+    assert assessment["reason"] == "concrete_specialty_priority"
+
+
+def test_match_domains_prioritizes_anesthesiology_for_postoperative_pain():
+    matched = ClinicalChatService._match_domains(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        effective_specialty="general",
+        max_domains=3,
+    )
+    assert matched
+    assert matched[0]["key"] == "anesthesiology"
+
+
 def test_pick_clarification_question_prefers_domain_bank():
     question = ClinicalChatService._pick_clarification_question(
         domain_key="scasest",
@@ -1049,7 +1072,7 @@ def test_llm_provider_native_clinical_reserves_almost_all_budget_for_primary_cha
     assert trace["llm_error"] == "TimeoutError"
 
 
-def test_llm_provider_native_style_uses_ollama_runtime_defaults(monkeypatch):
+def test_llm_provider_native_style_uses_bounded_ollama_options(monkeypatch):
     captured_payloads: list[dict] = []
 
     def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
@@ -1085,10 +1108,13 @@ def test_llm_provider_native_style_uses_ollama_runtime_defaults(monkeypatch):
 
     assert answer == "Respuesta nativa"
     assert trace["llm_endpoint"] == "chat"
+    assert trace["llm_runtime_profile"] == "ollama_bounded_native"
     assert captured_payloads
     first_payload = captured_payloads[0]["payload"]
-    assert "options" not in first_payload
-    assert "keep_alive" not in first_payload
+    assert first_payload["stream"] is True
+    assert first_payload["options"]["num_predict"] >= 96
+    assert first_payload["options"]["num_ctx"] >= 1024
+    assert first_payload["keep_alive"] == "20m"
 
 
 def test_llm_provider_recovers_after_primary_timeout(monkeypatch):

@@ -174,10 +174,91 @@ def test_rejects_invalid_pdf_parser_backend():
         )
 
 
+def test_rejects_invalid_mineru_transport():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_TRANSPORT"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_TRANSPORT="socket",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_empty_mineru_cli_command_for_cli_transport():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_CLI_COMMAND"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_TRANSPORT="cli",
+            CLINICAL_CHAT_PDF_MINERU_CLI_COMMAND="   ",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_mineru_cli_backend():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_CLI_BACKEND"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_CLI_BACKEND="gpu-cluster",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_mineru_cli_method():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_CLI_METHOD"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_CLI_METHOD="fast",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_empty_mineru_device():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_DEVICE"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_DEVICE=" ",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
 def test_rejects_invalid_mineru_timeout():
     with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS"):
         Settings(
             CLINICAL_CHAT_PDF_MINERU_TIMEOUT_SECONDS=5,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_mineru_render_timeout():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS=4001,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_mineru_thread_limits():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS=65,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS=65,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_mineru_window_settings():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES=3,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES=1,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+    with pytest.raises(ValueError, match="WINDOW_SIZE_PAGES no puede superar"):
+        Settings(
+            CLINICAL_CHAT_PDF_MINERU_WINDOW_THRESHOLD_PAGES=12,
+            CLINICAL_CHAT_PDF_MINERU_WINDOW_SIZE_PAGES=16,
             BACKEND_CORS_ORIGINS=["http://localhost:5173"],
         )
 
