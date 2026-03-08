@@ -13,6 +13,65 @@
 
 ## Evidencia
 
+- Resultado TM-227:
+
+  - Writer clinico local reorientado a `writer-lite`:
+    - `api/chat` con solo 2 mensajes,
+    - evidencia ultracorta,
+    - sin `format` obligatorio en el camino critico,
+    - sin segundo writer pesado tras `TimeoutError`.
+  - Reparacion local:
+    - si la salida se corta por `done_reason=length`, se completa con lexicalizacion local de la evidencia;
+    - si el primer writer agota CPU, cae directamente a lexicalizacion local.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "focus_mode_reserves_recovery_budget or native_clinical_focus_mode_uses_lexicalizer_after_timeout or clinical_prompt_echo_uses_quick_recovery or clinical_focus_mode_disables_structured_output_payload or clinical_focus_mode_uses_local_lexicalizer_after_repeated_failures or clinical_focus_mode_repairs_truncated_answer_with_lexicalizer" -o addopts=""`
+    - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - Sonda real:
+    - consulta `Paciente con dolor agudo postoperatorio: datos clave y escalado`,
+    - respuesta en ~31s,
+    - `llm_used=true`,
+    - `llm_endpoint=chat`,
+    - `llm_post_repair=lexicalizer`.
+
+- Resultado TM-226:
+
+  - Prompt clinico nativo endurecido para `controlled generation`:
+    - delimitadores claros,
+    - evidencia etiquetada (`[S1]`, `[S2]`, `[E1]`),
+    - abstencion exacta sin evidencia,
+    - menor numero de fuentes/snippets por turno.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "native_clinical_prompt_uses_controlled_delimited_evidence_pack or native_clinical_prompt_without_sources_forces_exact_abstention or ollama_native_options_expand_clinical_output_budget" -o addopts=""`
+    - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - Smoke real:
+    - misma consulta de anestesiologia,
+    - `llm_input_tokens_estimated` baja a `380`,
+    - el cuello de botella sigue siendo timeout del writer local (`llm_error=TimeoutError`).
+
+- Resultado TM-225:
+
+  - Se agregan `context packs` vecinos por documento antes de `assemble_rag_context`.
+  - Cada seed chunk puede ampliarse con chunks adyacentes del mismo documento (`chunk_index +/- radius`) y deduplicar ventanas solapadas.
+  - El objetivo es acercarse a `emulated pages` sin cambiar schema ni materializar nodos padre en DB.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/rag_orchestrator.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+
+- Resultado TM-224:
+
+  - Chunking estructurado reforzado:
+    - respeta fronteras de seccion,
+    - permite decontextualizacion controlada (`Documento` + `Seccion`) para que cada chunk mantenga significado aislado.
+  - Compresion extractiva de contexto antes del LLM:
+    - seleccion por oracion,
+    - limite por chunk y limite global,
+    - preservacion del orden original,
+    - vaciado selectivo del contexto cuando la relevancia cae por debajo del umbral configurado.
+  - Validacion ejecutada:
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_chunking.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+    - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_document_ingestion_service.py app/tests/test_ingest_clinical_docs_script.py -o addopts=""`
+    - `.\venv\Scripts\python.exe -m ruff check app/core/chunking.py app/core/config.py app/services/document_ingestion_service.py app/services/rag_prompt_builder.py app/services/rag_orchestrator.py app/tests/test_chunking.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+
 - Resultado TM-212:
 
   - Se corrige routing oftalmologico por sintomas oculares en lenguaje natural.

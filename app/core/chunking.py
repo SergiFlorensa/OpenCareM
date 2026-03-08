@@ -292,7 +292,16 @@ class DocumentParser:
 class SemanticChunker:
     """Fragmenta documentos en chunks semÃ¡nticos respetando estructura."""
 
-    def __init__(self, token_counter=None, chunk_size_tokens: int = 384, overlap_tokens: int = 64):
+    def __init__(
+        self,
+        token_counter=None,
+        chunk_size_tokens: int = 384,
+        overlap_tokens: int = 64,
+        *,
+        respect_section_boundaries: bool = False,
+        decontextualize_chunks: bool = False,
+        decontext_max_prefix_chars: int = 180,
+    ):
         """
         Args:
             token_counter: funciÃ³n que cuenta tokens (ej: tiktoken encoding)
@@ -303,6 +312,9 @@ class SemanticChunker:
         self.overlap = overlap_tokens
         self.token_counter = token_counter or self._simple_token_count
         self._parser = DocumentParser()
+        self.respect_section_boundaries = bool(respect_section_boundaries)
+        self.decontextualize_chunks = bool(decontextualize_chunks)
+        self.decontext_max_prefix_chars = max(40, int(decontext_max_prefix_chars))
 
     @staticmethod
     def _simple_token_count(text: str) -> int:
@@ -339,6 +351,33 @@ class SemanticChunker:
         current_content_type = ContentType.PARAGRAPH
         current_token_count = 0
 
+        def _flush_current_chunk(*, allow_overlap: bool) -> None:
+            nonlocal chunk_index, current_chunk_text, current_token_count
+            chunk_text = "\n".join(current_chunk_text).strip()
+            if not chunk_text:
+                current_chunk_text = []
+                current_token_count = 0
+                return
+            chunks.append(
+                self._create_chunk(
+                    text=chunk_text,
+                    chunk_index=chunk_index,
+                    section_path=current_section_path,
+                    content_type=current_content_type,
+                    title=title,
+                    specialty=specialty,
+                    source_file=source_file,
+                )
+            )
+            chunk_index += 1
+            if not allow_overlap:
+                current_chunk_text = []
+                current_token_count = 0
+                return
+            overlap_text = self._tail_with_token_budget(chunk_text, self.overlap)
+            current_chunk_text = [overlap_text] if overlap_text else []
+            current_token_count = self.token_counter(overlap_text) + 2 if overlap_text else 0
+
         for block in blocks:
             block_text = block.get("content", "").strip()
             section_path = block.get("section_path", current_section_path)
@@ -346,33 +385,28 @@ class SemanticChunker:
 
             if not block_text:
                 continue
+            if (
+                block_content_type == ContentType.SECTION_HEADER
+                and (self.respect_section_boundaries or self.decontextualize_chunks)
+            ):
+                if self.respect_section_boundaries and current_chunk_text:
+                    _flush_current_chunk(allow_overlap=False)
+                current_section_path = section_path
+                current_content_type = ContentType.SECTION_HEADER
+                continue
+            if (
+                self.respect_section_boundaries
+                and current_chunk_text
+                and section_path != current_section_path
+            ):
+                _flush_current_chunk(allow_overlap=False)
 
             for piece in self._split_block_if_needed(block_text):
                 block_token_count = self.token_counter(piece)
 
                 # Si el bloque actual + nuevo excede tamaÃ±o, guarda chunk actual
                 if current_chunk_text and current_token_count + block_token_count > self.chunk_size:
-                    chunk_text = "\n".join(current_chunk_text).strip()
-                    if chunk_text:
-                        chunks.append(
-                            self._create_chunk(
-                                text=chunk_text,
-                                chunk_index=chunk_index,
-                                section_path=current_section_path,
-                                content_type=current_content_type,
-                                title=title,
-                                specialty=specialty,
-                                source_file=source_file,
-                            )
-                        )
-                        chunk_index += 1
-
-                    # Solapamiento real para mantener continuidad semantica entre chunks.
-                    overlap_text = self._tail_with_token_budget(chunk_text, self.overlap)
-                    current_chunk_text = [overlap_text] if overlap_text else []
-                    current_token_count = (
-                        self.token_counter(overlap_text) + 2 if overlap_text else 0
-                    )
+                    _flush_current_chunk(allow_overlap=True)
 
                 # Agregar bloque/pieza al chunk actual
                 current_chunk_text.append(piece)
@@ -382,19 +416,7 @@ class SemanticChunker:
 
         # Ãšltimo chunk
         if current_chunk_text:
-            chunk_text = "\n".join(current_chunk_text).strip()
-            if chunk_text:
-                chunks.append(
-                    self._create_chunk(
-                        text=chunk_text,
-                        chunk_index=chunk_index,
-                        section_path=current_section_path,
-                        content_type=current_content_type,
-                        title=title,
-                        specialty=specialty,
-                        source_file=source_file,
-                    )
-                )
+            _flush_current_chunk(allow_overlap=False)
 
         return chunks
 
@@ -504,12 +526,18 @@ class SemanticChunker:
         source_file: Optional[str],
     ) -> DocumentChunk:
         """Crea DocumentChunk con metadatos enriquecidos."""
-        token_count = self.token_counter(text)
-        keywords = self._parser.extract_keywords_from_text(text)
-        custom_questions = self._parser.generate_hypothetical_questions(text, section_path)
+        chunk_text = self._decorate_chunk_text(
+            text=text,
+            title=title,
+            section_path=section_path,
+        )
+        token_count = self.token_counter(chunk_text)
+        metadata_text = f"{section_path}\n{text}" if self.decontextualize_chunks else chunk_text
+        keywords = self._parser.extract_keywords_from_text(metadata_text)
+        custom_questions = self._parser.generate_hypothetical_questions(metadata_text, section_path)
 
         return DocumentChunk(
-            text=text,
+            text=chunk_text,
             chunk_index=chunk_index,
             section_path=section_path,
             content_type=content_type,
@@ -520,6 +548,23 @@ class SemanticChunker:
             specialty=specialty,
             source_file=source_file,
         )
+
+    def _decorate_chunk_text(self, *, text: str, title: str, section_path: str) -> str:
+        clean_text = str(text or "").strip()
+        if not self.decontextualize_chunks:
+            return clean_text
+        prefix_parts = []
+        if str(title or "").strip():
+            prefix_parts.append(f"Documento: {str(title).strip()}")
+        normalized_section = str(section_path or "").strip()
+        if normalized_section and normalized_section not in {"?", "Documento"}:
+            prefix_parts.append(f"Seccion: {normalized_section}")
+        prefix = " | ".join(prefix_parts).strip()
+        if len(prefix) > self.decontext_max_prefix_chars:
+            prefix = prefix[: self.decontext_max_prefix_chars].rstrip(" |")
+        if not prefix:
+            return clean_text
+        return f"{prefix}\nContenido: {clean_text}".strip()
 
     @staticmethod
     def _normalize_content_type(raw_value: str) -> ContentType:

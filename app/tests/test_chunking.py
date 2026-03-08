@@ -88,3 +88,52 @@ def test_semantic_chunker_accepts_parsed_blocks_with_content_types():
     assert chunks
     content_types = {chunk.content_type.value for chunk in chunks}
     assert "table" in content_types or "code_block" in content_types
+
+
+def test_semantic_chunker_respects_section_boundaries_when_enabled():
+    chunker = SemanticChunker(
+        token_counter=lambda text: len(text.split()),
+        chunk_size_tokens=120,
+        overlap_tokens=8,
+        respect_section_boundaries=True,
+    )
+    content = (
+        "# Gastro-hepato\n"
+        "## Abdomen agudo\n"
+        "Exploracion abdominal, signos peritoneales y reevaluacion seriada.\n"
+        "## Analitica\n"
+        "Solicitar hemograma, bioquimica, lactato y pruebas de funcion hepatica.\n"
+    )
+
+    chunks = chunker.chunk(content=content, title="Guia digestivo", specialty="gastro_hepato")
+
+    assert len(chunks) >= 2
+    assert all("Exploracion abdominal" not in chunk.text for chunk in chunks[1:])
+    assert any("Solicitar hemograma" in chunk.text for chunk in chunks[1:])
+
+
+def test_semantic_chunker_decontextualizes_chunk_text_when_enabled():
+    chunker = SemanticChunker(
+        token_counter=lambda text: len(text.split()),
+        chunk_size_tokens=64,
+        overlap_tokens=8,
+        respect_section_boundaries=True,
+        decontextualize_chunks=True,
+        decontext_max_prefix_chars=120,
+    )
+
+    chunks = chunker.chunk(
+        content=(
+            "# Nefrologia\n"
+            "## Hiperkalemia\n"
+            "Administrar calcio IV y monitorizar ECG continuo.\n"
+        ),
+        title="Guia nefrologia",
+        specialty="nephrology",
+    )
+
+    assert chunks
+    first = chunks[0].text
+    assert "Documento: Guia nefrologia" in first
+    assert "Seccion: Documento > Nefrologia > Hiperkalemia" in first
+    assert "Contenido: Administrar calcio IV" in first

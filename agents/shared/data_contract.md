@@ -60,6 +60,35 @@
 - Sin cambios en modelos SQLAlchemy o indices.
 - Impacto acotado a comportamiento de ensamblado/prompt en capa de servicios de chat.
 
+## TM-227
+
+- Sin cambios de esquema de datos ni migraciones.
+- Sin cambios en modelos SQLAlchemy, tablas o indices.
+- Impacto acotado a runtime de writer clinico local:
+  - prompt y mensajes enviados a Ollama,
+  - estrategia de timeout/fallback,
+  - lexicalizacion local de evidencia como reparacion de salida.
+
+## TM-224
+
+- Sin cambios de esquema de datos ni migraciones.
+- Sin cambios en modelos SQLAlchemy, relaciones o indices.
+- Cambia el contenido persistido en `clinical_document_chunks.chunk_text` para nuevas ingestas:
+  - puede incluir prefijo de decontextualizacion (`Documento`, `Seccion`, `Contenido`) cuando el chunker estructurado esta activo.
+- Cambia el comportamiento de ingesta y consumo:
+  - el chunker respeta fronteras de seccion,
+  - el ensamblado RAG puede comprimir contexto por oracion antes del LLM,
+  - no cambia el contrato SQL pero si el payload semantico que se embebe y recupera.
+
+## TM-225
+
+- Sin cambios de esquema de datos ni migraciones.
+- Sin cambios en modelos SQLAlchemy, relaciones o indices.
+- Cambia el comportamiento de lectura RAG en runtime:
+  - el orquestador puede expandir un chunk recuperado a un pack con vecinos del mismo `document_id` y `chunk_index`,
+  - se usa solo para ensamblado de contexto previo al LLM,
+  - no persiste nuevos registros ni materializa nodos padre en base de datos.
+
 ## TM-211
 
 - Sin cambios de esquema de datos ni migraciones.

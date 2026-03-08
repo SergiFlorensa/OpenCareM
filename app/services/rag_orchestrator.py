@@ -17,6 +17,7 @@ import re
 import time
 from array import array
 from collections import Counter
+from types import SimpleNamespace
 from typing import Any, Optional
 
 from sqlalchemy import Text, cast, func, or_
@@ -855,6 +856,11 @@ class RAGOrchestrator:
                 )
                 trace.update(mmr_trace)
 
+            retrieved_chunks, context_pack_trace = self._expand_chunks_to_context_packs(
+                retrieved_chunks
+            )
+            trace.update(context_pack_trace)
+
             chunk_dicts, assembly_trace = RAGContextAssembler.assemble_rag_context(
                 retrieved_chunks,
                 retrieval_trace=trace,
@@ -1191,6 +1197,144 @@ class RAGOrchestrator:
             )
             logger.exception("Error no controlado en RAG orchestrator")
             return None, trace
+
+    def _expand_chunks_to_context_packs(
+        self,
+        chunks: list[Any],
+    ) -> tuple[list[Any], dict[str, str]]:
+        enabled = bool(settings.CLINICAL_CHAT_RAG_CONTEXT_PACKS_ENABLED)
+        radius = max(0, int(settings.CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS))
+        trace = {
+            "rag_context_packs_enabled": "1" if enabled else "0",
+            "rag_context_pack_radius": str(radius),
+        }
+        if not enabled or radius <= 0 or not chunks:
+            trace["rag_context_packs_built"] = "0"
+            trace["rag_context_pack_neighbors_loaded"] = "0"
+            return chunks, trace
+
+        packed_chunks: list[Any] = []
+        seen_signatures: set[tuple[int, ...]] = set()
+        neighbors_loaded = 0
+
+        for chunk in chunks:
+            document_id = getattr(chunk, "document_id", None)
+            if document_id is None:
+                document = getattr(chunk, "document", None)
+                document_id = getattr(document, "id", None)
+            chunk_index = getattr(chunk, "chunk_index", None)
+            if document_id is None or chunk_index is None:
+                packed_chunks.append(chunk)
+                continue
+
+            neighbors = self._load_context_pack_neighbors(
+                document_id=int(document_id),
+                center_chunk_index=int(chunk_index),
+                radius=radius,
+            )
+            if not neighbors:
+                packed_chunks.append(chunk)
+                continue
+
+            neighbors_loaded += len(neighbors)
+            signature = tuple(
+                int(getattr(item, "id"))
+                for item in neighbors
+                if getattr(item, "id", None) is not None
+            )
+            if signature and signature in seen_signatures:
+                continue
+            if signature:
+                seen_signatures.add(signature)
+            packed_chunks.append(
+                self._build_context_pack(
+                    seed_chunk=chunk,
+                    neighbor_chunks=neighbors,
+                )
+            )
+
+        trace["rag_context_packs_built"] = str(len(packed_chunks))
+        trace["rag_context_pack_neighbors_loaded"] = str(neighbors_loaded)
+        trace["rag_context_packs_deduped"] = str(max(0, len(chunks) - len(packed_chunks)))
+        return packed_chunks, trace
+
+    def _load_context_pack_neighbors(
+        self,
+        *,
+        document_id: int,
+        center_chunk_index: int,
+        radius: int,
+    ) -> list[DocumentChunk]:
+        start_index = max(0, int(center_chunk_index) - int(radius))
+        end_index = int(center_chunk_index) + int(radius)
+        return (
+            self.db.query(DocumentChunk)
+            .filter(
+                DocumentChunk.document_id == int(document_id),
+                DocumentChunk.chunk_index >= start_index,
+                DocumentChunk.chunk_index <= end_index,
+            )
+            .order_by(DocumentChunk.chunk_index.asc())
+            .all()
+        )
+
+    @staticmethod
+    def _build_context_pack(
+        *,
+        seed_chunk: Any,
+        neighbor_chunks: list[Any],
+    ) -> Any:
+        ordered_neighbors = sorted(
+            neighbor_chunks,
+            key=lambda item: int(getattr(item, "chunk_index", 0) or 0),
+        )
+        text_parts: list[str] = []
+        merged_keywords: list[str] = []
+        merged_questions: list[str] = []
+        section_labels: list[str] = []
+        total_tokens = 0
+
+        for neighbor in ordered_neighbors:
+            text = str(getattr(neighbor, "chunk_text", "") or "").strip()
+            if text:
+                text_parts.append(text)
+            total_tokens += int(getattr(neighbor, "tokens_count", 0) or 0)
+            merged_keywords.extend(list(getattr(neighbor, "keywords", []) or []))
+            merged_questions.extend(list(getattr(neighbor, "custom_questions", []) or []))
+            section_value = str(getattr(neighbor, "section_path", "") or "").strip()
+            if section_value and section_value not in section_labels:
+                section_labels.append(section_value)
+
+        packed_text = "\n".join(text_parts).strip()
+        if len(section_labels) <= 1:
+            packed_section = str(getattr(seed_chunk, "section_path", "") or "")
+        else:
+            packed_section = (
+                f"{str(getattr(seed_chunk, 'section_path', '') or '').strip()} > Contexto cercano"
+            ).strip(" >")
+
+        source_chunk_ids = [
+            int(getattr(neighbor, "id"))
+            for neighbor in ordered_neighbors
+            if getattr(neighbor, "id", None) is not None
+        ]
+        return SimpleNamespace(
+            id=int(getattr(seed_chunk, "id")),
+            document_id=getattr(seed_chunk, "document_id", None)
+            or getattr(getattr(seed_chunk, "document", None), "id", None),
+            chunk_index=int(getattr(seed_chunk, "chunk_index", 0) or 0),
+            chunk_text=packed_text,
+            section_path=packed_section,
+            tokens_count=total_tokens or int(getattr(seed_chunk, "tokens_count", 0) or 0),
+            keywords=list(dict.fromkeys(merged_keywords)),
+            custom_questions=list(dict.fromkeys(merged_questions)),
+            specialty=str(getattr(seed_chunk, "specialty", "") or "general"),
+            content_type=str(getattr(seed_chunk, "content_type", "") or "paragraph"),
+            document=getattr(seed_chunk, "document", None),
+            _rag_score=float(getattr(seed_chunk, "_rag_score", 0.0) or 0.0),
+            _rag_pack_chunk_count=len(ordered_neighbors),
+            _rag_pack_source_chunk_ids=source_chunk_ids,
+        )
 
     @staticmethod
     def _build_query_cache_key(
@@ -2610,6 +2754,10 @@ class RAGOrchestrator:
             "validacion -",
             "validación -",
             "documento >",
+            "documento:",
+            "seccion:",
+            "sección:",
+            "contenido:",
         )
         if any(marker in normalized for marker in blocked_markers):
             return True

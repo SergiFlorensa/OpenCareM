@@ -109,6 +109,8 @@
 - Chat clinico con perfil de pipeline por request: `strict` (default) y `evaluation` (`pipeline_relaxed_mode=true`) para pruebas de calidad conversacional sin bloqueos rigidos.
 - Modo general con fast-path de smalltalk: saludos simples responden en formato corto/natural en lugar de plantilla operativa.
 - Chat con estilo nativo de LLM habilitado por configuracion (`CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED=true`): el prompt minimiza plantilla en modo general y, en modo clinico, combina respuesta del modelo con evidencia interna.
+- Writer clinico local con `focus mode` configurable: el prompt clinico nativo recorta consulta/evidencia, elimina dialogo previo no esencial y respeta caps reales de `num_ctx/num_predict` al invocar Ollama para reducir saturacion en CPU.
+- Writer clinico local endurecido con `adaptive evidence pack` y ruta `writer-lite`: en `focus mode` usa un `chat` minimo de dos mensajes con evidencia ultracorta, y si la salida se corta o el primer intento agota CPU, el backend repara/cierra la respuesta con lexicalizacion local de la evidencia en vez de caer a fallback generico.
 - Chat unificado en modo unico (`tool_mode=chat` efectivo): no se fuerza la respuesta por selector de herramienta y el enrutado clinico se activa por senal medica de la consulta.
 - Modo general aislado para respuesta nativa: en consultas no clinicas no se inyectan dominios/fuentes medicas y se evita deriva a `critical_ops` por fallback de dominio.
 - Paridad nativa con Ollama en modo general: el backend no fuerza `options`/`keep_alive` en requests nativas (usa defaults runtime de Ollama), amplia budget de timeout y evita circuit-open por timeout en ese modo para reducir cortes/fallback.
@@ -129,6 +131,8 @@
 - Script local de evaluacion offline de retrieval RAG (`app.scripts.evaluate_rag_retrieval`) con `P/R/F1`, `P@k`, `MAP`, `MRR`, `nDCG`, `Kappa` opcional, A/B offline por estrategia y reporte por consulta con snippet KWIC.
 - Ingesta clinica progresiva con mapeo de especialidad por defecto (`docs/45_*` a `docs/86_*`) y backfill de `specialty` en corpus existente mediante `app.scripts.ingest_clinical_docs`.
 - Ingesta incremental optimizada por `source_file` para evitar reprocesado de archivos ya cargados, con override de reingesta total (`--force-reprocess-existing-paths`).
+- Chunking RAG reforzado con respeto de fronteras de seccion, decontextualizacion opcional por `Documento + Seccion` en nuevos chunks y compresion extractiva a nivel de oracion antes del LLM para reducir ruido/tokenes en CPU local.
+- El orquestador RAG puede ampliar chunks recuperados a `context packs` vecinos por documento antes de comprimirlos, aproximando `emulated pages` sin cambios de schema ni nodos padre persistidos.
 - Chat RAG con presupuesto de latencia y degradacion controlada: si no queda presupuesto antes de LLM, salta a respuesta extractiva con fuentes (`rag_llm_skipped_reason=latency_budget_exhausted_pre_llm`), reduciendo timeouts en entorno local.
 - Perfil RAG de latencia estabilizado: `k` adaptativo conservador (fan-out acotado), menor `fts_candidate_pool` y compresion de contexto mas agresiva para reducir p95/p99.
 - Plan B v2 de hardening local: enrutado determinista `simple|medium|complex`, safe-wrapper explicito por baja evidencia (`rag_safe_wrapper_*`) y cap de utilizacion de contexto LLM al 40% para reducir saturacion y variabilidad.

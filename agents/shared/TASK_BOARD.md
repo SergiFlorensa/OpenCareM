@@ -12,6 +12,121 @@
 
 ## Items activos
 
+- ID: TM-227
+
+- Objetivo: Reducir el cuello de botella del writer clinico local en CPU introduciendo un perfil explicito de `focus mode`, corrigiendo el inflado accidental de `num_ctx/num_predict` en el runtime de Ollama y eliminando contexto conversacional no esencial en la redaccion clinica final.
+
+- Alcance: `app/core/config.py`, `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`, `app/tests/test_settings_security.py`, `.env.example`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-223, TM-224, TM-226.
+
+- Evidencia:
+
+  - Informe tecnico de cuello de botella writer local en CPU: el fallo se concentra en la ultima milla (`writer`) y no en retrieval/compresion.
+  - Revision del codigo actual: `_build_ollama_native_options()` eleva `num_ctx` y `num_predict` por encima de `settings` en modo clinico, penalizando CPU/memoria.
+  - Documentacion oficial Ollama revisada para ajustar `options`, `keep_alive` y contexto efectivo en runtime.
+  - Se introducen caps clinicos dedicados (`*_CLINICAL_*`) para `num_ctx`, salida, query y evidencia, con validacion de rangos en `Settings`.
+  - El writer clinico deja de arrastrar `recent_dialogue` en `focus mode`.
+  - Se introduce `adaptive evidence pack`: la evidencia se prioriza por solapamiento con la consulta y se acumula hasta cubrir un minimo util, en vez de pasar siempre un top-k fijo.
+  - El writer clinico `focus mode` pivota a un `chat` minimo de dos mensajes con `stream=true`, sin dialogo previo ni `format` obligatorio en el camino critico.
+  - Si el writer se corta por `done_reason=length`, el backend repara la salida con lexicalizacion local de la evidencia; si el primer intento agota CPU (`TimeoutError`), cae directamente a lexicalizacion local en vez de lanzar un segundo writer pesado.
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "ollama_native_options_respect_clinical_focus_caps or native_clinical_prompt_respects_focus_caps or build_chat_messages_drops_dialogue_in_clinical_focus_mode or focus_mode_reserves_recovery_budget or prompt_echo_uses_quick_recovery" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_settings_security.py -k "clinical_focus or llm_context_utilization_ratio" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py app/tests/test_settings_security.py`
+  - Sonda real `LLMChatProvider.generate_answer(...)` con consulta `Paciente con dolor agudo postoperatorio: datos clave y escalado`: el writer clinico pasa de >100s con eco de prompt a devolver control en ~40s (`answer=None`, `llm_error=empty_response`, `llm_messages_used=2`, `llm_clinical_focus_mode=true`), permitiendo fallback rapido aguas abajo.
+  - Sonda real posterior con la misma consulta y evidencia de anestesiologia: respuesta en ~31s con `llm_used=true`, `llm_endpoint=chat` y `llm_post_repair=lexicalizer`, eliminando el fallback generico de ultima milla.
+
+- Riesgos pendientes identificados:
+
+  - Si el focus mode clinico se vuelve demasiado agresivo, podria degradar respuestas validas por falta de detalle.
+  - Reducir `num_predict` acelera la generacion, pero si se queda corto puede aumentar reparaciones por lexicalizacion; conviene calibrarlo por especialidad.
+  - El ajuste de writer no sustituye una futura decision de modelo/quantizacion (`Q4_K_M`) fuera del backend.
+  - El 3B en CPU sigue siendo el limite fisico principal: con este cambio el sistema responde antes y mejor, pero no garantiza redaccion neuronal clinica de alta calidad en todos los casos sobre este hardware.
+  - La lexicalizacion local evita respuestas vacias o genericas, pero sigue siendo una reparacion extractiva; conviene afinarla por dominio si aparecen repeticiones o bullets demasiado literales.
+
+- ID: TM-226
+
+- Objetivo: Reemplazar el prompt clinico nativo abierto por una fase de redaccion controlada sobre evidencia delimitada, con abstencion exacta si no hay soporte suficiente y menor carga de tokens para Ollama local.
+
+- Alcance: `app/services/llm_chat_provider.py`, `app/tests/test_clinical_chat_operational.py`.
+
+- Agentes involucrados: orchestrator, api-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-224, TM-225.
+
+- Evidencia:
+
+  - El prompt clinico nativo ahora usa bloques delimitados `CONSULTA / EVIDENCIA / REGLAS`.
+  - La evidencia se entrega etiquetada (`[S1]`, `[S2]`, `[E1]`) y se limita para reducir carga de contexto.
+  - Se introduce abstencion exacta si no existe evidencia verificada.
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_clinical_chat_operational.py -k "native_clinical_prompt_uses_controlled_delimited_evidence_pack or native_clinical_prompt_without_sources_forces_exact_abstention or ollama_native_options_expand_clinical_output_budget" -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/services/llm_chat_provider.py app/tests/test_clinical_chat_operational.py`
+  - Prueba real posterior sobre `Paciente con dolor agudo postoperatorio: datos clave y escalado`: `llm_input_tokens_estimated` baja de ~602 a ~380, pero el modelo local sigue agotando `90s` (`llm_error=TimeoutError`) y cae a `extractive_fallback_llm_error`.
+
+- Riesgos pendientes identificados:
+
+  - El prompt ya es mas corto y mas controlado, pero el 3B en CPU sigue sin cerrar consultas clinicas con suficiente estabilidad.
+  - La siguiente iteracion no debe añadir mas instrucciones al prompt; debe reducir aun mas el trabajo del redactor o separar un writer mas ligero.
+
+- ID: TM-225
+
+- Objetivo: Introducir context packs vecinos por documento antes de la compresion RAG para reducir fragmentacion semantica, acercar el comportamiento a `emulated pages` y mejorar la estabilidad del contexto que recibe el LLM.
+
+- Alcance: `app/core/config.py`, `app/services/rag_orchestrator.py`, `.env.example`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_settings_security.py`.
+
+- Agentes involucrados: orchestrator, data-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-224.
+
+- Evidencia:
+
+  - El orquestador expande cada chunk recuperado a un pack de vecinos del mismo documento con radio configurable y deduplicacion de ventanas solapadas.
+  - El cambio no altera schema ni tablas; opera en runtime antes de `assemble_rag_context` y antes de la compresion extractiva.
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/core/config.py app/services/rag_orchestrator.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+
+- Riesgos pendientes identificados:
+
+  - Un radio demasiado alto inflaria texto previo a compresion; por eso queda acotado a `0..3` y por defecto `1`.
+  - El efecto completo depende de que los chunks de origen tengan orden (`chunk_index`) coherente, especialmente en PDFs complejos.
+  - No sustituye una reingesta estructural futura tipo `parent-child`; es un paso intermedio de bajo riesgo.
+
+- ID: TM-224
+
+- Objetivo: Reducir la carga y el ruido que recibe el LLM clinico introduciendo chunking por seccion con decontextualizacion en ingesta y compresion extractiva por oracion antes de la generacion final.
+
+- Alcance: `app/core/config.py`, `app/core/chunking.py`, `app/services/document_ingestion_service.py`, `app/services/rag_prompt_builder.py`, `app/services/rag_orchestrator.py`, `app/tests/test_chunking.py`, `app/tests/test_rag_orchestrator_optimizations.py`, `app/tests/test_settings_security.py`.
+
+- Agentes involucrados: orchestrator, data-agent, qa-agent.
+
+- Estado: completado
+
+- Dependencias: TM-219, TM-223.
+
+- Evidencia:
+
+  - Se habilita chunking consciente de secciones con flush por frontera semantica y sin arrastrar overlap entre secciones distintas.
+  - Se decontextualiza el texto de chunk anteponiendo `Documento` + `Seccion` para preservar significado cuando el fragmento se recupera aislado.
+  - Se introduce compresion extractiva de contexto a nivel de oracion antes del LLM con limite por chunk, limite total y vaciado selectivo cuando la relevancia es insuficiente.
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_chunking.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m pytest -q app/tests/test_document_ingestion_service.py app/tests/test_ingest_clinical_docs_script.py -o addopts=""`
+  - `.\venv\Scripts\python.exe -m ruff check app/core/chunking.py app/core/config.py app/services/document_ingestion_service.py app/services/rag_prompt_builder.py app/services/rag_orchestrator.py app/tests/test_chunking.py app/tests/test_rag_orchestrator_optimizations.py app/tests/test_settings_security.py`
+  - Sonda directa de compresion: el contexto de `Paciente con dolor abdominal: datos clave y escalado` se reduce a dos oraciones utiles con ancla `Abdomen agudo` y `rag_context_compression_mode=extractive`.
+
+- Riesgos pendientes identificados:
+
+  - La decontextualizacion aumenta algo el texto almacenado por chunk; hay que vigilar el impacto en embeddings y compresion final al reingestar corpus grandes.
+  - La compresion extractiva usa heuristicas ligeras de relevancia lexical/semantica; conviene validar por especialidad si vacia demasiado contexto en consultas con sinonimia pobre.
+  - Para que el cambio tenga efecto completo en produccion local hace falta reingestar progresivamente el corpus que siga indexado con chunks antiguos.
+
 - ID: TM-223
 
 - Objetivo: Igualar el comportamiento del backend con el chat nativo de Ollama eliminando la dependencia de defaults runtime por API y forzando un perfil nativo acotado y estable para `/api/chat` y `/api/generate`.

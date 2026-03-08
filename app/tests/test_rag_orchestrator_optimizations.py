@@ -102,6 +102,224 @@ def test_context_compression_keeps_overlap_sentences():
     assert trace["rag_context_compressed"] == "1"
 
 
+def test_context_compression_extractive_keeps_top_sentences_and_order(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_prompt_builder.settings.CLINICAL_CHAT_RAG_CONTEXT_COMPRESS_MODE",
+        "extractive",
+    )
+    monkeypatch.setattr(
+        "app.services.rag_prompt_builder.settings.CLINICAL_CHAT_RAG_CONTEXT_TOP_SENTENCES_PER_CHUNK",
+        2,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_prompt_builder.settings.CLINICAL_CHAT_RAG_CONTEXT_MAX_SENTENCES_TOTAL",
+        3,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_prompt_builder.settings.CLINICAL_CHAT_RAG_CONTEXT_MIN_SENTENCE_RELEVANCE",
+        0.18,
+    )
+    chunks = [
+        {
+            "id": 11,
+            "text": (
+                "Documento: Motor de Sepsis | Seccion: Sepsis > Bundle inicial\n"
+                "Contenido: Introduccion general. "
+                "Iniciar hemocultivos y antibiotico precoz en la primera hora. "
+                "Monitorizar MAP y reevaluar perfusion tras fluidoterapia."
+            ),
+            "section": "Sepsis > Bundle inicial",
+            "source_title": "Motor de Sepsis",
+            "source": "docs/47_motor_sepsis_urgencias.md",
+            "score": 0.82,
+        }
+    ]
+
+    compressed, trace = RAGContextAssembler.compress_rag_context(
+        query="sepsis antibiotico perfusion",
+        chunks=chunks,
+        max_chars_per_chunk=220,
+    )
+
+    assert compressed
+    assert compressed[0]["text"].startswith("Sepsis: Iniciar hemocultivos")
+    assert "Monitorizar MAP" in compressed[0]["text"]
+    assert "Introduccion general" not in compressed[0]["text"]
+    assert trace["rag_context_compression_mode"] == "extractive"
+
+
+def test_context_compression_extractive_can_return_empty_when_low_relevance(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_prompt_builder.settings.CLINICAL_CHAT_RAG_CONTEXT_COMPRESS_MODE",
+        "extractive",
+    )
+    monkeypatch.setattr(
+        "app.services.rag_prompt_builder.settings.CLINICAL_CHAT_RAG_CONTEXT_MIN_SENTENCE_RELEVANCE",
+        0.7,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_prompt_builder.settings.CLINICAL_CHAT_RAG_CONTEXT_EMPTY_ON_LOW_RELEVANCE",
+        True,
+    )
+    chunks = [
+        {
+            "id": 12,
+            "text": (
+                "Documento: General | Seccion: General > Introduccion\n"
+                "Contenido: Texto historico administrativo sin accion clinica."
+            ),
+            "section": "General > Introduccion",
+            "source_title": "General",
+            "source": "docs/37_contexto_operaciones_clinicas_urgencias_es.md",
+            "score": 0.21,
+        }
+    ]
+
+    compressed, trace = RAGContextAssembler.compress_rag_context(
+        query="hiperkalemia con qrs ancho",
+        chunks=chunks,
+        max_chars_per_chunk=180,
+    )
+
+    assert compressed == []
+    assert trace["rag_context_compression_empty"] == "1"
+
+
+def test_context_packs_expand_neighbor_chunks_and_keep_order(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_CONTEXT_PACKS_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS",
+        1,
+    )
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    document = SimpleNamespace(id=7, title="Motor Gastro-Hepato")
+    seed_chunk = SimpleNamespace(
+        id=101,
+        document_id=7,
+        document=document,
+        chunk_index=4,
+        chunk_text="B. Exploracion abdominal dirigida.",
+        section_path="Gastro > Dolor abdominal",
+        tokens_count=11,
+        keywords=["abdomen"],
+        custom_questions=["¿Que explorar?"],
+        specialty="gastro_hepato",
+        content_type="paragraph",
+        _rag_score=0.81,
+    )
+    neighbor_chunks = [
+        SimpleNamespace(
+            id=100,
+            chunk_index=3,
+            chunk_text="A. Tomar constantes y signos de alarma.",
+            section_path="Gastro > Dolor abdominal",
+            tokens_count=9,
+            keywords=["constantes"],
+            custom_questions=[],
+        ),
+        seed_chunk,
+        SimpleNamespace(
+            id=102,
+            chunk_index=5,
+            chunk_text="C. Reevaluar y decidir imagen segun hallazgos.",
+            section_path="Gastro > Imagen inicial",
+            tokens_count=10,
+            keywords=["imagen"],
+            custom_questions=[],
+        ),
+    ]
+    monkeypatch.setattr(
+        orchestrator,
+        "_load_context_pack_neighbors",
+        lambda **kwargs: neighbor_chunks,
+    )
+
+    packed_chunks, trace = orchestrator._expand_chunks_to_context_packs([seed_chunk])
+
+    assert len(packed_chunks) == 1
+    assert packed_chunks[0].chunk_text.startswith("A. Tomar constantes")
+    assert "B. Exploracion abdominal dirigida." in packed_chunks[0].chunk_text
+    assert packed_chunks[0].chunk_text.endswith("C. Reevaluar y decidir imagen segun hallazgos.")
+    assert packed_chunks[0]._rag_pack_chunk_count == 3
+    assert packed_chunks[0].section_path.endswith("Contexto cercano")
+    assert trace["rag_context_packs_built"] == "1"
+    assert trace["rag_context_pack_neighbors_loaded"] == "3"
+
+
+def test_context_packs_deduplicate_overlapping_neighbor_windows(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_CONTEXT_PACKS_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.rag_orchestrator.settings.CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS",
+        1,
+    )
+    orchestrator = RAGOrchestrator(db=SimpleNamespace())
+    document = SimpleNamespace(id=11, title="Motor Sepsis")
+    seed_a = SimpleNamespace(
+        id=201,
+        document_id=11,
+        document=document,
+        chunk_index=8,
+        chunk_text="Bundle inicial.",
+        section_path="Sepsis > Bundle",
+        tokens_count=8,
+        keywords=[],
+        custom_questions=[],
+        specialty="sepsis",
+        content_type="paragraph",
+        _rag_score=0.72,
+    )
+    seed_b = SimpleNamespace(
+        id=202,
+        document_id=11,
+        document=document,
+        chunk_index=9,
+        chunk_text="Antibiotico precoz.",
+        section_path="Sepsis > Bundle",
+        tokens_count=8,
+        keywords=[],
+        custom_questions=[],
+        specialty="sepsis",
+        content_type="paragraph",
+        _rag_score=0.68,
+    )
+    shared_neighbors = [
+        SimpleNamespace(
+            id=200,
+            chunk_index=8,
+            chunk_text="Hemocultivos.",
+            section_path="Sepsis > Bundle",
+            tokens_count=6,
+            keywords=[],
+            custom_questions=[],
+        ),
+        SimpleNamespace(
+            id=201,
+            chunk_index=9,
+            chunk_text="Antibiotico en la primera hora.",
+            section_path="Sepsis > Bundle",
+            tokens_count=6,
+            keywords=[],
+            custom_questions=[],
+        ),
+    ]
+    monkeypatch.setattr(
+        orchestrator,
+        "_load_context_pack_neighbors",
+        lambda **kwargs: shared_neighbors,
+    )
+
+    packed_chunks, trace = orchestrator._expand_chunks_to_context_packs([seed_a, seed_b])
+
+    assert len(packed_chunks) == 1
+    assert trace["rag_context_packs_deduped"] == "1"
+
+
 def test_extractive_answer_filters_non_clinical_noise():
     answer = RAGOrchestrator._build_extractive_answer(
         query="Oliguria con hiperkalemia y QRS ancho",

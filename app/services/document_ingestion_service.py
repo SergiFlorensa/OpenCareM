@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.core.chunking import DocumentChunk, SemanticChunker, load_or_estimate_token_counter
+from app.core.config import settings
 from app.services.pdf_parser_service import PDFParseResult, PDFParserService
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,12 @@ class DocumentIngestionService:
 
     def __init__(self, token_counter=None):
         token_counter = token_counter or load_or_estimate_token_counter()
-        self.chunker = SemanticChunker(token_counter=token_counter)
+        self.chunker = SemanticChunker(
+            token_counter=token_counter,
+            respect_section_boundaries=settings.CLINICAL_CHAT_CHUNK_RESPECT_SECTION_BOUNDARIES,
+            decontextualize_chunks=settings.CLINICAL_CHAT_CHUNK_DECONTEXTUALIZE,
+            decontext_max_prefix_chars=settings.CLINICAL_CHAT_CHUNK_DECONTEXT_MAX_PREFIX_CHARS,
+        )
         self._document_hashes: set[str] = set()
         self._parse_trace_by_source: dict[str, dict[str, str]] = {}
 

@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_PDF_FILTER_REPEATED_EDGE_TEXT_ENABLED: bool = True
     CLINICAL_CHAT_PDF_FILTER_REPEATED_EDGE_TEXT_MIN_PAGES: int = 2
     CLINICAL_CHAT_PDF_TELEMETRY_ENABLED: bool = True
+    CLINICAL_CHAT_CHUNK_RESPECT_SECTION_BOUNDARIES: bool = True
+    CLINICAL_CHAT_CHUNK_DECONTEXTUALIZE: bool = True
+    CLINICAL_CHAT_CHUNK_DECONTEXT_MAX_PREFIX_CHARS: int = 180
     CLINICAL_CHAT_REQUIRE_VALIDATED_INTERNAL_SOURCES: bool = True
     CLINICAL_CHAT_LLM_ENABLED: bool = False
     CLINICAL_CHAT_LLM_PROVIDER: str = "ollama"
@@ -82,6 +85,15 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_LLM_CIRCUIT_BREAKER_ENABLED: bool = True
     CLINICAL_CHAT_LLM_CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 2
     CLINICAL_CHAT_LLM_CIRCUIT_BREAKER_OPEN_SECONDS: int = 90
+    CLINICAL_CHAT_LLM_CLINICAL_FOCUS_MODE_ENABLED: bool = True
+    CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET: int = 768
+    CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS: int = 72
+    CLINICAL_CHAT_LLM_CLINICAL_MAX_QUERY_CHARS: int = 220
+    CLINICAL_CHAT_LLM_CLINICAL_MAX_EVIDENCE_ITEMS: int = 2
+    CLINICAL_CHAT_LLM_CLINICAL_MIN_EVIDENCE_CHARS: int = 120
+    CLINICAL_CHAT_LLM_CLINICAL_MAX_SNIPPET_CHARS: int = 96
+    CLINICAL_CHAT_LLM_CLINICAL_MAX_ENDPOINT_ITEMS: int = 1
+    CLINICAL_CHAT_LLM_CLINICAL_STRUCTURED_OUTPUT_ENABLED: bool = True
     CLINICAL_CHAT_NB_ENABLED: bool = True
     CLINICAL_CHAT_NB_MODEL: str = "multinomial"
     CLINICAL_CHAT_NB_ALPHA: float = 1.0
@@ -169,7 +181,14 @@ class Settings(BaseSettings):
     CLINICAL_CHAT_RAG_MMR_ENABLED: bool = False
     CLINICAL_CHAT_RAG_MMR_LAMBDA: float = 0.70
     CLINICAL_CHAT_RAG_COMPRESS_CONTEXT_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_CONTEXT_COMPRESS_MODE: str = "extractive"
     CLINICAL_CHAT_RAG_COMPRESS_MAX_CHARS: int = 280
+    CLINICAL_CHAT_RAG_CONTEXT_PACKS_ENABLED: bool = True
+    CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS: int = 1
+    CLINICAL_CHAT_RAG_CONTEXT_TOP_SENTENCES_PER_CHUNK: int = 2
+    CLINICAL_CHAT_RAG_CONTEXT_MAX_SENTENCES_TOTAL: int = 8
+    CLINICAL_CHAT_RAG_CONTEXT_MIN_SENTENCE_RELEVANCE: float = 0.20
+    CLINICAL_CHAT_RAG_CONTEXT_EMPTY_ON_LOW_RELEVANCE: bool = True
     CLINICAL_CHAT_RAG_FTS_CANDIDATE_ENABLED: bool = True
     CLINICAL_CHAT_RAG_FTS_CANDIDATE_POOL: int = 88
     CLINICAL_CHAT_RAG_SKIP_DOMAIN_SEARCH_TOKENS_OVER: int = 12
@@ -340,6 +359,10 @@ class Settings(BaseSettings):
             raise ValueError(
                 "CLINICAL_CHAT_PDF_MINERU_RENDER_TIMEOUT_SECONDS debe estar entre 0 y 3600."
             )
+        if self.CLINICAL_CHAT_CHUNK_DECONTEXT_MAX_PREFIX_CHARS < 40:
+            raise ValueError(
+                "CLINICAL_CHAT_CHUNK_DECONTEXT_MAX_PREFIX_CHARS debe ser >= 40."
+            )
         if not (0 <= self.CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS <= 64):
             raise ValueError(
                 "CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS debe estar entre 0 y 64."
@@ -417,6 +440,42 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "CLINICAL_CHAT_LLM_NUM_CTX debe superar salida maxima + margen de prompt."
+            )
+        if not (512 <= self.CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET <= 2048):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET debe estar entre 512 y 2048."
+            )
+        if not (48 <= self.CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS <= 256):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS debe estar entre 48 y 256."
+            )
+        if (
+            self.CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS
+            >= self.CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET
+        ):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS debe ser menor que "
+                "CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET."
+            )
+        if not (120 <= self.CLINICAL_CHAT_LLM_CLINICAL_MAX_QUERY_CHARS <= 600):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_MAX_QUERY_CHARS debe estar entre 120 y 600."
+            )
+        if not (1 <= self.CLINICAL_CHAT_LLM_CLINICAL_MAX_EVIDENCE_ITEMS <= 4):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_MAX_EVIDENCE_ITEMS debe estar entre 1 y 4."
+            )
+        if not (80 <= self.CLINICAL_CHAT_LLM_CLINICAL_MIN_EVIDENCE_CHARS <= 400):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_MIN_EVIDENCE_CHARS debe estar entre 80 y 400."
+            )
+        if not (64 <= self.CLINICAL_CHAT_LLM_CLINICAL_MAX_SNIPPET_CHARS <= 240):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_MAX_SNIPPET_CHARS debe estar entre 64 y 240."
+            )
+        if not (0 <= self.CLINICAL_CHAT_LLM_CLINICAL_MAX_ENDPOINT_ITEMS <= 3):
+            raise ValueError(
+                "CLINICAL_CHAT_LLM_CLINICAL_MAX_ENDPOINT_ITEMS debe estar entre 0 y 3."
             )
         if self.CLINICAL_CHAT_NB_MODEL not in {"multinomial", "bernoulli"}:
             raise ValueError("CLINICAL_CHAT_NB_MODEL debe ser 'multinomial' o 'bernoulli'.")
@@ -622,6 +681,26 @@ class Settings(BaseSettings):
         if not (120 <= self.CLINICAL_CHAT_RAG_COMPRESS_MAX_CHARS <= 2000):
             raise ValueError(
                 "CLINICAL_CHAT_RAG_COMPRESS_MAX_CHARS debe estar entre 120 y 2000."
+            )
+        if not (0 <= self.CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS <= 3):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS debe estar entre 0 y 3."
+            )
+        if self.CLINICAL_CHAT_RAG_CONTEXT_COMPRESS_MODE not in {"overlap", "extractive"}:
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_CONTEXT_COMPRESS_MODE debe ser 'overlap' o 'extractive'."
+            )
+        if not (1 <= self.CLINICAL_CHAT_RAG_CONTEXT_TOP_SENTENCES_PER_CHUNK <= 6):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_CONTEXT_TOP_SENTENCES_PER_CHUNK debe estar entre 1 y 6."
+            )
+        if not (1 <= self.CLINICAL_CHAT_RAG_CONTEXT_MAX_SENTENCES_TOTAL <= 24):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_CONTEXT_MAX_SENTENCES_TOTAL debe estar entre 1 y 24."
+            )
+        if not (0.0 <= self.CLINICAL_CHAT_RAG_CONTEXT_MIN_SENTENCE_RELEVANCE <= 1.0):
+            raise ValueError(
+                "CLINICAL_CHAT_RAG_CONTEXT_MIN_SENTENCE_RELEVANCE debe estar entre 0 y 1."
             )
         if not (20 <= self.CLINICAL_CHAT_RAG_FTS_CANDIDATE_POOL <= 4000):
             raise ValueError(

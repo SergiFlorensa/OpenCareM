@@ -231,6 +231,14 @@ def test_rejects_invalid_mineru_render_timeout():
         )
 
 
+def test_rejects_invalid_chunk_decontext_prefix_chars():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_CHUNK_DECONTEXT_MAX_PREFIX_CHARS"):
+        Settings(
+            CLINICAL_CHAT_CHUNK_DECONTEXT_MAX_PREFIX_CHARS=20,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
 def test_rejects_invalid_mineru_thread_limits():
     with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_CPU_INTRA_OP_THREADS"):
         Settings(
@@ -240,6 +248,30 @@ def test_rejects_invalid_mineru_thread_limits():
     with pytest.raises(ValueError, match="CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS"):
         Settings(
             CLINICAL_CHAT_PDF_MINERU_CPU_INTER_OP_THREADS=65,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_context_compress_mode():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_CONTEXT_COMPRESS_MODE"):
+        Settings(
+            CLINICAL_CHAT_RAG_CONTEXT_COMPRESS_MODE="dense-only",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_context_pack_radius():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS"):
+        Settings(
+            CLINICAL_CHAT_RAG_CONTEXT_PACK_RADIUS=5,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_context_sentence_relevance_threshold():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_RAG_CONTEXT_MIN_SENTENCE_RELEVANCE"):
+        Settings(
+            CLINICAL_CHAT_RAG_CONTEXT_MIN_SENTENCE_RELEVANCE=1.2,
             BACKEND_CORS_ORIGINS=["http://localhost:5173"],
         )
 
@@ -308,6 +340,38 @@ def test_rejects_invalid_llm_context_utilization_ratio():
     with pytest.raises(ValueError, match="CLINICAL_CHAT_LLM_MAX_CONTEXT_UTILIZATION_RATIO"):
         Settings(
             CLINICAL_CHAT_LLM_MAX_CONTEXT_UTILIZATION_RATIO=0.95,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_clinical_focus_num_ctx_target():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET"):
+        Settings(
+            CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET=400,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_clinical_focus_output_tokens():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS"):
+        Settings(
+            CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS=32,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_clinical_focus_snippet_chars():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_LLM_CLINICAL_MAX_SNIPPET_CHARS"):
+        Settings(
+            CLINICAL_CHAT_LLM_CLINICAL_MAX_SNIPPET_CHARS=40,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_rejects_invalid_clinical_focus_min_evidence_chars():
+    with pytest.raises(ValueError, match="CLINICAL_CHAT_LLM_CLINICAL_MIN_EVIDENCE_CHARS"):
+        Settings(
+            CLINICAL_CHAT_LLM_CLINICAL_MIN_EVIDENCE_CHARS=40,
             BACKEND_CORS_ORIGINS=["http://localhost:5173"],
         )
 

@@ -215,6 +215,182 @@ def test_evidence_first_answer_splits_compound_domains_into_blocks():
     assert "Fuentes internas exactas:" in answer
 
 
+def test_native_clinical_prompt_uses_controlled_delimited_evidence_pack():
+    prompt = LLMChatProvider._build_native_user_prompt(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        response_mode="clinical",
+        knowledge_sources=[
+            {
+                "title": "Anestesiologia > Dolor agudo postoperatorio",
+                "source": "docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf",
+                "snippet": (
+                    "Evaluar dolor con escala estandarizada y priorizar "
+                    "analgesia multimodal."
+                ),
+            }
+        ],
+        endpoint_results=[],
+    )
+
+    assert "### CONSULTA" in prompt
+    assert "### EVIDENCIA" in prompt
+    assert "[S1]" in prompt
+    assert "Usa solo EVIDENCIA." in prompt
+    assert "La documentacion interna disponible no contiene evidencia suficiente" in prompt
+
+
+def test_native_clinical_prompt_without_sources_forces_exact_abstention():
+    prompt = LLMChatProvider._build_native_user_prompt(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        response_mode="clinical",
+        knowledge_sources=[],
+        endpoint_results=[],
+    )
+
+    assert "### EVIDENCIA" in prompt
+    assert "NONE" in prompt
+    assert "responde exactamente" in prompt.lower()
+    assert "La documentacion interna disponible no contiene evidencia suficiente" in prompt
+
+
+def test_ollama_native_options_respect_clinical_focus_caps(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_MAX_OUTPUT_TOKENS",
+        80,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NUM_CTX",
+        896,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_MAX_OUTPUT_TOKENS",
+        72,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_NUM_CTX_TARGET",
+        768,
+    )
+    options = LLMChatProvider._build_ollama_native_options(
+        response_mode="clinical",
+        purpose="primary",
+    )
+
+    assert int(options["num_predict"]) == 72
+    assert int(options["num_ctx"]) == 768
+
+
+def test_native_clinical_prompt_respects_focus_caps(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_MAX_QUERY_CHARS",
+        180,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_MAX_SNIPPET_CHARS",
+        90,
+    )
+    prompt = LLMChatProvider._build_native_user_prompt(
+        query="Paciente con dolor agudo postoperatorio y antecedentes complejos " * 10,
+        response_mode="clinical",
+        knowledge_sources=[
+            {
+                "title": "Guia DAP",
+                "snippet": "A" * 180,
+            }
+        ],
+        endpoint_results=[],
+    )
+
+    assert "### CONSULTA" in prompt
+    assert "### EVIDENCIA" in prompt
+    evidence_line = next(
+        line for line in prompt.splitlines() if line.startswith("[S1]")
+    )
+    assert len(evidence_line) < 220
+
+
+def test_controlled_evidence_items_pack_adapts_until_min_chars(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_MAX_EVIDENCE_ITEMS",
+        3,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_MIN_EVIDENCE_CHARS",
+        140,
+    )
+    items = LLMChatProvider._build_controlled_evidence_items(
+        query="dolor abdominal y escalado",
+        knowledge_sources=[
+            {"title": "Gastro-hepato", "snippet": "dolor abdominal agudo y reevaluacion."},
+            {"title": "Gastro-hepato", "snippet": "escalado quirurgico y signos peritoneales."},
+            {"title": "Otro", "snippet": "contexto lateral menos relevante."},
+        ],
+        endpoint_results=[],
+    )
+
+    assert len(items) == 3
+    assert items[0].startswith("[S1]")
+    assert "dolor abdominal" in items[0].lower()
+
+
+def test_controlled_evidence_items_do_not_cut_mid_word(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_MAX_SNIPPET_CHARS",
+        64,
+    )
+    items = LLMChatProvider._build_controlled_evidence_items(
+        query="dolor postoperatorio",
+        knowledge_sources=[
+            {
+                "title": "Anestesiologia",
+                "snippet": (
+                    "Debe evaluarse la intensidad de dolor con una escala "
+                    "estandarizada y priorizar procedimientos relacionados."
+                ),
+            }
+        ],
+        endpoint_results=[],
+    )
+
+    assert items
+    assert "procedimientos relacionados" not in items[0].lower() or items[0].endswith(
+        "relacionados."
+    )
+    assert not items[0].rstrip().endswith("rela")
+
+
+def test_format_structured_clinical_answer_renders_sections():
+    answer = LLMChatProvider._format_structured_clinical_answer(
+        '{"status":"ok","datos_clave":["dolor agudo"],'
+        '"acciones_iniciales":["usar escala del dolor"],'
+        '"escalado_monitorizacion":["reevaluar respuesta"],'
+        '"fuentes":["[S1]"]}'
+    )
+
+    assert answer is not None
+    assert answer.startswith("Datos clave:")
+    assert "Acciones iniciales:" in answer
+    assert "Fuentes internas exactas:" in answer
+
+
+def test_build_chat_messages_drops_dialogue_in_clinical_focus_mode():
+    messages, trace = LLMChatProvider._build_chat_messages(
+        system_prompt="Asistente clinico.",
+        user_prompt=(
+            "### CONSULTA\nPaciente con dolor abdominal\n"
+            "### EVIDENCIA\n[S1] fuente :: dato"
+        ),
+        recent_dialogue=[
+            {"user_query": "turno anterior", "assistant_answer": "respuesta previa"}
+        ],
+        response_mode="clinical",
+    )
+
+    assert len(messages) == 2
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    assert trace["llm_messages_used"] == "2"
+
+
 def test_catalog_knowledge_sources_prefers_operational_abdomen_chunk(monkeypatch):
     monkeypatch.setattr(
         ClinicalChatService,
@@ -808,11 +984,26 @@ def test_chat_e2e_uses_interrogatory_short_circuit_before_llm_or_rag(client, mon
 
     monkeypatch.setattr(LLMChatProvider, "generate_answer", staticmethod(fail_if_llm_called))
     monkeypatch.setattr(RAGOrchestrator, "process_query_with_rag", fail_if_rag_called)
+    monkeypatch.setattr(
+        "app.services.clinical_chat_service.DiagnosticInterrogatoryService.propose_next_question",
+        lambda **kwargs: {  # noqa: ARG005
+            "should_ask": True,
+            "domain": "general",
+            "question": "¿Puedes precisar constantes y tiempo de evolucion?",
+            "question_feature": "test_gate",
+            "turn_index": 1,
+            "max_turns": 3,
+            "top_probability": 0.31,
+            "suggested_queries": [
+                "Prioriza acciones 0-10 minutos con los datos disponibles.",
+            ],
+        },
+    )
 
     response = client.post(
         f"/api/v1/care-tasks/{task_id}/chat/messages",
         json={
-            "query": "Caso nefrologia. Necesito plan y datos clave faltantes.",
+            "query": "Necesito plan y datos clave faltantes.",
             "session_id": "session-interrogatory",
             "conversation_mode": "auto",
             "tool_mode": "chat",
@@ -961,6 +1152,7 @@ def test_llm_provider_build_chat_messages_respects_token_budget(monkeypatch):
         recent_dialogue=[
             {"user_query": " ".join(["ctx"] * 200), "assistant_answer": " ".join(["plan"] * 200)}
         ],
+        response_mode="general",
     )
     assert int(trace["llm_input_tokens_estimated"]) <= int(trace["llm_input_tokens_budget"])
     assert trace["llm_prompt_truncated"] == "1"
@@ -1029,7 +1221,7 @@ def test_llm_provider_prefers_ollama_chat_endpoint_in_native_style(monkeypatch):
     assert trace["llm_endpoint"] == "chat"
 
 
-def test_llm_provider_native_clinical_reserves_almost_all_budget_for_primary_chat(monkeypatch):
+def test_llm_provider_native_clinical_focus_mode_reserves_recovery_budget(monkeypatch):
     captured_calls: list[tuple[str, float | None]] = []
 
     def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
@@ -1068,7 +1260,7 @@ def test_llm_provider_native_clinical_reserves_almost_all_budget_for_primary_cha
     assert captured_calls
     first_endpoint, first_timeout = captured_calls[0]
     assert first_endpoint == "api/chat"
-    assert first_timeout is not None and first_timeout >= 80.0
+    assert first_timeout is not None and 40.0 <= first_timeout <= 42.0
     assert trace["llm_error"] == "TimeoutError"
 
 
@@ -1206,6 +1398,311 @@ def test_llm_provider_native_general_uses_quick_recovery_after_timeouts(monkeypa
     assert trace["llm_used"] == "true"
     assert trace["llm_endpoint"] == "generate_quick_recovery"
     assert trace["llm_primary_error"] == "TimeoutError"
+
+
+def test_llm_provider_native_clinical_focus_mode_uses_lexicalizer_after_timeout(
+    monkeypatch,
+):
+    call_counter = {"chat": 0}
+
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        if endpoint == "api/chat":
+            call_counter["chat"] += 1
+            raise TimeoutError("simulated chat timeout")
+        return {
+            "message": {"content": "Respuesta no esperada"},
+            "done_reason": "stop",
+        }
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_FOCUS_MODE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        response_mode="clinical",
+        effective_specialty="anesthesiology",
+        tool_mode="chat",
+        matched_domains=["anesthesiology"],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[
+            {
+                "title": "Anestesiologia",
+                "source": "docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf",
+                "snippet": "Escala estandarizada del dolor y analgesia multimodal segun protocolo.",
+            }
+        ],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+
+    assert call_counter["chat"] == 1
+    assert answer is not None
+    assert answer.startswith("Datos clave:")
+    assert trace["llm_endpoint"] == "local_evidence_lexicalizer"
+    assert trace["llm_primary_error"] == "TimeoutError"
+
+
+def test_llm_provider_clinical_prompt_echo_uses_quick_recovery(monkeypatch):
+    call_counter = {"chat": 0}
+
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        if endpoint == "api/chat":
+            call_counter["chat"] += 1
+            if call_counter["chat"] == 1:
+                return {
+                    "message": {
+                        "content": (
+                            "### CONSULTA\nPaciente con dolor agudo postoperatorio\n"
+                            "### EVIDENCIA"
+                        )
+                    },
+                    "done_reason": "length",
+                }
+            return {
+                "message": {
+                    "content": (
+                        "Datos clave:\n"
+                        "- Dolor agudo postoperatorio.\n"
+                        "Acciones iniciales:\n"
+                        "- Usar escala de dolor y analgesia multimodal.\n"
+                        "Escalado y monitorizacion:\n"
+                        "- Reevaluar respuesta.\n"
+                        "Fuentes internas exactas:\n"
+                        "- [S1]"
+                    )
+                },
+                "done_reason": "stop",
+            }
+        raise AssertionError("No debe usar api/generate en focus mode clinico")
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        response_mode="clinical",
+        effective_specialty="anesthesiology",
+        tool_mode="chat",
+        matched_domains=["anesthesiology"],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[
+            {
+                "title": "Anestesiologia",
+                "source": "docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf",
+                "snippet": "Escala estandarizada del dolor y analgesia multimodal segun protocolo.",
+            }
+        ],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+
+    assert call_counter["chat"] == 2
+    assert answer is not None
+    assert trace["llm_endpoint"] == "chat_quick_recovery"
+    assert trace["llm_prompt_echo_detected"] == "1"
+
+
+def test_llm_provider_clinical_focus_mode_disables_structured_output_payload(monkeypatch):
+    captured_payloads: list[dict[str, object]] = []
+
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        captured_payloads.append({"endpoint": endpoint, "payload": payload})
+        return {
+            "message": {
+                "content": (
+                    '{"status":"ok","datos_clave":["dolor agudo postoperatorio"],'
+                    '"acciones_iniciales":["usar escala de dolor"],'
+                    '"escalado_monitorizacion":["reevaluar respuesta"],'
+                    '"fuentes":["[S1]"]}'
+                )
+            },
+            "done_reason": "stop",
+        }
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_STRUCTURED_OUTPUT_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        response_mode="clinical",
+        effective_specialty="anesthesiology",
+        tool_mode="chat",
+        matched_domains=["anesthesiology"],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[
+            {
+                "title": "Anestesiologia",
+                "source": "docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf",
+                "snippet": "Escala estandarizada del dolor y analgesia multimodal segun protocolo.",
+            }
+        ],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+
+    assert answer is not None
+    assert answer.startswith("Datos clave:")
+    assert trace["llm_clinical_structured_output"] == "false"
+    assert captured_payloads
+    first_payload = captured_payloads[0]["payload"]
+    assert first_payload["stream"] is True
+    assert "format" not in first_payload
+
+
+def test_llm_provider_clinical_focus_mode_uses_local_lexicalizer_after_repeated_failures(
+    monkeypatch,
+):
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        raise TimeoutError("simulated timeout")
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_FOCUS_MODE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        response_mode="clinical",
+        effective_specialty="anesthesiology",
+        tool_mode="chat",
+        matched_domains=["anesthesiology"],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[
+            {
+                "title": "Anestesiologia",
+                "source": "docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf",
+                "snippet": (
+                    "Evaluar la intensidad de dolor con escala estandarizada y "
+                    "reevaluar la respuesta al tratamiento."
+                ),
+            }
+        ],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+
+    assert answer is not None
+    assert answer.startswith("Datos clave:")
+    assert trace["llm_used"] == "false"
+    assert trace["llm_endpoint"] == "local_evidence_lexicalizer"
+
+
+def test_llm_provider_clinical_focus_mode_repairs_truncated_answer_with_lexicalizer(
+    monkeypatch,
+):
+    def fake_request(*, endpoint, payload, timeout_seconds=None):  # noqa: ARG001
+        return {
+            "message": {
+                "content": (
+                    "**Datos clave:** Paciente con dolor agudo postoperatorio.\n\n"
+                    "**Acciones iniciales:** Evaluar intensidad de dolor con escala"
+                )
+            },
+            "done_reason": "length",
+        }
+
+    monkeypatch.setattr("app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_ENABLED", True)
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_PROVIDER",
+        "ollama",
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_NATIVE_STYLE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(
+        "app.services.llm_chat_provider.settings.CLINICAL_CHAT_LLM_CLINICAL_FOCUS_MODE_ENABLED",
+        True,
+    )
+    monkeypatch.setattr(LLMChatProvider, "_request_ollama_json", staticmethod(fake_request))
+
+    answer, trace = LLMChatProvider.generate_answer(
+        query="Paciente con dolor agudo postoperatorio: datos clave y escalado",
+        response_mode="clinical",
+        effective_specialty="anesthesiology",
+        tool_mode="chat",
+        matched_domains=["anesthesiology"],
+        matched_endpoints=[],
+        memory_facts_used=[],
+        patient_summary=None,
+        patient_history_facts_used=[],
+        knowledge_sources=[
+            {
+                "title": "Anestesiologia",
+                "source": "docs/pdf_raw/anesthesiology/guiaDAPpdf.pdf",
+                "snippet": (
+                    "Evaluar la intensidad de dolor con escala estandarizada y "
+                    "reevaluar la respuesta al tratamiento."
+                ),
+            }
+        ],
+        web_sources=[],
+        recent_dialogue=[],
+        endpoint_results=[],
+    )
+
+    assert answer is not None
+    assert answer.startswith("Datos clave:")
+    assert trace["llm_used"] == "true"
+    assert trace["llm_post_repair"] == "lexicalizer"
 
 
 def test_llm_provider_circuit_breaker_short_circuits_after_failures(monkeypatch):
@@ -1581,7 +2078,7 @@ def test_chat_e2e_forces_structured_fallback_when_llm_answer_is_generic(client, 
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["answer"].startswith("Plan operativo inicial")
+    assert payload["answer"].startswith("Resumen operativo basado en evidencia interna")
     assert any(
         item in {
             "llm_quality_gate=short_or_generic_fallback",
@@ -1932,7 +2429,7 @@ def test_chat_e2e_quality_gate_applies_to_rag_answer_too(client, monkeypatch):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["answer"].startswith("Plan operativo inicial")
+    assert payload["answer"].startswith("Resumen operativo basado en evidencia interna")
     assert any(
         item in {
             "llm_quality_gate=short_or_generic_fallback",
@@ -2012,7 +2509,7 @@ def test_chat_e2e_fallback_when_rag_validation_warns(client, monkeypatch):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["answer"].startswith("Plan operativo inicial")
+    assert payload["answer"].startswith("Resumen operativo basado en evidencia interna")
     assert "llm_quality_gate=rag_validation_warning_fallback" in payload["interpretability_trace"]
 
 
@@ -2768,7 +3265,7 @@ def test_chat_e2e_skips_second_llm_when_rag_failed_retrieval(client, monkeypatch
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["answer"].startswith("Plan operativo inicial")
+    assert payload["answer"].startswith("Resumen operativo basado en evidencia interna")
     assert "llm_second_pass_skipped=rag_failed_retrieval" in payload["interpretability_trace"]
 
 
